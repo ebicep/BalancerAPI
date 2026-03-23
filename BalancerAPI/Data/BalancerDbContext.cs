@@ -1,0 +1,281 @@
+using BalancerAPI.Data.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace BalancerAPI.Data;
+
+public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : DbContext(options)
+{
+    public DbSet<PlayerName> Names => Set<PlayerName>();
+    public DbSet<BaseWeight> BaseWeights => Set<BaseWeight>();
+    public DbSet<ExperimentalSpecLog> ExperimentalSpecLogs => Set<ExperimentalSpecLog>();
+    public DbSet<ExperimentalSpecWeight> ExperimentalSpecWeights => Set<ExperimentalSpecWeight>();
+    public DbSet<ExperimentalSpecWeightWeekly> ExperimentalSpecWeightsWeekly => Set<ExperimentalSpecWeightWeekly>();
+    public DbSet<ExperimentalSpecsWl> ExperimentalSpecsWl => Set<ExperimentalSpecsWl>();
+    public DbSet<ExperimentalSpecsWlWeekly> ExperimentalSpecsWlWeekly => Set<ExperimentalSpecsWlWeekly>();
+    public DbSet<ExperimentalSpecsWlDaily> ExperimentalSpecsWlDaily => Set<ExperimentalSpecsWlDaily>();
+    public DbSet<TimeWeek> TimeWeeks => Set<TimeWeek>();
+    public DbSet<TimeDay> TimeDays => Set<TimeDay>();
+    public DbSet<AdjustLogWeekly> AdjustLogWeekly => Set<AdjustLogWeekly>();
+    public DbSet<AdjustLogDaily> AdjustLogDaily => Set<AdjustLogDaily>();
+    public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        ConfigureNames(modelBuilder);
+        ConfigureBaseWeights(modelBuilder);
+        ConfigureExperimentalSpecLogs(modelBuilder);
+        ConfigureExperimentalSpecWeights(modelBuilder);
+        ConfigureExperimentalSpecWeightsWeekly(modelBuilder);
+        ConfigureExperimentalSpecsWl(modelBuilder);
+        ConfigureExperimentalSpecsWlWeekly(modelBuilder);
+        ConfigureExperimentalSpecsWlDaily(modelBuilder);
+        ConfigureTimeWeek(modelBuilder);
+        ConfigureTimeDay(modelBuilder);
+        ConfigureAdjustLogWeekly(modelBuilder);
+        ConfigureAdjustLogDaily(modelBuilder);
+        ConfigureCurrentWeekView(modelBuilder);
+    }
+
+    private static void ConfigureNames(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PlayerName>(entity =>
+        {
+            entity.ToTable("names");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(16);
+        });
+    }
+
+    private static void ConfigureBaseWeights(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<BaseWeight>(entity =>
+        {
+            entity.ToTable("base_weights");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Weight).HasColumnName("weight");
+        });
+    }
+
+    private static void ConfigureExperimentalSpecLogs(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecLog>(entity =>
+        {
+            entity.ToTable("experimental_spec_logs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.Pyromancer).HasColumnName("pyromancer").HasMaxLength(36);
+            entity.Property(e => e.Cryomancer).HasColumnName("cryomancer").HasMaxLength(36);
+            entity.Property(e => e.Aquamancer).HasColumnName("aquamancer").HasMaxLength(36);
+            entity.Property(e => e.Berserker).HasColumnName("berserker").HasMaxLength(36);
+            entity.Property(e => e.Defender).HasColumnName("defender").HasMaxLength(36);
+            entity.Property(e => e.Revenant).HasColumnName("revenant").HasMaxLength(36);
+            entity.Property(e => e.Avenger).HasColumnName("avenger").HasMaxLength(36);
+            entity.Property(e => e.Crusader).HasColumnName("crusader").HasMaxLength(36);
+            entity.Property(e => e.Protector).HasColumnName("protector").HasMaxLength(36);
+            entity.Property(e => e.Thunderlord).HasColumnName("thunderlord").HasMaxLength(36);
+            entity.Property(e => e.Spiritguard).HasColumnName("spiritguard").HasMaxLength(36);
+            entity.Property(e => e.Earthwarden).HasColumnName("earthwarden").HasMaxLength(36);
+            entity.Property(e => e.Assassin).HasColumnName("assassin").HasMaxLength(36);
+            entity.Property(e => e.Vindicator).HasColumnName("vindicator").HasMaxLength(36);
+            entity.Property(e => e.Apothecary).HasColumnName("apothecary").HasMaxLength(36);
+            entity.Property(e => e.Conjurer).HasColumnName("conjurer").HasMaxLength(36);
+            entity.Property(e => e.Sentinel).HasColumnName("sentinel").HasMaxLength(36);
+            entity.Property(e => e.Luminary).HasColumnName("luminary").HasMaxLength(36);
+        });
+    }
+
+    private static void ConfigureExperimentalSpecWeights(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecWeight>(entity =>
+        {
+            entity.ToTable("experimental_spec_weights");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.PyromancerOffset).HasColumnName("pyromancer_offset");
+            entity.Property(e => e.CryomancerOffset).HasColumnName("cryomancer_offset");
+            entity.Property(e => e.AquamancerOffset).HasColumnName("aquamancer_offset");
+            entity.Property(e => e.BerserkerOffset).HasColumnName("berserker_offset");
+            entity.Property(e => e.DefenderOffset).HasColumnName("defender_offset");
+            entity.Property(e => e.RevenantOffset).HasColumnName("revenant_offset");
+            entity.Property(e => e.AvengerOffset).HasColumnName("avenger_offset");
+            entity.Property(e => e.CrusaderOffset).HasColumnName("crusader_offset");
+            entity.Property(e => e.ProtectorOffset).HasColumnName("protector_offset");
+            entity.Property(e => e.ThunderlordOffset).HasColumnName("thunderlord_offset");
+            entity.Property(e => e.SpiritguardOffset).HasColumnName("spiritguard_offset");
+            entity.Property(e => e.EarthwardenOffset).HasColumnName("earthwarden_offset");
+            entity.Property(e => e.AssassinOffset).HasColumnName("assassin_offset");
+            entity.Property(e => e.VindicatorOffset).HasColumnName("vindicator_offset");
+            entity.Property(e => e.ApothecaryOffset).HasColumnName("apothecary_offset");
+            entity.Property(e => e.ConjurerOffset).HasColumnName("conjurer_offset");
+            entity.Property(e => e.SentinelOffset).HasColumnName("sentinel_offset");
+            entity.Property(e => e.LuminaryOffset).HasColumnName("luminary_offset");
+            entity.Property(e => e.LastUpdated).HasColumnName("last_updated");
+        });
+    }
+
+    private static void ConfigureExperimentalSpecWeightsWeekly(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecWeightWeekly>(entity =>
+        {
+            entity.ToTable("experimental_spec_weights_weekly");
+            entity.HasKey(e => new { e.Uuid, e.WeekStartDate });
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date");
+            entity.Property(e => e.PyromancerOffset).HasColumnName("pyromancer_offset");
+            entity.Property(e => e.CryomancerOffset).HasColumnName("cryomancer_offset");
+            entity.Property(e => e.AquamancerOffset).HasColumnName("aquamancer_offset");
+            entity.Property(e => e.BerserkerOffset).HasColumnName("berserker_offset");
+            entity.Property(e => e.DefenderOffset).HasColumnName("defender_offset");
+            entity.Property(e => e.RevenantOffset).HasColumnName("revenant_offset");
+            entity.Property(e => e.AvengerOffset).HasColumnName("avenger_offset");
+            entity.Property(e => e.CrusaderOffset).HasColumnName("crusader_offset");
+            entity.Property(e => e.ProtectorOffset).HasColumnName("protector_offset");
+            entity.Property(e => e.ThunderlordOffset).HasColumnName("thunderlord_offset");
+            entity.Property(e => e.SpiritguardOffset).HasColumnName("spiritguard_offset");
+            entity.Property(e => e.EarthwardenOffset).HasColumnName("earthwarden_offset");
+            entity.Property(e => e.AssassinOffset).HasColumnName("assassin_offset");
+            entity.Property(e => e.VindicatorOffset).HasColumnName("vindicator_offset");
+            entity.Property(e => e.ApothecaryOffset).HasColumnName("apothecary_offset");
+            entity.Property(e => e.ConjurerOffset).HasColumnName("conjurer_offset");
+            entity.Property(e => e.SentinelOffset).HasColumnName("sentinel_offset");
+            entity.Property(e => e.LuminaryOffset).HasColumnName("luminary_offset");
+        });
+    }
+
+    private static void ConfigureExperimentalSpecsWl(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWl>(entity =>
+        {
+            entity.ToTable("experimental_specs_wl");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            ConfigureWlColumns(entity);
+        });
+    }
+
+    private static void ConfigureExperimentalSpecsWlWeekly(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlWeekly>(entity =>
+        {
+            entity.ToTable("experimental_specs_wl_weekly");
+            entity.HasKey(e => new { e.Uuid, e.WeekStartDate });
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date");
+            ConfigureWlColumns(entity);
+        });
+    }
+
+    private static void ConfigureExperimentalSpecsWlDaily(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlDaily>(entity =>
+        {
+            entity.ToTable("experimental_specs_wl_daily");
+            entity.HasKey(e => new { e.Uuid, e.DayStartDate });
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.DayStartDate).HasColumnName("day_start_date");
+            ConfigureWlColumns(entity);
+        });
+    }
+
+    private static void ConfigureTimeWeek(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TimeWeek>(entity =>
+        {
+            entity.ToTable("time_week");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(e => e.Timestamp).HasColumnName("timestamp");
+        });
+    }
+
+    private static void ConfigureTimeDay(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TimeDay>(entity =>
+        {
+            entity.ToTable("time_day");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(e => e.Timestamp).HasColumnName("timestamp");
+        });
+    }
+
+    private static void ConfigureAdjustLogWeekly(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AdjustLogWeekly>(entity =>
+        {
+            entity.ToTable("adjust_log_weekly");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Pyromancer).HasColumnName("pyromancer");
+            entity.Property(e => e.Cryomancer).HasColumnName("cryomancer");
+            entity.Property(e => e.Aquamancer).HasColumnName("aquamancer");
+            entity.Property(e => e.Berserker).HasColumnName("berserker");
+            entity.Property(e => e.Defender).HasColumnName("defender");
+            entity.Property(e => e.Revenant).HasColumnName("revenant");
+            entity.Property(e => e.Avenger).HasColumnName("avenger");
+            entity.Property(e => e.Crusader).HasColumnName("crusader");
+            entity.Property(e => e.Protector).HasColumnName("protector");
+            entity.Property(e => e.Thunderlord).HasColumnName("thunderlord");
+            entity.Property(e => e.Spiritguard).HasColumnName("spiritguard");
+            entity.Property(e => e.Earthwarden).HasColumnName("earthwarden");
+            entity.Property(e => e.Assassin).HasColumnName("assassin");
+            entity.Property(e => e.Vindicator).HasColumnName("vindicator");
+            entity.Property(e => e.Apothecary).HasColumnName("apothecary");
+            entity.Property(e => e.Conjurer).HasColumnName("conjurer");
+            entity.Property(e => e.Sentinel).HasColumnName("sentinel");
+            entity.Property(e => e.Luminary).HasColumnName("luminary");
+        });
+    }
+
+    private static void ConfigureAdjustLogDaily(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AdjustLogDaily>(entity =>
+        {
+            entity.ToTable("adjust_log_daily");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Adjustment).HasColumnName("adjustment");
+        });
+    }
+
+    private static void ConfigureCurrentWeekView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlCurrentWeek>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_specs_wl_current_week");
+            entity.Property(e => e.Uuid).HasColumnName("uuid");
+            ConfigureWlColumns(entity);
+        });
+    }
+
+    /// <summary>
+    /// Shared column mapping for all WL stat entities (wins/losses/kills/deaths per spec).
+    /// Uses dynamic type to work with any entity builder that has the same property names.
+    /// </summary>
+    private static void ConfigureWlColumns<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T> entity)
+        where T : class
+    {
+        var specs = new[]
+        {
+            "Pyromancer", "Cryomancer", "Aquamancer", "Berserker", "Defender", "Revenant",
+            "Avenger", "Crusader", "Protector", "Thunderlord", "Spiritguard", "Earthwarden",
+            "Assassin", "Vindicator", "Apothecary", "Conjurer", "Sentinel", "Luminary"
+        };
+        var stats = new[] { "Wins", "Losses", "Kills", "Deaths" };
+
+        foreach (var spec in specs)
+        {
+            foreach (var stat in stats)
+            {
+                var propertyName = $"{spec}{stat}";
+                var columnName = $"{spec.ToLowerInvariant()}_{stat.ToLowerInvariant()}";
+                entity.Property(typeof(int), propertyName).HasColumnName(columnName);
+            }
+        }
+    }
+}
