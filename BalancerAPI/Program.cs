@@ -9,6 +9,7 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<BalancerDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddScoped<ITimeService, TimeService>();
 builder.Services.AddHttpClient<INameUpdateService, NameUpdateService>(client =>
 {
     client.BaseAddress = new Uri("https://sessionserver.mojang.com/");
