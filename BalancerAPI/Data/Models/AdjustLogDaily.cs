@@ -2,6 +2,6 @@ namespace BalancerAPI.Data.Models;
 
 public class AdjustLogDaily
 {
-    public required string Uuid { get; set; }
+    public required Guid Uuid { get; set; }
     public int Adjustment { get; set; }
 }

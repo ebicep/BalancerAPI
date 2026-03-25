@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -15,7 +15,7 @@ namespace BalancerAPI.Migrations
                 name: "adjust_log_daily",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     adjustment = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
@@ -27,7 +27,7 @@ namespace BalancerAPI.Migrations
                 name: "adjust_log_weekly",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     pyromancer = table.Column<int>(type: "integer", nullable: false),
                     cryomancer = table.Column<int>(type: "integer", nullable: false),
                     aquamancer = table.Column<int>(type: "integer", nullable: false),
@@ -56,7 +56,7 @@ namespace BalancerAPI.Migrations
                 name: "base_weights",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     weight = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
@@ -69,24 +69,24 @@ namespace BalancerAPI.Migrations
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false, defaultValueSql: "gen_random_uuid()"),
-                    pyromancer = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    cryomancer = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    aquamancer = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    berserker = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    defender = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    revenant = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    avenger = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    crusader = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    protector = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    thunderlord = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    spiritguard = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    earthwarden = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    assassin = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    vindicator = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    apothecary = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    conjurer = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    sentinel = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
-                    luminary = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true)
+                    pyromancer = table.Column<Guid>(type: "uuid", nullable: true),
+                    cryomancer = table.Column<Guid>(type: "uuid", nullable: true),
+                    aquamancer = table.Column<Guid>(type: "uuid", nullable: true),
+                    berserker = table.Column<Guid>(type: "uuid", nullable: true),
+                    defender = table.Column<Guid>(type: "uuid", nullable: true),
+                    revenant = table.Column<Guid>(type: "uuid", nullable: true),
+                    avenger = table.Column<Guid>(type: "uuid", nullable: true),
+                    crusader = table.Column<Guid>(type: "uuid", nullable: true),
+                    protector = table.Column<Guid>(type: "uuid", nullable: true),
+                    thunderlord = table.Column<Guid>(type: "uuid", nullable: true),
+                    spiritguard = table.Column<Guid>(type: "uuid", nullable: true),
+                    earthwarden = table.Column<Guid>(type: "uuid", nullable: true),
+                    assassin = table.Column<Guid>(type: "uuid", nullable: true),
+                    vindicator = table.Column<Guid>(type: "uuid", nullable: true),
+                    apothecary = table.Column<Guid>(type: "uuid", nullable: true),
+                    conjurer = table.Column<Guid>(type: "uuid", nullable: true),
+                    sentinel = table.Column<Guid>(type: "uuid", nullable: true),
+                    luminary = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -97,7 +97,7 @@ namespace BalancerAPI.Migrations
                 name: "experimental_spec_weights",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     pyromancer_offset = table.Column<int>(type: "integer", nullable: false),
                     cryomancer_offset = table.Column<int>(type: "integer", nullable: false),
                     aquamancer_offset = table.Column<int>(type: "integer", nullable: false),
@@ -127,7 +127,7 @@ namespace BalancerAPI.Migrations
                 name: "experimental_spec_weights_weekly",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     week_start_date = table.Column<int>(type: "integer", nullable: false),
                     pyromancer_offset = table.Column<int>(type: "integer", nullable: false),
                     cryomancer_offset = table.Column<int>(type: "integer", nullable: false),
@@ -157,7 +157,7 @@ namespace BalancerAPI.Migrations
                 name: "experimental_specs_wl",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     pyromancer_wins = table.Column<int>(type: "integer", nullable: false),
                     pyromancer_losses = table.Column<int>(type: "integer", nullable: false),
                     pyromancer_kills = table.Column<int>(type: "integer", nullable: false),
@@ -240,7 +240,7 @@ namespace BalancerAPI.Migrations
                 name: "experimental_specs_wl_daily",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     day_start_date = table.Column<int>(type: "integer", nullable: false),
                     pyromancer_wins = table.Column<int>(type: "integer", nullable: false),
                     pyromancer_losses = table.Column<int>(type: "integer", nullable: false),
@@ -324,7 +324,7 @@ namespace BalancerAPI.Migrations
                 name: "experimental_specs_wl_weekly",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     week_start_date = table.Column<int>(type: "integer", nullable: false),
                     pyromancer_wins = table.Column<int>(type: "integer", nullable: false),
                     pyromancer_losses = table.Column<int>(type: "integer", nullable: false),
@@ -408,8 +408,9 @@ namespace BalancerAPI.Migrations
                 name: "names",
                 columns: table => new
                 {
-                    uuid = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
-                    name = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false)
+                    uuid = table.Column<Guid>(type: "uuid", nullable: false),
+                    name = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    previous_names = table.Column<string[]>(type: "character varying(16)[]", nullable: false, defaultValueSql: "'{}'::character varying[]")
                 },
                 constraints: table =>
                 {

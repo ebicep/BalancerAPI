@@ -44,8 +44,12 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("names");
             entity.HasKey(e => e.Uuid);
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(16);
+            entity.Property(e => e.PreviousNames)
+                .HasColumnName("previous_names")
+                .HasColumnType("character varying(16)[]")
+                .HasDefaultValueSql("'{}'::character varying[]");
         });
     }
 
@@ -55,7 +59,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("base_weights");
             entity.HasKey(e => e.Uuid);
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Weight).HasColumnName("weight");
         });
     }
@@ -67,24 +71,24 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.ToTable("experimental_spec_logs");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Pyromancer).HasColumnName("pyromancer").HasMaxLength(36);
-            entity.Property(e => e.Cryomancer).HasColumnName("cryomancer").HasMaxLength(36);
-            entity.Property(e => e.Aquamancer).HasColumnName("aquamancer").HasMaxLength(36);
-            entity.Property(e => e.Berserker).HasColumnName("berserker").HasMaxLength(36);
-            entity.Property(e => e.Defender).HasColumnName("defender").HasMaxLength(36);
-            entity.Property(e => e.Revenant).HasColumnName("revenant").HasMaxLength(36);
-            entity.Property(e => e.Avenger).HasColumnName("avenger").HasMaxLength(36);
-            entity.Property(e => e.Crusader).HasColumnName("crusader").HasMaxLength(36);
-            entity.Property(e => e.Protector).HasColumnName("protector").HasMaxLength(36);
-            entity.Property(e => e.Thunderlord).HasColumnName("thunderlord").HasMaxLength(36);
-            entity.Property(e => e.Spiritguard).HasColumnName("spiritguard").HasMaxLength(36);
-            entity.Property(e => e.Earthwarden).HasColumnName("earthwarden").HasMaxLength(36);
-            entity.Property(e => e.Assassin).HasColumnName("assassin").HasMaxLength(36);
-            entity.Property(e => e.Vindicator).HasColumnName("vindicator").HasMaxLength(36);
-            entity.Property(e => e.Apothecary).HasColumnName("apothecary").HasMaxLength(36);
-            entity.Property(e => e.Conjurer).HasColumnName("conjurer").HasMaxLength(36);
-            entity.Property(e => e.Sentinel).HasColumnName("sentinel").HasMaxLength(36);
-            entity.Property(e => e.Luminary).HasColumnName("luminary").HasMaxLength(36);
+            entity.Property(e => e.Pyromancer).HasColumnName("pyromancer").HasColumnType("uuid");
+            entity.Property(e => e.Cryomancer).HasColumnName("cryomancer").HasColumnType("uuid");
+            entity.Property(e => e.Aquamancer).HasColumnName("aquamancer").HasColumnType("uuid");
+            entity.Property(e => e.Berserker).HasColumnName("berserker").HasColumnType("uuid");
+            entity.Property(e => e.Defender).HasColumnName("defender").HasColumnType("uuid");
+            entity.Property(e => e.Revenant).HasColumnName("revenant").HasColumnType("uuid");
+            entity.Property(e => e.Avenger).HasColumnName("avenger").HasColumnType("uuid");
+            entity.Property(e => e.Crusader).HasColumnName("crusader").HasColumnType("uuid");
+            entity.Property(e => e.Protector).HasColumnName("protector").HasColumnType("uuid");
+            entity.Property(e => e.Thunderlord).HasColumnName("thunderlord").HasColumnType("uuid");
+            entity.Property(e => e.Spiritguard).HasColumnName("spiritguard").HasColumnType("uuid");
+            entity.Property(e => e.Earthwarden).HasColumnName("earthwarden").HasColumnType("uuid");
+            entity.Property(e => e.Assassin).HasColumnName("assassin").HasColumnType("uuid");
+            entity.Property(e => e.Vindicator).HasColumnName("vindicator").HasColumnType("uuid");
+            entity.Property(e => e.Apothecary).HasColumnName("apothecary").HasColumnType("uuid");
+            entity.Property(e => e.Conjurer).HasColumnName("conjurer").HasColumnType("uuid");
+            entity.Property(e => e.Sentinel).HasColumnName("sentinel").HasColumnType("uuid");
+            entity.Property(e => e.Luminary).HasColumnName("luminary").HasColumnType("uuid");
         });
     }
 
@@ -94,7 +98,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("experimental_spec_weights");
             entity.HasKey(e => e.Uuid);
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.PyromancerOffset).HasColumnName("pyromancer_offset");
             entity.Property(e => e.CryomancerOffset).HasColumnName("cryomancer_offset");
             entity.Property(e => e.AquamancerOffset).HasColumnName("aquamancer_offset");
@@ -123,7 +127,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("experimental_spec_weights_weekly");
             entity.HasKey(e => new { e.Uuid, e.WeekStartDate });
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date");
             entity.Property(e => e.PyromancerOffset).HasColumnName("pyromancer_offset");
             entity.Property(e => e.CryomancerOffset).HasColumnName("cryomancer_offset");
@@ -152,7 +156,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("experimental_specs_wl");
             entity.HasKey(e => e.Uuid);
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             ConfigureWlColumns(entity);
         });
     }
@@ -163,7 +167,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("experimental_specs_wl_weekly");
             entity.HasKey(e => new { e.Uuid, e.WeekStartDate });
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date");
             ConfigureWlColumns(entity);
         });
@@ -175,7 +179,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("experimental_specs_wl_daily");
             entity.HasKey(e => new { e.Uuid, e.DayStartDate });
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.DayStartDate).HasColumnName("day_start_date");
             ConfigureWlColumns(entity);
         });
@@ -209,7 +213,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("adjust_log_weekly");
             entity.HasKey(e => e.Uuid);
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Pyromancer).HasColumnName("pyromancer");
             entity.Property(e => e.Cryomancer).HasColumnName("cryomancer");
             entity.Property(e => e.Aquamancer).HasColumnName("aquamancer");
@@ -237,7 +241,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.ToTable("adjust_log_daily");
             entity.HasKey(e => e.Uuid);
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasMaxLength(36);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Adjustment).HasColumnName("adjustment");
         });
     }
@@ -248,7 +252,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.HasNoKey();
             entity.ToView("experimental_specs_wl_current_week");
-            entity.Property(e => e.Uuid).HasColumnName("uuid");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             ConfigureWlColumns(entity);
         });
     }
@@ -279,3 +283,4 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         }
     }
 }
+

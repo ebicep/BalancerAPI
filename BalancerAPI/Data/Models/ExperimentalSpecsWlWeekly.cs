@@ -5,7 +5,7 @@ namespace BalancerAPI.Data.Models;
 /// </summary>
 public class ExperimentalSpecsWlWeekly
 {
-    public required string Uuid { get; set; }
+    public required Guid Uuid { get; set; }
     public int WeekStartDate { get; set; }
 
     public int PyromancerWins { get; set; }

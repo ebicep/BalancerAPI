@@ -24,9 +24,9 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.AdjustLogDaily", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("Adjustment")
@@ -40,9 +40,9 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.AdjustLogWeekly", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("Apothecary")
@@ -124,9 +124,9 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.BaseWeight", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("Weight")
@@ -146,94 +146,76 @@ namespace BalancerAPI.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<string>("Apothecary")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Apothecary")
+                        .HasColumnType("uuid")
                         .HasColumnName("apothecary");
 
-                    b.Property<string>("Aquamancer")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Aquamancer")
+                        .HasColumnType("uuid")
                         .HasColumnName("aquamancer");
 
-                    b.Property<string>("Assassin")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Assassin")
+                        .HasColumnType("uuid")
                         .HasColumnName("assassin");
 
-                    b.Property<string>("Avenger")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Avenger")
+                        .HasColumnType("uuid")
                         .HasColumnName("avenger");
 
-                    b.Property<string>("Berserker")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Berserker")
+                        .HasColumnType("uuid")
                         .HasColumnName("berserker");
 
-                    b.Property<string>("Conjurer")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Conjurer")
+                        .HasColumnType("uuid")
                         .HasColumnName("conjurer");
 
-                    b.Property<string>("Crusader")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Crusader")
+                        .HasColumnType("uuid")
                         .HasColumnName("crusader");
 
-                    b.Property<string>("Cryomancer")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Cryomancer")
+                        .HasColumnType("uuid")
                         .HasColumnName("cryomancer");
 
-                    b.Property<string>("Defender")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Defender")
+                        .HasColumnType("uuid")
                         .HasColumnName("defender");
 
-                    b.Property<string>("Earthwarden")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Earthwarden")
+                        .HasColumnType("uuid")
                         .HasColumnName("earthwarden");
 
-                    b.Property<string>("Luminary")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Luminary")
+                        .HasColumnType("uuid")
                         .HasColumnName("luminary");
 
-                    b.Property<string>("Protector")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Protector")
+                        .HasColumnType("uuid")
                         .HasColumnName("protector");
 
-                    b.Property<string>("Pyromancer")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Pyromancer")
+                        .HasColumnType("uuid")
                         .HasColumnName("pyromancer");
 
-                    b.Property<string>("Revenant")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Revenant")
+                        .HasColumnType("uuid")
                         .HasColumnName("revenant");
 
-                    b.Property<string>("Sentinel")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Sentinel")
+                        .HasColumnType("uuid")
                         .HasColumnName("sentinel");
 
-                    b.Property<string>("Spiritguard")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Spiritguard")
+                        .HasColumnType("uuid")
                         .HasColumnName("spiritguard");
 
-                    b.Property<string>("Thunderlord")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Thunderlord")
+                        .HasColumnType("uuid")
                         .HasColumnName("thunderlord");
 
-                    b.Property<string>("Vindicator")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid?>("Vindicator")
+                        .HasColumnType("uuid")
                         .HasColumnName("vindicator");
 
                     b.HasKey("Id");
@@ -243,9 +225,9 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.ExperimentalSpecWeight", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("ApothecaryOffset")
@@ -331,9 +313,8 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.ExperimentalSpecWeightWeekly", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("WeekStartDate")
@@ -419,9 +400,9 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.ExperimentalSpecsWl", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("ApothecaryDeaths")
@@ -991,9 +972,8 @@ namespace BalancerAPI.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("thunderlord_wins");
 
-                    b.Property<string>("Uuid")
-                        .IsRequired()
-                        .HasColumnType("text")
+                    b.Property<Guid>("Uuid")
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("VindicatorDeaths")
@@ -1019,9 +999,8 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.ExperimentalSpecsWlDaily", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("DayStartDate")
@@ -1323,9 +1302,8 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.ExperimentalSpecsWlWeekly", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<int>("WeekStartDate")
@@ -1627,9 +1605,9 @@ namespace BalancerAPI.Migrations
 
             modelBuilder.Entity("BalancerAPI.Data.Models.PlayerName", b =>
                 {
-                    b.Property<string>("Uuid")
-                        .HasMaxLength(36)
-                        .HasColumnType("character varying(36)")
+                    b.Property<Guid>("Uuid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
                         .HasColumnName("uuid");
 
                     b.Property<string>("Name")
@@ -1637,6 +1615,13 @@ namespace BalancerAPI.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("name");
+
+                    b.PrimitiveCollection<string[]>("PreviousNames")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("character varying(16)[]")
+                        .HasColumnName("previous_names")
+                        .HasDefaultValueSql("'{}'::character varying[]");
 
                     b.HasKey("Uuid");
 

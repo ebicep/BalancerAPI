@@ -2,7 +2,7 @@ namespace BalancerAPI.Data.Models;
 
 public class ExperimentalSpecWeight
 {
-    public required string Uuid { get; set; }
+    public required Guid Uuid { get; set; }
 
     public int PyromancerOffset { get; set; }
     public int CryomancerOffset { get; set; }
