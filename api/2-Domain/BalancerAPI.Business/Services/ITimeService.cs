@@ -1,4 +1,4 @@
-namespace BalancerAPI.Services;
+namespace BalancerAPI.Business.Services;
 
 public interface ITimeService
 {

@@ -1,8 +1,8 @@
-using BalancerAPI.Data;
+using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace BalancerAPI.Services;
+namespace BalancerAPI.Business.Services;
 
 public sealed record NewDayResponse(int NewDay);
 
@@ -51,9 +51,8 @@ public sealed class TimeService(BalancerDbContext dbContext) : ITimeService
 
 internal static class EasternTime
 {
-    internal static DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Zone);
-
     private static readonly TimeZoneInfo Zone = ResolveEasternTimeZone();
+    internal static DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Zone);
 
     private static TimeZoneInfo ResolveEasternTimeZone()
     {

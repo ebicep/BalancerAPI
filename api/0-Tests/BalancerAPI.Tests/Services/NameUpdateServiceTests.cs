@@ -1,8 +1,7 @@
 using System.Net;
-using System.Net.Http;
-using BalancerAPI.Data;
+using BalancerAPI.Business.Services;
+using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
-using BalancerAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Moq.Protected;
@@ -11,8 +10,8 @@ namespace BalancerAPI.Tests.Services;
 
 public class NameUpdateServiceTests
 {
-    private static readonly Guid KnownUuid = Guid.Parse("9f2b2230-3b2c-4b0f-a141-d7b598e236c7");
     private const string KnownUuidNoDash = "9f2b22303b2c4b0fa141d7b598e236c7";
+    private static readonly Guid KnownUuid = Guid.Parse("9f2b2230-3b2c-4b0f-a141-d7b598e236c7");
 
     [Fact]
     public async Task UpdateNamesAsync_WhenNameUnchanged_ReturnsNoUpdates()

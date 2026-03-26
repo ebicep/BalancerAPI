@@ -1,7 +1,7 @@
-using BalancerAPI.Data;
+using BalancerAPI.Data.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace BalancerAPI.Services;
+namespace BalancerAPI.Business.Services;
 
 public interface ISpecWeightsService
 {

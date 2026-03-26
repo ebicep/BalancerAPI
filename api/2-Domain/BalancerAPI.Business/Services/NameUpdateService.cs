@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
-using BalancerAPI.Data;
+using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace BalancerAPI.Services;
+namespace BalancerAPI.Business.Services;
 
 public interface INameUpdateService
 {

@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
-using BalancerAPI.Data;
+using BalancerAPI.Business.Services;
+using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
-using BalancerAPI.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -13,11 +13,11 @@ namespace BalancerAPI.Tests.Smoke;
 
 public sealed class NamesEndpointSmokeTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly WebApplicationFactory<Program> _factory;
 
     public NamesEndpointSmokeTests(WebApplicationFactory<Program> factory)
     {
-        this.factory = factory;
+        _factory = factory;
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class NamesEndpointSmokeTests : IClassFixture<WebApplicationFactor
 
         var dbRoot = new InMemoryDatabaseRoot();
         var databaseName = $"smoke-{Guid.NewGuid()}";
-        var app = factory.WithWebHostBuilder(builder =>
+        var app = _factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {

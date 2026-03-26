@@ -1,7 +1,8 @@
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace BalancerAPI.Data;
+namespace BalancerAPI.Data.Data;
 
 public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : DbContext(options)
 {
@@ -261,7 +262,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     /// Shared column mapping for all WL stat entities (wins/losses/kills/deaths per spec).
     /// Uses dynamic type to work with any entity builder that has the same property names.
     /// </summary>
-    private static void ConfigureWlColumns<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T> entity)
+    private static void ConfigureWlColumns<T>(EntityTypeBuilder<T> entity)
         where T : class
     {
         var specs = new[]
@@ -283,4 +284,3 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         }
     }
 }
-

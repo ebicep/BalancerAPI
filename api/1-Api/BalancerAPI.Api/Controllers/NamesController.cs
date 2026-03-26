@@ -1,13 +1,17 @@
-using BalancerAPI.Services;
+using Asp.Versioning;
+using BalancerAPI.Business.Services;
 using Microsoft.AspNetCore.Mvc;
 
-namespace BalancerAPI.Controllers;
+namespace BalancerAPI.Api.Controllers;
 
+[ApiVersion("1.0")]
 [ApiController]
 [Route("names")]
 public class NamesController(INameUpdateService nameUpdateService) : ControllerBase
 {
     [HttpPost("update")]
+    [MapToApiVersion("1.0")]
+    [ProducesResponseType(typeof(UpdateNamesResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<UpdateNamesResponse>> Update(CancellationToken cancellationToken)
     {
         var updated = await nameUpdateService.UpdateNamesAsync(cancellationToken);

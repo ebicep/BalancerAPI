@@ -26,4 +26,3 @@ public class ExperimentalSpecLog
     public Guid? Sentinel { get; set; }
     public Guid? Luminary { get; set; }
 }
-

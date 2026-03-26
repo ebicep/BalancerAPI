@@ -1,5 +1,5 @@
-using BalancerAPI.Controllers;
-using BalancerAPI.Services;
+using BalancerAPI.Api.Controllers;
+using BalancerAPI.Business.Services;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 

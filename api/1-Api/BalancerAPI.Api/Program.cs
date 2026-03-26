@@ -1,10 +1,18 @@
-using BalancerAPI.Data;
-using BalancerAPI.Services;
+using Asp.Versioning;
+using BalancerAPI.Business.Services;
+using BalancerAPI.Data.Data;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = new QueryStringApiVersionReader("api-version");
+});
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<BalancerDbContext>(options =>
@@ -31,5 +39,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-public partial class Program;

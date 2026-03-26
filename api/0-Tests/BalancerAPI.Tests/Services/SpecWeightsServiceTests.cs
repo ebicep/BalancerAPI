@@ -1,6 +1,6 @@
-using BalancerAPI.Data;
+using BalancerAPI.Business.Services;
+using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
-using BalancerAPI.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace BalancerAPI.Tests.Services;
