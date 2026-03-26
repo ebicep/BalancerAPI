@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\2-Domain\BalancerAPI.Business\BalancerAPI.Business.csproj" />
+    <ProjectReference Include="..\..\2-Domain\BalancerAPI.Domain\BalancerAPI.Domain.csproj" />
+    <ProjectReference Include="..\..\3-DataAccess\BalancerAPI.Data\BalancerAPI.Data.csproj" />
+    <ProjectReference Include="..\..\4-Infrastructure\BalancerAPI.Common\BalancerAPI.Common.csproj" />
+  </ItemGroup>
+
+</Project>
