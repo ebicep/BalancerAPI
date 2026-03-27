@@ -16,6 +16,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalSpecsWlDaily> ExperimentalSpecsWlDaily => Set<ExperimentalSpecsWlDaily>();
     public DbSet<TimeWeek> TimeWeeks => Set<TimeWeek>();
     public DbSet<TimeDay> TimeDays => Set<TimeDay>();
+    public DbSet<TimeSeason> TimeSeasons => Set<TimeSeason>();
     public DbSet<AdjustLogWeekly> AdjustLogWeekly => Set<AdjustLogWeekly>();
     public DbSet<AdjustLogDaily> AdjustLogDaily => Set<AdjustLogDaily>();
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
@@ -34,6 +35,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureExperimentalSpecsWlDaily(modelBuilder);
         ConfigureTimeWeek(modelBuilder);
         ConfigureTimeDay(modelBuilder);
+        ConfigureTimeSeason(modelBuilder);
         ConfigureAdjustLogWeekly(modelBuilder);
         ConfigureAdjustLogDaily(modelBuilder);
         ConfigureCurrentWeekView(modelBuilder);
@@ -202,6 +204,17 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         modelBuilder.Entity<TimeDay>(entity =>
         {
             entity.ToTable("time_day");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(e => e.Timestamp).HasColumnName("timestamp");
+        });
+    }
+
+    private static void ConfigureTimeSeason(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TimeSeason>(entity =>
+        {
+            entity.ToTable("time_season");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(e => e.Timestamp).HasColumnName("timestamp");

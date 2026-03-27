@@ -38,4 +38,54 @@ public class TimeControllerTests
         var response = Assert.IsType<NewWeekResponse>(ok.Value);
         Assert.Equal(7, response.NewWeek);
     }
+
+    [Fact]
+    public async Task NewSeason_ReturnsOkWithNewSeason()
+    {
+        var service = new Mock<ITimeService>();
+        var timestamp = new DateTime(2026, 3, 27, 12, 0, 0, DateTimeKind.Utc);
+        service.Setup(x => x.CreateNewSeasonAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((5, timestamp));
+
+        var controller = new TimeController(service.Object);
+
+        var result = await controller.NewSeason(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<NewSeasonResponse>(ok.Value);
+        Assert.Equal(5, response.Season);
+        Assert.Equal(timestamp, response.Timestamp);
+    }
+
+    [Fact]
+    public async Task GetSeason_WhenMissing_ReturnsNotFound()
+    {
+        var service = new Mock<ITimeService>();
+        service.Setup(x => x.GetLatestSeasonAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((int Season, DateTime Timestamp)?)null);
+
+        var controller = new TimeController(service.Object);
+
+        var result = await controller.GetSeason(CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetSeason_WhenPresent_ReturnsOkWithLatestSeason()
+    {
+        var service = new Mock<ITimeService>();
+        var timestamp = new DateTime(2026, 3, 27, 12, 0, 0, DateTimeKind.Utc);
+        service.Setup(x => x.GetLatestSeasonAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((int Season, DateTime Timestamp)?)(9, timestamp));
+
+        var controller = new TimeController(service.Object);
+
+        var result = await controller.GetSeason(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<LatestSeasonResponse>(ok.Value);
+        Assert.Equal(9, response.Season);
+        Assert.Equal(timestamp, response.Timestamp);
+    }
 }

@@ -8,6 +8,10 @@ public sealed record NewDayResponse(int NewDay);
 
 public sealed record NewWeekResponse(int NewWeek);
 
+public sealed record NewSeasonResponse(int Season, DateTime Timestamp);
+
+public sealed record LatestSeasonResponse(int Season, DateTime Timestamp);
+
 public sealed class TimeService(BalancerDbContext dbContext) : ITimeService
 {
     public async Task<int> CreateNewDayAsync(CancellationToken cancellationToken)
@@ -46,6 +50,35 @@ public sealed class TimeService(BalancerDbContext dbContext) : ITimeService
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return newId;
+    }
+
+    public async Task<(int Season, DateTime Timestamp)> CreateNewSeasonAsync(CancellationToken cancellationToken)
+    {
+        var maxId = await dbContext.TimeSeasons
+            .Select(x => (int?)x.Id)
+            .MaxAsync(cancellationToken);
+
+        var newId = (maxId ?? -1) + 1;
+        var timestamp = EasternTime.Now;
+
+        dbContext.TimeSeasons.Add(new TimeSeason
+        {
+            Id = newId,
+            Timestamp = timestamp
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return (newId, timestamp);
+    }
+
+    public async Task<(int Season, DateTime Timestamp)?> GetLatestSeasonAsync(CancellationToken cancellationToken)
+    {
+        var latest = await dbContext.TimeSeasons
+            .OrderByDescending(x => x.Id)
+            .Select(x => new { x.Id, x.Timestamp })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return latest is null ? null : (latest.Id, latest.Timestamp);
     }
 }
 

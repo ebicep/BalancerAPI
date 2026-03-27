@@ -1646,6 +1646,21 @@ namespace BalancerAPI.Migrations
                     b.ToTable("time_day", (string)null);
                 });
 
+            modelBuilder.Entity("BalancerAPI.Data.Models.TimeSeason", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("timestamp");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("time_season", (string)null);
+                });
+
             modelBuilder.Entity("BalancerAPI.Data.Models.TimeWeek", b =>
                 {
                     b.Property<int>("Id")

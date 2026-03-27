@@ -440,6 +440,18 @@ namespace BalancerAPI.Migrations
                 {
                     table.PrimaryKey("PK_time_week", x => x.id);
                 });
+
+            migrationBuilder.CreateTable(
+                name: "time_season",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "integer", nullable: false),
+                    timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_time_season", x => x.id);
+                });
         }
 
         /// <inheritdoc />
@@ -480,6 +492,9 @@ namespace BalancerAPI.Migrations
 
             migrationBuilder.DropTable(
                 name: "time_week");
+
+            migrationBuilder.DropTable(
+                name: "time_season");
         }
     }
 }
