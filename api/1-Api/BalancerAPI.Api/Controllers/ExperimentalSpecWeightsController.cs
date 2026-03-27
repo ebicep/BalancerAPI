@@ -6,7 +6,7 @@ namespace BalancerAPI.Api.Controllers;
 
 [ApiVersion("1.0")]
 [ApiController]
-[Route("experimental/spec-weights")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class ExperimentalSpecWeightsController(ISpecWeightsService specWeightsService) : ControllerBase
 {
     [HttpGet("{uuid:guid}")]

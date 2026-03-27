@@ -6,7 +6,7 @@ namespace BalancerAPI.Api.Controllers;
 
 [ApiVersion("1.0")]
 [ApiController]
-[Route("time")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class TimeController(ITimeService timeService) : ControllerBase
 {
     [HttpPost("new-day")]

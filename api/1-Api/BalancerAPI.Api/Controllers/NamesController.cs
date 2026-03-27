@@ -6,7 +6,7 @@ namespace BalancerAPI.Api.Controllers;
 
 [ApiVersion("1.0")]
 [ApiController]
-[Route("names")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class NamesController(INameUpdateService nameUpdateService) : ControllerBase
 {
     [HttpPost("update")]
