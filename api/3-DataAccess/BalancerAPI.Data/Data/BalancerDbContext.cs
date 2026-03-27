@@ -17,6 +17,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<TimeWeek> TimeWeeks => Set<TimeWeek>();
     public DbSet<TimeDay> TimeDays => Set<TimeDay>();
     public DbSet<TimeSeason> TimeSeasons => Set<TimeSeason>();
+    public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<AdjustLogWeekly> AdjustLogWeekly => Set<AdjustLogWeekly>();
     public DbSet<AdjustLogDaily> AdjustLogDaily => Set<AdjustLogDaily>();
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
@@ -36,6 +37,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureTimeWeek(modelBuilder);
         ConfigureTimeDay(modelBuilder);
         ConfigureTimeSeason(modelBuilder);
+        ConfigureSettings(modelBuilder);
         ConfigureAdjustLogWeekly(modelBuilder);
         ConfigureAdjustLogDaily(modelBuilder);
         ConfigureCurrentWeekView(modelBuilder);
@@ -218,6 +220,18 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(e => e.Timestamp).HasColumnName("timestamp");
+        });
+    }
+
+    private static void ConfigureSettings(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Setting>(entity =>
+        {
+            entity.ToTable("settings");
+            entity.HasKey(e => e.Key);
+            entity.Property(e => e.Key).HasColumnName("key");
+            entity.Property(e => e.Value).HasColumnName("value").HasColumnType("numeric");
+            entity.Property(e => e.DisplayName).HasColumnName("display_name");
         });
     }
 

@@ -418,6 +418,19 @@ namespace BalancerAPI.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "settings",
+                columns: table => new
+                {
+                    key = table.Column<string>(type: "text", nullable: false),
+                    value = table.Column<decimal>(type: "numeric", nullable: false),
+                    display_name = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_settings", x => x.key);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "time_day",
                 columns: table => new
                 {
@@ -486,6 +499,9 @@ namespace BalancerAPI.Migrations
 
             migrationBuilder.DropTable(
                 name: "names");
+
+            migrationBuilder.DropTable(
+                name: "settings");
 
             migrationBuilder.DropTable(
                 name: "time_day");
