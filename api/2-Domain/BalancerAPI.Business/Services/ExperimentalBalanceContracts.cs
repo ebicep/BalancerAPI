@@ -14,9 +14,10 @@ public sealed record ExperimentalBalanceTeam(
     [property: JsonPropertyName("total_talkers")] int TotalTalkers,
     [property: JsonPropertyName("total_win_loss")] int TotalWinLoss,
     [property: JsonPropertyName("total_kill_death")] int TotalKillDeath,
-    [property: JsonPropertyName("specs")] IReadOnlyDictionary<string, ExperimentalBalancePlayerSpec> Specs);
+    [property: JsonPropertyName("specs")] IReadOnlyList<ExperimentalBalancePlayerSpec> Specs);
 
 public sealed record ExperimentalBalancePlayerSpec(
+    [property: JsonPropertyName("uuid")] Guid Uuid,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("spec")] string Spec,
     [property: JsonPropertyName("weight")] int Weight,

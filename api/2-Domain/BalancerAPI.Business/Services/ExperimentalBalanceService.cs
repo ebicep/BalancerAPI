@@ -205,7 +205,7 @@ public sealed class ExperimentalBalanceService(
         IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer,
         IReadOnlyDictionary<Guid, string> namesByPlayer)
     {
-        var specs = new Dictionary<string, ExperimentalBalancePlayerSpec>(StringComparer.Ordinal);
+        var specs = new List<ExperimentalBalancePlayerSpec>();
         var totalWeight = 0;
         var totalTalkers = 0;
         var totalWinLoss = 0;
@@ -218,6 +218,7 @@ public sealed class ExperimentalBalanceService(
                 ? playerName
                 : string.Empty;
             var playerSpec = new ExperimentalBalancePlayerSpec(
+                Uuid: assignment.PlayerId,
                 Name: name,
                 Spec: assignment.Spec,
                 Weight: assignment.EvalWeight,
@@ -225,7 +226,7 @@ public sealed class ExperimentalBalanceService(
                 WinLoss: winLoss,
                 KillDeath: killDeath);
 
-            specs[assignment.PlayerId.ToString()] = playerSpec;
+            specs.Add(playerSpec);
             totalWeight += playerSpec.Weight;
             totalTalkers += playerSpec.Talker;
             totalWinLoss += playerSpec.WinLoss;
