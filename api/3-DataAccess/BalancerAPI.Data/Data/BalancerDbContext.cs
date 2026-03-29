@@ -21,6 +21,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<AdjustLogWeekly> AdjustLogWeekly => Set<AdjustLogWeekly>();
     public DbSet<AdjustLogDaily> AdjustLogDaily => Set<AdjustLogDaily>();
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
+    public DbSet<ExperimentalSpecsWlCurrentDay> ExperimentalSpecsWlCurrentDay => Set<ExperimentalSpecsWlCurrentDay>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +42,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureAdjustLogWeekly(modelBuilder);
         ConfigureAdjustLogDaily(modelBuilder);
         ConfigureCurrentWeekView(modelBuilder);
+        ConfigureCurrentDayView(modelBuilder);
     }
 
     private static void ConfigureNames(ModelBuilder modelBuilder)
@@ -280,6 +282,17 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.HasNoKey();
             entity.ToView("experimental_specs_wl_current_week");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            ConfigureWlColumns(entity);
+        });
+    }
+
+    private static void ConfigureCurrentDayView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlCurrentDay>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_specs_wl_current_day");
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             ConfigureWlColumns(entity);
         });
