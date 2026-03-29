@@ -1,6 +1,9 @@
 using BalancerAPI.Api.Controllers;
 using BalancerAPI.Business.Services;
+using BalancerAPI.Data.Data;
+using BalancerAPI.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 
 namespace BalancerAPI.Tests.Controllers;
@@ -14,10 +17,12 @@ public class ExperimentalControllerTests
 
     private static ExperimentalController CreateController(
         ISpecWeightsService specWeights,
-        IExperimentalBalanceService? balance = null)
+        IExperimentalBalanceService? balance = null,
+        BalancerDbContext? dbContext = null)
     {
         var b = balance ?? Mock.Of<IExperimentalBalanceService>();
-        return new ExperimentalController(specWeights, b);
+        var db = dbContext ?? CreateDbContext();
+        return new ExperimentalController(specWeights, b, db);
     }
 
     [Fact]
@@ -73,16 +78,40 @@ public class ExperimentalControllerTests
     [Fact]
     public async Task Balance_WhenValid_ReturnsOkWithPayload()
     {
+        var now = new DateTime(2026, 3, 15, 20, 32, 0, DateTimeKind.Utc);
         var meta = new ExperimentalBalanceMeta(
-            1, 1.0, 0, 0, 0, 0, 0, 0, 0);
+            1,
+            1.0,
+            [
+                new ExperimentalBalanceMetaStep("db.query.playerData", 0.2, 0.0),
+                new ExperimentalBalanceMetaStep("algorithm.computeBalance", 0.6, 0.2),
+                new ExperimentalBalanceMetaStep("response.serialize", 0.2, 0.8)
+            ],
+            9,
+            now);
         var expected = new ExperimentalBalanceResponse(
-            new Dictionary<string, string>
-            {
-                [TestUuid.ToString()] = "Pyromancer",
-                [U2.ToString()] = "Cryomancer",
-                [U3.ToString()] = "Aquamancer",
-                [U4.ToString()] = "Berserker"
-            },
+            [
+                new ExperimentalBalanceTeam(
+                    200,
+                    0,
+                    12,
+                    8,
+                    new Dictionary<string, ExperimentalBalancePlayerSpec>
+                    {
+                        [TestUuid.ToString()] = new("alpha", "Pyromancer", 100, 0, 7, 4),
+                        [U2.ToString()] = new("beta", "Cryomancer", 100, 0, 5, 4)
+                    }),
+                new ExperimentalBalanceTeam(
+                    200,
+                    0,
+                    8,
+                    4,
+                    new Dictionary<string, ExperimentalBalancePlayerSpec>
+                    {
+                        [U3.ToString()] = new("gamma", "Aquamancer", 100, 0, 3, 2),
+                        [U4.ToString()] = new("delta", "Berserker", 100, 0, 5, 2)
+                    })
+            ],
             meta);
 
         var balance = new Mock<IExperimentalBalanceService>();
@@ -90,10 +119,17 @@ public class ExperimentalControllerTests
             .ReturnsAsync(new ExperimentalBalanceServiceResult(true, expected, null));
 
         var specWeights = new Mock<ISpecWeightsService>();
-        var controller = CreateController(specWeights.Object, balance.Object);
+        await using var db = CreateDbContext();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] },
+            new PlayerName { Uuid = U4, Name = "delta", PreviousNames = [] });
+        await db.SaveChangesAsync();
+        var controller = CreateController(specWeights.Object, balance.Object, db);
 
         var result = await controller.Balance(
-            new ExperimentalBalanceRequest([TestUuid, U2, U3, U4]),
+            new ExperimentalController.ExperimentalBalanceInputRequest([TestUuid.ToString(), U2.ToString(), U3.ToString(), U4.ToString()]),
             CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
@@ -114,8 +150,100 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, balance.Object);
 
-        var result = await controller.Balance(new ExperimentalBalanceRequest([]), CancellationToken.None);
+        var result = await controller.Balance(new ExperimentalController.ExperimentalBalanceInputRequest([]), CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Balance_WhenPlayersAreNames_ResolvesToUuidsAndReturnsOk()
+    {
+        await using var db = CreateDbContext();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] },
+            new PlayerName { Uuid = U4, Name = "delta", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var now = new DateTime(2026, 3, 15, 20, 32, 0, DateTimeKind.Utc);
+        var meta = new ExperimentalBalanceMeta(
+            1,
+            1.0,
+            [
+                new ExperimentalBalanceMetaStep("db.query.playerData", 0.2, 0.0),
+                new ExperimentalBalanceMetaStep("algorithm.computeBalance", 0.6, 0.2),
+                new ExperimentalBalanceMetaStep("response.serialize", 0.2, 0.8)
+            ],
+            9,
+            now);
+        var expected = new ExperimentalBalanceResponse(
+            [
+                new ExperimentalBalanceTeam(
+                    200,
+                    0,
+                    12,
+                    8,
+                    new Dictionary<string, ExperimentalBalancePlayerSpec>
+                    {
+                        [TestUuid.ToString()] = new("alpha", "Pyromancer", 100, 0, 7, 4),
+                        [U2.ToString()] = new("beta", "Cryomancer", 100, 0, 5, 4)
+                    }),
+                new ExperimentalBalanceTeam(
+                    200,
+                    0,
+                    8,
+                    4,
+                    new Dictionary<string, ExperimentalBalancePlayerSpec>
+                    {
+                        [U3.ToString()] = new("gamma", "Aquamancer", 100, 0, 3, 2),
+                        [U4.ToString()] = new("delta", "Berserker", 100, 0, 5, 2)
+                    })
+            ],
+            meta);
+
+        var balance = new Mock<IExperimentalBalanceService>();
+        balance.Setup(x => x.BalanceAsync(It.IsAny<ExperimentalBalanceRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalBalanceServiceResult(true, expected, null));
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, balance.Object, db);
+
+        var result = await controller.Balance(
+            new ExperimentalController.ExperimentalBalanceInputRequest(["alpha", "beta", "gamma", "delta"]),
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        _ = Assert.IsType<ExperimentalBalanceResponse>(ok.Value);
+        balance.Verify(x => x.BalanceAsync(
+            It.Is<ExperimentalBalanceRequest>(r => r.Players.SequenceEqual(new[] { TestUuid, U2, U3, U4 })),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Balance_WhenNameCannotBeResolved_ReturnsBadRequest()
+    {
+        await using var db = CreateDbContext();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var balance = new Mock<IExperimentalBalanceService>();
+        var controller = CreateController(specWeights.Object, balance.Object, db);
+
+        var result = await controller.Balance(
+            new ExperimentalController.ExperimentalBalanceInputRequest(["alpha", "does-not-exist"]),
+            CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        balance.Verify(x => x.BalanceAsync(It.IsAny<ExperimentalBalanceRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static BalancerDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<BalancerDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new BalancerDbContext(options);
     }
 }

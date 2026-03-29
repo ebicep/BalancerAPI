@@ -41,6 +41,7 @@ public sealed class ExperimentalBalanceService(
         ExperimentalBalanceRequest request,
         CancellationToken cancellationToken)
     {
+        var requestStopwatch = System.Diagnostics.Stopwatch.StartNew();
         var players = request.Players?.ToList() ?? [];
         if (players.Count == 0)
         {
@@ -64,6 +65,10 @@ public sealed class ExperimentalBalanceService(
             return Fail(400, "duplicate player UUIDs are not allowed.");
         }
 
+        var steps = new List<ExperimentalBalanceMetaStep>(3);
+        var dataFetchStartOffset = requestStopwatch.Elapsed.TotalMilliseconds;
+        var dataFetchStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         var settings = await settingsService.GetAllAsync(cancellationToken);
         var maxIter = GetIntSetting(settings, "max_balance_iterations", 500_000);
         var shuffleEvery = GetIntSetting(settings, "shuffle_specs_every_iterations", 50_000);
@@ -84,8 +89,19 @@ public sealed class ExperimentalBalanceService(
 
         var wlByPlayer = await LoadWlCurrentWeekAsync(players, cancellationToken);
         var specLogSets = await BuildSpecLogSetsAsync(cancellationToken);
+        var latestSeason = await dbContext.TimeSeasons
+            .AsNoTracking()
+            .OrderByDescending(x => x.Id)
+            .Select(x => new { x.Id, x.Timestamp })
+            .FirstOrDefaultAsync(cancellationToken);
+        dataFetchStopwatch.Stop();
+        steps.Add(new ExperimentalBalanceMetaStep(
+            Name: "db.query.playerData",
+            DurationMs: dataFetchStopwatch.Elapsed.TotalMilliseconds,
+            StartOffsetMs: dataFetchStartOffset));
 
         var random = Random.Shared;
+        var computeStartOffset = requestStopwatch.Elapsed.TotalMilliseconds;
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         var shuffledSpecs = GetLineupsNew(teamSize, random);
@@ -135,29 +151,29 @@ public sealed class ExperimentalBalanceService(
                 && specTypeDiff <= maxSpecTypeDiff)
             {
                 sw.Stop();
-                var balance = new Dictionary<string, string>(StringComparer.Ordinal);
-                foreach (var a in blueAssign)
-                {
-                    balance[a.PlayerId.ToString()] = a.Spec;
-                }
+                steps.Add(new ExperimentalBalanceMetaStep(
+                    Name: "algorithm.computeBalance",
+                    DurationMs: sw.Elapsed.TotalMilliseconds,
+                    StartOffsetMs: computeStartOffset));
 
-                foreach (var a in redAssign)
-                {
-                    balance[a.PlayerId.ToString()] = a.Spec;
-                }
+                var serializeStartOffset = requestStopwatch.Elapsed.TotalMilliseconds;
+                var serializeStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                var namesByPlayer = await LoadPlayerNamesAsync(players, cancellationToken);
+                var teamBalance = BuildTeamBalance(blueAssign, redAssign, wlByPlayer, namesByPlayer);
+                serializeStopwatch.Stop();
+                steps.Add(new ExperimentalBalanceMetaStep(
+                    Name: "response.serialize",
+                    DurationMs: serializeStopwatch.Elapsed.TotalMilliseconds,
+                    StartOffsetMs: serializeStartOffset));
 
                 var meta = new ExperimentalBalanceMeta(
                     Iterations: iter + 1,
-                    ElapsedMs: sw.Elapsed.TotalMilliseconds,
-                    BlueOff: blueOff,
-                    RedOff: redOff,
-                    WeightDiff: weightDiff,
-                    FlatTeamDiff: flatDiff,
-                    WlDiff: wlDiff,
-                    KdDiff: kdDiff,
-                    SpecTypeDiff: specTypeDiff);
+                    DurationMs: requestStopwatch.Elapsed.TotalMilliseconds,
+                    Steps: steps,
+                    Season: latestSeason?.Id ?? 0,
+                    Time: latestSeason?.Timestamp ?? DateTime.UtcNow);
 
-                return new ExperimentalBalanceServiceResult(true, new ExperimentalBalanceResponse(balance, meta), null);
+                return new ExperimentalBalanceServiceResult(true, new ExperimentalBalanceResponse(teamBalance, meta), null);
             }
         }
 
@@ -170,6 +186,78 @@ public sealed class ExperimentalBalanceService(
 
     private static ExperimentalBalanceServiceResult Fail(int status, string message) =>
         new(false, null, new ExperimentalBalanceError(status, message));
+
+    private static IReadOnlyList<ExperimentalBalanceTeam> BuildTeamBalance(
+        PlayerAssignment[] blueAssign,
+        PlayerAssignment[] redAssign,
+        IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer,
+        IReadOnlyDictionary<Guid, string> namesByPlayer)
+    {
+        return
+        [
+            BuildTeam(blueAssign, wlByPlayer, namesByPlayer),
+            BuildTeam(redAssign, wlByPlayer, namesByPlayer)
+        ];
+    }
+
+    private static ExperimentalBalanceTeam BuildTeam(
+        IEnumerable<PlayerAssignment> assignments,
+        IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer,
+        IReadOnlyDictionary<Guid, string> namesByPlayer)
+    {
+        var specs = new Dictionary<string, ExperimentalBalancePlayerSpec>(StringComparer.Ordinal);
+        var totalWeight = 0;
+        var totalTalkers = 0;
+        var totalWinLoss = 0;
+        var totalKillDeath = 0;
+
+        foreach (var assignment in assignments)
+        {
+            var (winLoss, killDeath) = GetSpecDiffs(assignment, wlByPlayer);
+            var name = namesByPlayer.TryGetValue(assignment.PlayerId, out var playerName)
+                ? playerName
+                : string.Empty;
+            var playerSpec = new ExperimentalBalancePlayerSpec(
+                Name: name,
+                Spec: assignment.Spec,
+                Weight: assignment.EvalWeight,
+                Talker: 0,
+                WinLoss: winLoss,
+                KillDeath: killDeath);
+
+            specs[assignment.PlayerId.ToString()] = playerSpec;
+            totalWeight += playerSpec.Weight;
+            totalTalkers += playerSpec.Talker;
+            totalWinLoss += playerSpec.WinLoss;
+            totalKillDeath += playerSpec.KillDeath;
+        }
+
+        return new ExperimentalBalanceTeam(
+            TotalWeight: totalWeight,
+            TotalTalkers: totalTalkers,
+            TotalWinLoss: totalWinLoss,
+            TotalKillDeath: totalKillDeath,
+            Specs: specs);
+    }
+
+    private static (int WinLoss, int KillDeath) GetSpecDiffs(
+        PlayerAssignment assignment,
+        IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer)
+    {
+        if (!wlByPlayer.TryGetValue(assignment.PlayerId, out var row))
+        {
+            return (0, 0);
+        }
+
+        var specIdx = Array.IndexOf(AllSpecsOrdered, assignment.Spec);
+        if (specIdx < 0)
+        {
+            return (0, 0);
+        }
+
+        var (wins, losses, kills, deaths) = GetWlForSpec(row, specIdx);
+        return (wins - losses, kills - deaths);
+    }
 
     private static int GetIntSetting(IReadOnlyDictionary<string, decimal> settings, string key, int defaultValue) =>
         settings.TryGetValue(key, out var v) ? (int)Math.Round(v, MidpointRounding.AwayFromZero) : defaultValue;
@@ -193,6 +281,23 @@ public sealed class ExperimentalBalanceService(
 
         var missing = players.Where(p => !dict.ContainsKey(p)).ToList();
         return (dict, missing);
+    }
+
+    private async Task<Dictionary<Guid, string>> LoadPlayerNamesAsync(
+        IReadOnlyList<Guid> players,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.Names
+            .AsNoTracking()
+            .Where(x => players.Contains(x.Uuid))
+            .Select(x => new { x.Uuid, x.Name })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(x => x.Uuid)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(x => x.Name).FirstOrDefault() ?? string.Empty);
     }
 
     private static int[] BuildCombinedWeightVector(int baseWeight, ExperimentalSpecWeight spec) =>
