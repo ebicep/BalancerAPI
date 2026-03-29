@@ -15,28 +15,6 @@ public sealed class ExperimentalBalanceService(
     BalancerDbContext dbContext,
     ISettingsService settingsService) : IExperimentalBalanceService
 {
-    private static readonly string[] AllSpecsOrdered =
-    [
-        "Pyromancer", "Cryomancer", "Aquamancer", "Berserker", "Defender", "Revenant",
-        "Avenger", "Crusader", "Protector", "Thunderlord", "Spiritguard", "Earthwarden",
-        "Assassin", "Vindicator", "Apothecary", "Conjurer", "Sentinel", "Luminary"
-    ];
-
-    private static readonly HashSet<string> DmgSpecs =
-    [
-        "Berserker", "Pyromancer", "Avenger", "Thunderlord", "Assassin", "Conjurer"
-    ];
-
-    private static readonly HashSet<string> TankSpecs =
-    [
-        "Cryomancer", "Defender", "Vindicator", "Crusader", "Sentinel"
-    ];
-
-    private static readonly HashSet<string> HealSpecs =
-    [
-        "Aquamancer", "Revenant", "Protector", "Earthwarden", "Apothecary", "Luminary"
-    ];
-
     public async Task<ExperimentalBalanceServiceResult> BalanceAsync(
         ExperimentalBalanceRequest request,
         CancellationToken cancellationToken)
@@ -250,7 +228,7 @@ public sealed class ExperimentalBalanceService(
             return (0, 0);
         }
 
-        var specIdx = Array.IndexOf(AllSpecsOrdered, assignment.Spec);
+        var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, assignment.Spec);
         if (specIdx < 0)
         {
             return (0, 0);
@@ -337,7 +315,7 @@ public sealed class ExperimentalBalanceService(
 
     private async Task<Dictionary<string, HashSet<Guid>>> BuildSpecLogSetsAsync(CancellationToken cancellationToken)
     {
-        var sets = AllSpecsOrdered.ToDictionary(s => s, _ => new HashSet<Guid>(), StringComparer.Ordinal);
+        var sets = ExperimentalSpecs.AllOrdered.ToDictionary(s => s, _ => new HashSet<Guid>(), StringComparer.Ordinal);
 
         var logs = await dbContext.ExperimentalSpecLogs.AsNoTracking().ToListAsync(cancellationToken);
         foreach (var log in logs)
@@ -387,25 +365,14 @@ public sealed class ExperimentalBalanceService(
     /// <summary>Port of getLineupsNew from ExperimentalBalanceSpec.md (TS).</summary>
     internal static string[] GetLineupsNew(int playerCount, Random random)
     {
-        var dmgSpecs = new[] { "Berserker", "Pyromancer", "Avenger", "Thunderlord", "Assassin", "Conjurer" };
-        var tankSpecs = new[] { "Cryomancer", "Defender", "Vindicator", "Crusader", "Sentinel" };
-        var pickSpecs = new[] { "Cryomancer", "Vindicator", "Crusader" };
-        var healSpecs = new[] { "Aquamancer", "Revenant", "Protector", "Earthwarden", "Apothecary", "Luminary" };
+        var dmgSpecs = ExperimentalSpecs.Damage;
+        var tankSpecs = ExperimentalSpecs.Tank;
+        var pickSpecs = ExperimentalSpecs.TankPicks.ToArray();
+        var healSpecs = ExperimentalSpecs.Heal;
         var mainHealer = random.NextDouble() < 0.5 ? "Luminary" : "Aquamancer";
         ShuffleInPlace(pickSpecs, random);
 
-        var roleCounts = new Dictionary<int, (int Dmg, int Tank, int Heal, string[] Required)>
-        {
-            [6] = (2, 0, 1, ["Avenger", pickSpecs[0], mainHealer]),
-            [7] = (2, 0, 1, ["Avenger", pickSpecs[0], pickSpecs[1], mainHealer]),
-            [8] = (2, 2, 1, ["Avenger", "Defender", mainHealer]),
-            [9] = (2, 2, 2, ["Avenger", "Defender", mainHealer]),
-            [10] = (3, 2, 2, ["Avenger", "Defender", mainHealer]),
-            [11] = (3, 3, 2, ["Avenger", "Defender", mainHealer]),
-            [12] = (3, 3, 2, ["Avenger", "Defender", "Earthwarden", mainHealer]),
-            [13] = (4, 3, 3, ["Avenger", "Defender", mainHealer]),
-            [14] = (4, 4, 2, ["Avenger", "Defender", "Aquamancer", "Luminary"])
-        };
+        var roleCounts = ExperimentalSpecs.BuildRoleCounts(mainHealer, pickSpecs);
 
         var (dmg, tank, heal, required) = roleCounts[playerCount];
         var lineup = new List<string>(required);
@@ -474,7 +441,7 @@ public sealed class ExperimentalBalanceService(
     private sealed class PlayerAssignment
     {
         public Guid PlayerId { get; init; }
-        public string Spec { get; set; } = "Empty";
+        public string Spec { get; set; } = ExperimentalSpecs.Empty;
         public bool Off { get; set; }
         public int SpecWeight { get; set; }
         public int EvalWeight { get; set; }
@@ -501,7 +468,7 @@ public sealed class ExperimentalBalanceService(
             assignments[i] = new PlayerAssignment
             {
                 PlayerId = pid,
-                Spec = "Empty",
+                Spec = ExperimentalSpecs.Empty,
                 Off = false,
                 SpecWeight = 0,
                 EvalWeight = 0
@@ -510,7 +477,7 @@ public sealed class ExperimentalBalanceService(
 
         var specStatus = new bool[numberOfPlayers];
 
-        foreach (var spec in AllSpecsOrdered)
+        foreach (var spec in ExperimentalSpecs.AllOrdered)
         {
             if (!shuffledSpecsIndexMap.TryGetValue(spec, out var idx) || idx >= numberOfPlayers)
             {
@@ -566,7 +533,7 @@ public sealed class ExperimentalBalanceService(
 
                     assignments[k].Spec = shuffledSpecs[minIndex];
                     var w = weightsByPlayer[randomPlayer];
-                    var specIdx = Array.IndexOf(AllSpecsOrdered, assignments[k].Spec);
+                    var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, assignments[k].Spec);
                     var sw = specIdx >= 0 ? w[specIdx] : 0;
                     assignments[k].SpecWeight = sw;
                     assignments[k].EvalWeight = sw;
@@ -596,7 +563,7 @@ public sealed class ExperimentalBalanceService(
 
         foreach (var a in assignments)
         {
-            if (a.Spec != "Empty")
+            if (a.Spec != ExperimentalSpecs.Empty)
             {
                 continue;
             }
@@ -612,7 +579,7 @@ public sealed class ExperimentalBalanceService(
                 a.Off = true;
                 specStatus[i] = true;
                 var w = weightsByPlayer[a.PlayerId];
-                var specIdx = Array.IndexOf(AllSpecsOrdered, a.Spec);
+                var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, a.Spec);
                 var sw = specIdx >= 0 ? w[specIdx] : 0;
                 a.SpecWeight = sw;
                 a.EvalWeight = sw;
@@ -656,7 +623,7 @@ public sealed class ExperimentalBalanceService(
                 continue;
             }
 
-            var specIdx = Array.IndexOf(AllSpecsOrdered, a.Spec);
+            var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, a.Spec);
             if (specIdx < 0)
             {
                 continue;
@@ -679,7 +646,7 @@ public sealed class ExperimentalBalanceService(
                 continue;
             }
 
-            var specIdx = Array.IndexOf(AllSpecsOrdered, a.Spec);
+            var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, a.Spec);
             if (specIdx < 0)
             {
                 continue;
@@ -725,15 +692,15 @@ public sealed class ExperimentalBalanceService(
             heal = 0;
             foreach (var a in team)
             {
-                if (DmgSpecs.Contains(a.Spec))
+                if (ExperimentalSpecs.DamageSet.Contains(a.Spec))
                 {
                     dmg++;
                 }
-                else if (TankSpecs.Contains(a.Spec))
+                else if (ExperimentalSpecs.TankSet.Contains(a.Spec))
                 {
                     tank++;
                 }
-                else if (HealSpecs.Contains(a.Spec))
+                else if (ExperimentalSpecs.HealSet.Contains(a.Spec))
                 {
                     heal++;
                 }
