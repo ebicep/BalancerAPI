@@ -12,15 +12,14 @@ public interface IExperimentalBalanceService
 }
 
 public sealed class ExperimentalBalanceService(
-    BalancerDbContext dbContext,
-    ISettingsService settingsService) : IExperimentalBalanceService
+    IDbContextFactory<BalancerDbContext> dbContextFactory) : IExperimentalBalanceService
 {
     public async Task<ExperimentalBalanceServiceResult> BalanceAsync(
         ExperimentalBalanceRequest request,
         CancellationToken cancellationToken)
     {
         var requestStopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var players = request.Players?.ToList() ?? [];
+        var players = request.Players.ToList();
         if (players.Count == 0)
         {
             return Fail(400, "players must not be empty.");
@@ -47,7 +46,12 @@ public sealed class ExperimentalBalanceService(
         var dataFetchStartOffset = requestStopwatch.Elapsed.TotalMilliseconds;
         var dataFetchStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        var settings = await settingsService.GetAllAsync(cancellationToken);
+        var settingsTask = LoadSettingsAsync(cancellationToken);
+        var playerDataTask = LoadBalancePlayerDataAsync(players, cancellationToken);
+        var specLogSetsTask = BuildSpecLogSetsAsync(cancellationToken);
+        await Task.WhenAll(settingsTask, playerDataTask, specLogSetsTask);
+
+        var settings = await settingsTask;
         var maxIter = GetIntSetting(settings, "max_balance_iterations", 500_000);
         var shuffleEvery = GetIntSetting(settings, "shuffle_specs_every_iterations", 50_000);
         var maxWeightDiff = GetIntSetting(settings, "max_weight_diff", 20);
@@ -56,7 +60,7 @@ public sealed class ExperimentalBalanceService(
         var maxKdDiff = GetIntSetting(settings, "max_kd_diff", 10);
         var maxSpecTypeDiff = GetIntSetting(settings, "max_spec_type_diff", 2);
 
-        var playerData = await LoadBalancePlayerDataAsync(players, cancellationToken);
+        var playerData = await playerDataTask;
         if (playerData.Missing.Count > 0)
         {
             return new ExperimentalBalanceServiceResult(
@@ -65,12 +69,7 @@ public sealed class ExperimentalBalanceService(
                 new ExperimentalBalanceError(404, "One or more players are missing base weights or experimental spec weights.", playerData.Missing));
         }
 
-        var specLogSets = await BuildSpecLogSetsAsync(cancellationToken);
-        var latestSeason = await dbContext.TimeSeasons
-            .AsNoTracking()
-            .OrderByDescending(x => x.Id)
-            .Select(x => new { x.Id, x.Timestamp })
-            .FirstOrDefaultAsync(cancellationToken);
+        var specLogSets = await specLogSetsTask;
         dataFetchStopwatch.Stop();
         steps.Add(new ExperimentalBalanceMetaStep(
             Name: "db.query.playerData",
@@ -142,6 +141,7 @@ public sealed class ExperimentalBalanceService(
                     DurationMs: serializeStopwatch.Elapsed.TotalMilliseconds,
                     StartOffsetMs: serializeStartOffset));
 
+                var latestSeason = await LoadLatestSeasonAsync(cancellationToken);
                 var meta = new ExperimentalBalanceMeta(
                     Iterations: iter + 1,
                     DurationMs: requestStopwatch.Elapsed.TotalMilliseconds,
@@ -232,6 +232,32 @@ public sealed class ExperimentalBalanceService(
     private static int GetIntSetting(IReadOnlyDictionary<string, decimal> settings, string key, int defaultValue) =>
         settings.TryGetValue(key, out var v) ? (int)Math.Round(v, MidpointRounding.AwayFromZero) : defaultValue;
 
+    private sealed record LatestSeasonInfo(int Id, DateTime Timestamp);
+
+    private async Task<IReadOnlyDictionary<string, decimal>> LoadSettingsAsync(CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await db.Settings
+            .AsNoTracking()
+            .OrderBy(x => x.Key)
+            .Select(x => new { x.Key, x.Value })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+    }
+
+    private async Task<LatestSeasonInfo?> LoadLatestSeasonAsync(CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var row = await db.TimeSeasons
+            .AsNoTracking()
+            .OrderByDescending(x => x.Id)
+            .Select(x => new LatestSeasonInfo(x.Id, x.Timestamp))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return row;
+    }
+
     private async Task<(
         Dictionary<Guid, int[]> WeightsByPlayer,
         Dictionary<Guid, ExperimentalBalancePlayerData> PlayerDataByPlayer,
@@ -240,7 +266,8 @@ public sealed class ExperimentalBalanceService(
         IReadOnlyList<Guid> players,
         CancellationToken cancellationToken)
     {
-        var rows = await dbContext.ExperimentalBalancePlayerData
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await db.ExperimentalBalancePlayerData
             .AsNoTracking()
             .Where(x => players.Contains(x.Uuid))
             .ToListAsync(cancellationToken);
@@ -285,7 +312,8 @@ public sealed class ExperimentalBalanceService(
     {
         var sets = ExperimentalSpecs.AllOrdered.ToDictionary(s => s, _ => new HashSet<Guid>(), StringComparer.Ordinal);
 
-        var logs = await dbContext.ExperimentalSpecLogs.AsNoTracking().ToListAsync(cancellationToken);
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var logs = await db.ExperimentalSpecLogs.AsNoTracking().ToListAsync(cancellationToken);
         foreach (var log in logs)
         {
             AddIfHasValue(sets, "Pyromancer", log.Pyromancer);
