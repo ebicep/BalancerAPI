@@ -53,19 +53,18 @@ public sealed class ExperimentalBalanceService(
         var maxWeightDiff = GetIntSetting(settings, "max_weight_diff", 20);
         var maxFlatTeamDiff = GetIntSetting(settings, "max_flat_team_diff", 10);
         var maxWlDiff = GetIntSetting(settings, "max_wl_diff", 50);
-        var maxKdDiff = GetIntSetting(settings, "max_kd_diff", 50);
+        var maxKdDiff = GetIntSetting(settings, "max_kd_diff", 10);
         var maxSpecTypeDiff = GetIntSetting(settings, "max_spec_type_diff", 2);
 
-        var combined = await LoadCombinedWeightsAsync(players, cancellationToken);
-        if (combined.Missing.Count > 0)
+        var playerData = await LoadBalancePlayerDataAsync(players, cancellationToken);
+        if (playerData.Missing.Count > 0)
         {
             return new ExperimentalBalanceServiceResult(
                 false,
                 null,
-                new ExperimentalBalanceError(404, "One or more players are missing base weights or experimental spec weights.", combined.Missing));
+                new ExperimentalBalanceError(404, "One or more players are missing base weights or experimental spec weights.", playerData.Missing));
         }
 
-        var wlByPlayer = await LoadWlCurrentWeekAsync(players, cancellationToken);
         var specLogSets = await BuildSpecLogSetsAsync(cancellationToken);
         var latestSeason = await dbContext.TimeSeasons
             .AsNoTracking()
@@ -97,8 +96,8 @@ public sealed class ExperimentalBalanceService(
             var blue = players.Take(teamSize).ToArray();
             var red = players.Skip(teamSize).Take(teamSize).ToArray();
 
-            var blueAssign = AssignSpecs(blue, shuffledSpecs, shuffledIndexMap, specLogSets, combined.WeightsByPlayer);
-            var redAssign = AssignSpecs(red, shuffledSpecs, shuffledIndexMap, specLogSets, combined.WeightsByPlayer);
+            var blueAssign = AssignSpecs(blue, shuffledSpecs, shuffledIndexMap, specLogSets, playerData.WeightsByPlayer);
+            var redAssign = AssignSpecs(red, shuffledSpecs, shuffledIndexMap, specLogSets, playerData.WeightsByPlayer);
 
             ApplySmallTeamDiscount(teamSize, blueAssign);
             ApplySmallTeamDiscount(teamSize, redAssign);
@@ -112,12 +111,12 @@ public sealed class ExperimentalBalanceService(
 
             var flatDiff = Math.Abs(blueOff - redOff);
 
-            var blueWl = SumWl(blueAssign, wlByPlayer);
-            var redWl = SumWl(redAssign, wlByPlayer);
+            var blueWl = SumWl(blueAssign, playerData.PlayerDataByPlayer);
+            var redWl = SumWl(redAssign, playerData.PlayerDataByPlayer);
             var wlDiff = Math.Abs(blueWl - redWl);
 
-            var blueKd = SumKd(blueAssign, wlByPlayer);
-            var redKd = SumKd(redAssign, wlByPlayer);
+            var blueKd = SumKd(blueAssign, playerData.PlayerDataByPlayer);
+            var redKd = SumKd(redAssign, playerData.PlayerDataByPlayer);
             var kdDiff = Math.Abs(blueKd - redKd);
 
             var specTypeDiff = MaxSpecTypeDiff(blueAssign, redAssign);
@@ -136,8 +135,7 @@ public sealed class ExperimentalBalanceService(
 
                 var serializeStartOffset = requestStopwatch.Elapsed.TotalMilliseconds;
                 var serializeStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                var namesByPlayer = await LoadPlayerNamesAsync(players, cancellationToken);
-                var teamBalance = BuildTeamBalance(blueAssign, redAssign, wlByPlayer, namesByPlayer);
+                var teamBalance = BuildTeamBalance(blueAssign, redAssign, playerData.PlayerDataByPlayer, playerData.NamesByPlayer);
                 serializeStopwatch.Stop();
                 steps.Add(new ExperimentalBalanceMetaStep(
                     Name: "response.serialize",
@@ -168,7 +166,7 @@ public sealed class ExperimentalBalanceService(
     private static IReadOnlyList<ExperimentalBalanceTeam> BuildTeamBalance(
         PlayerAssignment[] blueAssign,
         PlayerAssignment[] redAssign,
-        IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer,
+        IReadOnlyDictionary<Guid, ExperimentalBalancePlayerData> wlByPlayer,
         IReadOnlyDictionary<Guid, string> namesByPlayer)
     {
         return
@@ -180,18 +178,18 @@ public sealed class ExperimentalBalanceService(
 
     private static ExperimentalBalanceTeam BuildTeam(
         IEnumerable<PlayerAssignment> assignments,
-        IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer,
+        IReadOnlyDictionary<Guid, ExperimentalBalancePlayerData> wlByPlayer,
         IReadOnlyDictionary<Guid, string> namesByPlayer)
     {
         var specs = new List<ExperimentalBalancePlayerSpec>();
         var totalWeight = 0;
         var totalTalkers = 0;
         var totalWinLoss = 0;
-        var totalKillDeath = 0;
+        var totalNetKdPerGame = 0.0;
 
         foreach (var assignment in assignments)
         {
-            var (winLoss, killDeath) = GetSpecDiffs(assignment, wlByPlayer);
+            var (winLoss, netKdPerGame) = GetSpecDiffs(assignment, wlByPlayer);
             var name = namesByPlayer.TryGetValue(assignment.PlayerId, out var playerName)
                 ? playerName
                 : string.Empty;
@@ -202,116 +200,86 @@ public sealed class ExperimentalBalanceService(
                 Weight: assignment.EvalWeight,
                 Talker: 0,
                 WinLoss: winLoss,
-                KillDeath: killDeath);
+                NetKdPerGame: netKdPerGame);
 
             specs.Add(playerSpec);
             totalWeight += playerSpec.Weight;
             totalTalkers += playerSpec.Talker;
             totalWinLoss += playerSpec.WinLoss;
-            totalKillDeath += playerSpec.KillDeath;
+            totalNetKdPerGame += playerSpec.NetKdPerGame;
         }
 
         return new ExperimentalBalanceTeam(
             TotalWeight: totalWeight,
             TotalTalkers: totalTalkers,
             TotalWinLoss: totalWinLoss,
-            TotalKillDeath: totalKillDeath,
+            TotalNetKdPerGame: totalNetKdPerGame,
             Specs: specs);
     }
 
-    private static (int WinLoss, int KillDeath) GetSpecDiffs(
+    private static (int WinLoss, double NetKdPerGame) GetSpecDiffs(
         PlayerAssignment assignment,
-        IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer)
+        IReadOnlyDictionary<Guid, ExperimentalBalancePlayerData> wlByPlayer)
     {
         if (!wlByPlayer.TryGetValue(assignment.PlayerId, out var row))
         {
             return (0, 0);
         }
 
-        var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, assignment.Spec);
-        if (specIdx < 0)
-        {
-            return (0, 0);
-        }
-
-        var (wins, losses, kills, deaths) = GetWlForSpec(row, specIdx);
-        return (wins - losses, kills - deaths);
+        return (row.DailyWinLoss, row.GlobalNetKdPerGame);
     }
 
     private static int GetIntSetting(IReadOnlyDictionary<string, decimal> settings, string key, int defaultValue) =>
         settings.TryGetValue(key, out var v) ? (int)Math.Round(v, MidpointRounding.AwayFromZero) : defaultValue;
 
-    private async Task<(Dictionary<Guid, int[]> WeightsByPlayer, List<Guid> Missing)> LoadCombinedWeightsAsync(
+    private async Task<(
+        Dictionary<Guid, int[]> WeightsByPlayer,
+        Dictionary<Guid, ExperimentalBalancePlayerData> PlayerDataByPlayer,
+        Dictionary<Guid, string> NamesByPlayer,
+        List<Guid> Missing)> LoadBalancePlayerDataAsync(
         IReadOnlyList<Guid> players,
         CancellationToken cancellationToken)
     {
-        var rows = await (
-            from b in dbContext.BaseWeights.AsNoTracking()
-            join s in dbContext.ExperimentalSpecWeights.AsNoTracking() on b.Uuid equals s.Uuid
-            where players.Contains(b.Uuid)
-            select new { b.Uuid, b.Weight, Spec = s }
-        ).ToListAsync(cancellationToken);
+        var rows = await dbContext.ExperimentalBalancePlayerData
+            .AsNoTracking()
+            .Where(x => players.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
 
         var dict = new Dictionary<Guid, int[]>();
+        var dataByPlayer = new Dictionary<Guid, ExperimentalBalancePlayerData>();
+        var namesByPlayer = new Dictionary<Guid, string>();
         foreach (var row in rows)
         {
-            dict[row.Uuid] = BuildCombinedWeightVector(row.Weight, row.Spec);
+            dict[row.Uuid] = BuildWeightVector(row);
+            dataByPlayer[row.Uuid] = row;
+            namesByPlayer[row.Uuid] = row.Name;
         }
 
         var missing = players.Where(p => !dict.ContainsKey(p)).ToList();
-        return (dict, missing);
+        return (dict, dataByPlayer, namesByPlayer, missing);
     }
 
-    private async Task<Dictionary<Guid, string>> LoadPlayerNamesAsync(
-        IReadOnlyList<Guid> players,
-        CancellationToken cancellationToken)
-    {
-        var rows = await dbContext.Names
-            .AsNoTracking()
-            .Where(x => players.Contains(x.Uuid))
-            .Select(x => new { x.Uuid, x.Name })
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .GroupBy(x => x.Uuid)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Select(x => x.Name).FirstOrDefault() ?? string.Empty);
-    }
-
-    private static int[] BuildCombinedWeightVector(int baseWeight, ExperimentalSpecWeight spec) =>
+    private static int[] BuildWeightVector(ExperimentalBalancePlayerData row) =>
     [
-        baseWeight + spec.PyromancerOffset,
-        baseWeight + spec.CryomancerOffset,
-        baseWeight + spec.AquamancerOffset,
-        baseWeight + spec.BerserkerOffset,
-        baseWeight + spec.DefenderOffset,
-        baseWeight + spec.RevenantOffset,
-        baseWeight + spec.AvengerOffset,
-        baseWeight + spec.CrusaderOffset,
-        baseWeight + spec.ProtectorOffset,
-        baseWeight + spec.ThunderlordOffset,
-        baseWeight + spec.SpiritguardOffset,
-        baseWeight + spec.EarthwardenOffset,
-        baseWeight + spec.AssassinOffset,
-        baseWeight + spec.VindicatorOffset,
-        baseWeight + spec.ApothecaryOffset,
-        baseWeight + spec.ConjurerOffset,
-        baseWeight + spec.SentinelOffset,
-        baseWeight + spec.LuminaryOffset
+        row.PyromancerWeight,
+        row.CryomancerWeight,
+        row.AquamancerWeight,
+        row.BerserkerWeight,
+        row.DefenderWeight,
+        row.RevenantWeight,
+        row.AvengerWeight,
+        row.CrusaderWeight,
+        row.ProtectorWeight,
+        row.ThunderlordWeight,
+        row.SpiritguardWeight,
+        row.EarthwardenWeight,
+        row.AssassinWeight,
+        row.VindicatorWeight,
+        row.ApothecaryWeight,
+        row.ConjurerWeight,
+        row.SentinelWeight,
+        row.LuminaryWeight
     ];
-
-    private async Task<Dictionary<Guid, ExperimentalSpecsWlCurrentWeek>> LoadWlCurrentWeekAsync(
-        IReadOnlyList<Guid> players,
-        CancellationToken cancellationToken)
-    {
-        var rows = await dbContext.ExperimentalSpecsWlCurrentWeek
-            .AsNoTracking()
-            .Where(x => players.Contains(x.Uuid))
-            .ToListAsync(cancellationToken);
-
-        return rows.ToDictionary(x => x.Uuid, x => x);
-    }
 
     private async Task<Dictionary<string, HashSet<Guid>>> BuildSpecLogSetsAsync(CancellationToken cancellationToken)
     {
@@ -613,7 +581,7 @@ public sealed class ExperimentalBalanceService(
         }
     }
 
-    private static int SumWl(PlayerAssignment[] team, IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer)
+    private static int SumWl(PlayerAssignment[] team, IReadOnlyDictionary<Guid, ExperimentalBalancePlayerData> wlByPlayer)
     {
         var sum = 0;
         foreach (var a in team)
@@ -623,22 +591,15 @@ public sealed class ExperimentalBalanceService(
                 continue;
             }
 
-            var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, a.Spec);
-            if (specIdx < 0)
-            {
-                continue;
-            }
-
-            var (wins, losses, _, _) = GetWlForSpec(row, specIdx);
-            sum += wins - losses;
+            sum += row.DailyWinLoss;
         }
 
         return sum;
     }
 
-    private static int SumKd(PlayerAssignment[] team, IReadOnlyDictionary<Guid, ExperimentalSpecsWlCurrentWeek> wlByPlayer)
+    private static double SumKd(PlayerAssignment[] team, IReadOnlyDictionary<Guid, ExperimentalBalancePlayerData> wlByPlayer)
     {
-        var sum = 0;
+        var sum = 0.0;
         foreach (var a in team)
         {
             if (!wlByPlayer.TryGetValue(a.PlayerId, out var row))
@@ -646,42 +607,11 @@ public sealed class ExperimentalBalanceService(
                 continue;
             }
 
-            var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, a.Spec);
-            if (specIdx < 0)
-            {
-                continue;
-            }
-
-            var (_, _, kills, deaths) = GetWlForSpec(row, specIdx);
-            sum += kills - deaths;
+            sum += row.GlobalNetKdPerGame;
         }
 
         return sum;
     }
-
-    private static (int Wins, int Losses, int Kills, int Deaths) GetWlForSpec(ExperimentalSpecsWlCurrentWeek row, int specIdx) =>
-        specIdx switch
-        {
-            0 => (row.PyromancerWins, row.PyromancerLosses, row.PyromancerKills, row.PyromancerDeaths),
-            1 => (row.CryomancerWins, row.CryomancerLosses, row.CryomancerKills, row.CryomancerDeaths),
-            2 => (row.AquamancerWins, row.AquamancerLosses, row.AquamancerKills, row.AquamancerDeaths),
-            3 => (row.BerserkerWins, row.BerserkerLosses, row.BerserkerKills, row.BerserkerDeaths),
-            4 => (row.DefenderWins, row.DefenderLosses, row.DefenderKills, row.DefenderDeaths),
-            5 => (row.RevenantWins, row.RevenantLosses, row.RevenantKills, row.RevenantDeaths),
-            6 => (row.AvengerWins, row.AvengerLosses, row.AvengerKills, row.AvengerDeaths),
-            7 => (row.CrusaderWins, row.CrusaderLosses, row.CrusaderKills, row.CrusaderDeaths),
-            8 => (row.ProtectorWins, row.ProtectorLosses, row.ProtectorKills, row.ProtectorDeaths),
-            9 => (row.ThunderlordWins, row.ThunderlordLosses, row.ThunderlordKills, row.ThunderlordDeaths),
-            10 => (row.SpiritguardWins, row.SpiritguardLosses, row.SpiritguardKills, row.SpiritguardDeaths),
-            11 => (row.EarthwardenWins, row.EarthwardenLosses, row.EarthwardenKills, row.EarthwardenDeaths),
-            12 => (row.AssassinWins, row.AssassinLosses, row.AssassinKills, row.AssassinDeaths),
-            13 => (row.VindicatorWins, row.VindicatorLosses, row.VindicatorKills, row.VindicatorDeaths),
-            14 => (row.ApothecaryWins, row.ApothecaryLosses, row.ApothecaryKills, row.ApothecaryDeaths),
-            15 => (row.ConjurerWins, row.ConjurerLosses, row.ConjurerKills, row.ConjurerDeaths),
-            16 => (row.SentinelWins, row.SentinelLosses, row.SentinelKills, row.SentinelDeaths),
-            17 => (row.LuminaryWins, row.LuminaryLosses, row.LuminaryKills, row.LuminaryDeaths),
-            _ => (0, 0, 0, 0)
-        };
 
     private static int MaxSpecTypeDiff(PlayerAssignment[] blue, PlayerAssignment[] red)
     {

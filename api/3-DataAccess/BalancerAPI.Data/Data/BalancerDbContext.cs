@@ -22,6 +22,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<AdjustLogDaily> AdjustLogDaily => Set<AdjustLogDaily>();
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
     public DbSet<ExperimentalSpecsWlCurrentDay> ExperimentalSpecsWlCurrentDay => Set<ExperimentalSpecsWlCurrentDay>();
+    public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -43,6 +44,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureAdjustLogDaily(modelBuilder);
         ConfigureCurrentWeekView(modelBuilder);
         ConfigureCurrentDayView(modelBuilder);
+        ConfigureBalancePlayerDataView(modelBuilder);
     }
 
     private static void ConfigureNames(ModelBuilder modelBuilder)
@@ -298,6 +300,24 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         });
     }
 
+    private static void ConfigureBalancePlayerDataView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalBalancePlayerData>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_balance_player_data");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Name).HasColumnName("name");
+            entity.Property(e => e.BaseWeight).HasColumnName("base_weight");
+            entity.Property(e => e.DailyWinLoss).HasColumnName("daily_win_loss");
+            entity.Property(e => e.GlobalNetKdPerGame)
+                .HasColumnName("global_net_kd_per_game")
+                .HasColumnType("double precision");
+            ConfigureWeightColumns(entity);
+            ConfigureWlColumns(entity);
+        });
+    }
+
     /// <summary>
     /// Shared column mapping for all WL stat entities (wins/losses/kills/deaths per spec).
     /// Uses dynamic type to work with any entity builder that has the same property names.
@@ -321,6 +341,24 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
                 var columnName = $"{spec.ToLowerInvariant()}_{stat.ToLowerInvariant()}";
                 entity.Property(typeof(int), propertyName).HasColumnName(columnName);
             }
+        }
+    }
+
+    private static void ConfigureWeightColumns<T>(EntityTypeBuilder<T> entity)
+        where T : class
+    {
+        var specs = new[]
+        {
+            "Pyromancer", "Cryomancer", "Aquamancer", "Berserker", "Defender", "Revenant",
+            "Avenger", "Crusader", "Protector", "Thunderlord", "Spiritguard", "Earthwarden",
+            "Assassin", "Vindicator", "Apothecary", "Conjurer", "Sentinel", "Luminary"
+        };
+
+        foreach (var spec in specs)
+        {
+            var propertyName = $"{spec}Weight";
+            var columnName = $"{spec.ToLowerInvariant()}_weight";
+            entity.Property(typeof(int), propertyName).HasColumnName(columnName);
         }
     }
 }

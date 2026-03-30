@@ -95,19 +95,19 @@ public class ExperimentalControllerTests
                     200,
                     0,
                     12,
-                    8,
+                    8.0,
                     [
-                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4),
-                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4)
+                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0),
+                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0)
                     ]),
                 new ExperimentalBalanceTeam(
                     200,
                     0,
                     8,
-                    4,
+                    4.0,
                     [
-                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2),
-                        new(U4, "delta", "Berserker", 100, 0, 5, 2)
+                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0),
+                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0)
                     ])
             ],
             meta);
@@ -181,19 +181,19 @@ public class ExperimentalControllerTests
                     200,
                     0,
                     12,
-                    8,
+                    8.0,
                     [
-                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4),
-                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4)
+                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0),
+                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0)
                     ]),
                 new ExperimentalBalanceTeam(
                     200,
                     0,
                     8,
-                    4,
+                    4.0,
                     [
-                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2),
-                        new(U4, "delta", "Berserker", 100, 0, 5, 2)
+                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0),
+                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0)
                     ])
             ],
             meta);

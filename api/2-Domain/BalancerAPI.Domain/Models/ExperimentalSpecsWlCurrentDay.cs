@@ -1,7 +1,7 @@
 namespace BalancerAPI.Domain.Models;
 
 /// <summary>
-/// Database view: current day stats calculated as cumulative minus last day's snapshot.
+/// Database view: current day stats as cumulative minus the latest daily snapshot row for the player, or all zeros if that snapshot row is missing.
 /// </summary>
 public class ExperimentalSpecsWlCurrentDay
 {
