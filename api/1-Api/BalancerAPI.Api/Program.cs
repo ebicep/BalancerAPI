@@ -38,9 +38,15 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<BalancerDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
+// Scoped factory so it can use the same scoped DbContextOptions registration as AddDbContext.
+builder.Services.AddDbContextFactory<BalancerDbContext>(
+    options => options.UseNpgsql(connectionString),
+    ServiceLifetime.Scoped);
 builder.Services.AddScoped<ISpecWeightsService, SpecWeightsService>();
+builder.Services.AddScoped<IExperimentalBalanceService, ExperimentalBalanceService>();
 builder.Services.AddScoped<ITimeService, TimeService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddHttpClient<INameUpdateService, NameUpdateService>(client => { client.BaseAddress = new Uri("https://sessionserver.mojang.com/"); });

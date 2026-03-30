@@ -1,11 +1,32 @@
 namespace BalancerAPI.Domain.Models;
 
 /// <summary>
-/// Database view: current week stats as cumulative minus the latest weekly snapshot row for the player, or all zeros if that snapshot row is missing.
+/// Database view: one row per player with pre-combined balancing inputs.
 /// </summary>
-public class ExperimentalSpecsWlCurrentWeek
+public class ExperimentalBalancePlayerData
 {
     public required Guid Uuid { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int BaseWeight { get; set; }
+
+    public int PyromancerWeight { get; set; }
+    public int CryomancerWeight { get; set; }
+    public int AquamancerWeight { get; set; }
+    public int BerserkerWeight { get; set; }
+    public int DefenderWeight { get; set; }
+    public int RevenantWeight { get; set; }
+    public int AvengerWeight { get; set; }
+    public int CrusaderWeight { get; set; }
+    public int ProtectorWeight { get; set; }
+    public int ThunderlordWeight { get; set; }
+    public int SpiritguardWeight { get; set; }
+    public int EarthwardenWeight { get; set; }
+    public int AssassinWeight { get; set; }
+    public int VindicatorWeight { get; set; }
+    public int ApothecaryWeight { get; set; }
+    public int ConjurerWeight { get; set; }
+    public int SentinelWeight { get; set; }
+    public int LuminaryWeight { get; set; }
 
     public int PyromancerWins { get; set; }
     public int PyromancerLosses { get; set; }
@@ -96,4 +117,7 @@ public class ExperimentalSpecsWlCurrentWeek
     public int LuminaryLosses { get; set; }
     public int LuminaryKills { get; set; }
     public int LuminaryDeaths { get; set; }
+
+    public int DailyWinLoss { get; set; }
+    public double GlobalNetKdPerGame { get; set; }
 }

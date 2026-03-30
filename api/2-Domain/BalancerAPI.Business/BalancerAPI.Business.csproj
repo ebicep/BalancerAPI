@@ -17,4 +17,8 @@
     <ProjectReference Include="..\..\4-Infrastructure\BalancerAPI.Common\BalancerAPI.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="BalancerAPI.Tests" />
+  </ItemGroup>
+
 </Project>
