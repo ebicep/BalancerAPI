@@ -3,6 +3,7 @@ using System;
 using BalancerAPI.Data.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BalancerAPI.Migrations
 {
     [DbContext(typeof(BalancerDbContext))]
-    partial class BalancerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260405214819_AddExperimentalBalanceLogCreatedAt")]
+    partial class AddExperimentalBalanceLogCreatedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

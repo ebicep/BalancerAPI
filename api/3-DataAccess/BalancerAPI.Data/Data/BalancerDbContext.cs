@@ -23,6 +23,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
     public DbSet<ExperimentalSpecsWlCurrentDay> ExperimentalSpecsWlCurrentDay => Set<ExperimentalSpecsWlCurrentDay>();
     public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
+    public DbSet<ExperimentalBalanceLog> ExperimentalBalanceLogs => Set<ExperimentalBalanceLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,6 +46,22 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureCurrentWeekView(modelBuilder);
         ConfigureCurrentDayView(modelBuilder);
         ConfigureBalancePlayerDataView(modelBuilder);
+        ConfigureExperimentalBalanceLog(modelBuilder);
+    }
+
+    private static void ConfigureExperimentalBalanceLog(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalBalanceLog>(entity =>
+        {
+            entity.ToTable("experimental_balance_log");
+            entity.HasKey(e => new { e.BalanceId, e.GameId });
+            entity.Property(e => e.BalanceId).HasColumnName("balance_id").HasColumnType("uuid");
+            entity.Property(e => e.GameId).HasColumnName("game_id").HasMaxLength(24).IsFixedLength();
+            entity.Property(e => e.Balance).HasColumnName("balance").HasColumnType("jsonb");
+            entity.Property(e => e.Meta).HasColumnName("meta").HasColumnType("jsonb");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
+            entity.Property(e => e.Posted).HasColumnName("posted");
+        });
     }
 
     private static void ConfigureNames(ModelBuilder modelBuilder)

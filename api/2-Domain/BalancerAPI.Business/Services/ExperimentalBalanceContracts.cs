@@ -5,6 +5,9 @@ namespace BalancerAPI.Business.Services;
 public sealed record ExperimentalBalanceRequest(
     [property: JsonPropertyName("players")] IReadOnlyList<Guid> Players);
 
+public sealed record ExperimentalBalanceConfirmResponse(
+    [property: JsonPropertyName("balance_id")] Guid BalanceId);
+
 public sealed record ExperimentalBalanceResponse(
     [property: JsonPropertyName("balance_id")] Guid BalanceId,
     [property: JsonPropertyName("balance")] IReadOnlyList<ExperimentalBalanceTeam> Balance,

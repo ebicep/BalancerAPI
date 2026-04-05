@@ -1,8 +1,9 @@
+using System.Text.Json.Serialization;
 using Asp.Versioning;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BalancerAPI.Api.Controllers;
 
@@ -12,6 +13,7 @@ namespace BalancerAPI.Api.Controllers;
 public class ExperimentalController(
     ISpecWeightsService specWeightsService,
     IExperimentalBalanceService experimentalBalanceService,
+    IExperimentalBalanceConfirmService experimentalBalanceConfirmService,
     BalancerDbContext dbContext) : ControllerBase
 {
     [HttpGet("spec-weights/{uuid:guid}")]
@@ -66,6 +68,25 @@ public class ExperimentalController(
             409 => Conflict(err.Message),
             _ => StatusCode(err.StatusCode, err.Message)
         };
+    }
+
+    [HttpPost("balance/{balanceId:guid}/confirm")]
+    [MapToApiVersion("1.0")]
+    [ProducesResponseType(typeof(ExperimentalBalanceConfirmResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalBalanceConfirmResponse>> ConfirmBalance(
+        Guid balanceId,
+        CancellationToken cancellationToken)
+    {
+        var result = await experimentalBalanceConfirmService.ConfirmAsync(balanceId, cancellationToken);
+        if (result.Success)
+        {
+            return Ok(new ExperimentalBalanceConfirmResponse(balanceId));
+        }
+
+        return StatusCode(result.StatusCode, result.Message);
     }
 
     private async Task<ResolvePlayersResult> ResolvePlayerUuidsAsync(
@@ -154,7 +175,7 @@ public class ExperimentalController(
     }
 
     public sealed record ExperimentalBalanceInputRequest(
-        IReadOnlyList<string> Players);
+        [property: JsonPropertyName("players")] IReadOnlyList<string> Players);
 
     private sealed record ResolvePlayersResult(
         bool Success,

@@ -19,11 +19,13 @@ public class ExperimentalControllerTests
     private static ExperimentalController CreateController(
         ISpecWeightsService specWeights,
         IExperimentalBalanceService? balance = null,
+        IExperimentalBalanceConfirmService? confirm = null,
         BalancerDbContext? dbContext = null)
     {
         var b = balance ?? Mock.Of<IExperimentalBalanceService>();
+        var c = confirm ?? Mock.Of<IExperimentalBalanceConfirmService>();
         var db = dbContext ?? CreateDbContext();
-        return new ExperimentalController(specWeights, b, db);
+        return new ExperimentalController(specWeights, b, c, db);
     }
 
     [Fact]
@@ -126,7 +128,7 @@ public class ExperimentalControllerTests
             new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] },
             new PlayerName { Uuid = U4, Name = "delta", PreviousNames = [] });
         await db.SaveChangesAsync();
-        var controller = CreateController(specWeights.Object, balance.Object, db);
+        var controller = CreateController(specWeights.Object, balance.Object, dbContext: db);
 
         var result = await controller.Balance(
             new ExperimentalController.ExperimentalBalanceInputRequest([TestUuid.ToString(), U2.ToString(), U3.ToString(), U4.ToString()]),
@@ -206,7 +208,7 @@ public class ExperimentalControllerTests
             .ReturnsAsync(new ExperimentalBalanceServiceResult(true, expected, null));
 
         var specWeights = new Mock<ISpecWeightsService>();
-        var controller = CreateController(specWeights.Object, balance.Object, db);
+        var controller = CreateController(specWeights.Object, balance.Object, dbContext: db);
 
         var result = await controller.Balance(
             new ExperimentalController.ExperimentalBalanceInputRequest(["alpha", "beta", "gamma", "delta"]),
@@ -228,7 +230,7 @@ public class ExperimentalControllerTests
 
         var specWeights = new Mock<ISpecWeightsService>();
         var balance = new Mock<IExperimentalBalanceService>();
-        var controller = CreateController(specWeights.Object, balance.Object, db);
+        var controller = CreateController(specWeights.Object, balance.Object, dbContext: db);
 
         var result = await controller.Balance(
             new ExperimentalController.ExperimentalBalanceInputRequest(["alpha", "does-not-exist"]),
@@ -236,6 +238,23 @@ public class ExperimentalControllerTests
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
         balance.Verify(x => x.BalanceAsync(It.IsAny<ExperimentalBalanceRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ConfirmBalance_WhenServiceSucceeds_ReturnsOkWithBalanceId()
+    {
+        var confirm = new Mock<IExperimentalBalanceConfirmService>();
+        confirm.Setup(x => x.ConfirmAsync(TestBalanceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalBalanceConfirmServiceResult(true, 200, null));
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, confirm: confirm.Object);
+
+        var result = await controller.ConfirmBalance(TestBalanceId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalBalanceConfirmResponse>(ok.Value);
+        Assert.Equal(TestBalanceId, body.BalanceId);
     }
 
     private static BalancerDbContext CreateDbContext()

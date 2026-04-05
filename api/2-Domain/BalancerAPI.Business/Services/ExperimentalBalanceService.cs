@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
@@ -150,7 +151,28 @@ public sealed class ExperimentalBalanceService(
                     Time: latestSeason?.Timestamp ?? DateTime.UtcNow);
 
                 var balanceId = Guid.NewGuid();
-                return new ExperimentalBalanceServiceResult(true, new ExperimentalBalanceResponse(balanceId, teamBalance, meta), null);
+                var response = new ExperimentalBalanceResponse(balanceId, teamBalance, meta);
+
+                try
+                {
+                    await using var persistDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                    persistDb.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+                    {
+                        BalanceId = balanceId,
+                        GameId = ExperimentalBalanceLogGameIds.Sentinel,
+                        Balance = JsonSerializer.Serialize(response.Balance),
+                        Meta = JsonSerializer.Serialize(response.Meta),
+                        CreatedAt = meta.Time,
+                        Posted = false
+                    });
+                    await persistDb.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException)
+                {
+                    return Fail(500, "Failed to persist balance log.");
+                }
+
+                return new ExperimentalBalanceServiceResult(true, response, null);
             }
         }
 
