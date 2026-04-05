@@ -6,6 +6,7 @@ public sealed record ExperimentalBalanceRequest(
     [property: JsonPropertyName("players")] IReadOnlyList<Guid> Players);
 
 public sealed record ExperimentalBalanceResponse(
+    [property: JsonPropertyName("balance_id")] Guid BalanceId,
     [property: JsonPropertyName("balance")] IReadOnlyList<ExperimentalBalanceTeam> Balance,
     [property: JsonPropertyName("meta")] ExperimentalBalanceMeta Meta);
 

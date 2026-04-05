@@ -80,6 +80,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.ToTable("experimental_spec_logs");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.BalanceId).HasColumnName("balance_id").HasColumnType("uuid");
             entity.Property(e => e.Pyromancer).HasColumnName("pyromancer").HasColumnType("uuid");
             entity.Property(e => e.Cryomancer).HasColumnName("cryomancer").HasColumnType("uuid");
             entity.Property(e => e.Aquamancer).HasColumnName("aquamancer").HasColumnType("uuid");

@@ -7,6 +7,8 @@ public class ExperimentalSpecLog
 {
     public Guid Id { get; set; }
 
+    public Guid? BalanceId { get; set; }
+
     public Guid? Pyromancer { get; set; }
     public Guid? Cryomancer { get; set; }
     public Guid? Aquamancer { get; set; }

@@ -149,7 +149,8 @@ public sealed class ExperimentalBalanceService(
                     Season: latestSeason?.Id ?? 0,
                     Time: latestSeason?.Timestamp ?? DateTime.UtcNow);
 
-                return new ExperimentalBalanceServiceResult(true, new ExperimentalBalanceResponse(teamBalance, meta), null);
+                var balanceId = Guid.NewGuid();
+                return new ExperimentalBalanceServiceResult(true, new ExperimentalBalanceResponse(balanceId, teamBalance, meta), null);
             }
         }
 
