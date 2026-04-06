@@ -1,0 +1,322 @@
+using System.Data;
+using System.Text.Json;
+using BalancerAPI.Data.Data;
+using BalancerAPI.Domain.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace BalancerAPI.Business.Services;
+
+public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDbContext> dbContextFactory)
+    : IExperimentalBalanceInputService
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    public async Task<ExperimentalBalanceInputServiceResult> InputAsync(
+        Guid balanceId,
+        ExperimentalBalanceInputBody body,
+        CancellationToken cancellationToken)
+    {
+        var requestedGameId = ExperimentalBalanceLogGameIds.TryNormalize(body.GameId);
+        if (requestedGameId is null)
+        {
+            return Fail(400, "game_id must be a 24-character hexadecimal MongoDB ObjectId.");
+        }
+
+        var winners = body.Winners ?? [];
+        var losers = body.Losers ?? [];
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var log = await db.ExperimentalBalanceLogs.FindAsync([balanceId], cancellationToken);
+        if (log is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(404, "Balance log not found.");
+        }
+
+        if (!log.Posted)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(409, "Balance must be confirmed before input.");
+        }
+
+        if (log.Inputted)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(409, "Balance result already inputted.");
+        }
+
+        List<ExperimentalBalanceTeam>? teams;
+        try
+        {
+            teams = JsonSerializer.Deserialize<List<ExperimentalBalanceTeam>>(log.Balance, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored balance JSON is invalid.");
+        }
+
+        if (teams is null || teams.Count < 2)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored balance must contain at least two teams.");
+        }
+
+        var teamSets = new List<HashSet<Guid>>(teams.Count);
+        teamSets.AddRange(teams.Select(team => team.Specs.Select(s => s.Uuid).ToHashSet()));
+
+        var allBalance = new HashSet<Guid>();
+        foreach (var ts in teamSets)
+        {
+            allBalance.UnionWith(ts);
+        }
+
+        var rosterError = TryValidateWinnerLoserPayload(winners, losers, allBalance, out var winnerSet, out var loserSet);
+        if (rosterError is not null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return rosterError;
+        }
+
+        var submitted = new HashSet<Guid>(winnerSet);
+        submitted.UnionWith(loserSet);
+        if (!submitted.SetEquals(allBalance))
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "winners and losers must include every player in the balance exactly once.");
+        }
+
+        var teamsValid = false;
+        for (var i = 0; i < teamSets.Count; i++)
+        {
+            if (teamSets.Where((t, j) => i != j).Any(t => winnerSet.IsSubsetOf(teamSets[i]) && loserSet.IsSubsetOf(t)))
+            {
+                teamsValid = true;
+            }
+
+            if (teamsValid)
+            {
+                break;
+            }
+        }
+
+        if (!teamsValid)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "All winners must be on one team and all losers on the other.");
+        }
+
+        var specRows = await db.ExperimentalSpecLogs
+            .Where(x => x.BalanceId == balanceId)
+            .ToListAsync(cancellationToken);
+
+        if (specRows.Count == 0)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "No spec log rows for this balance.");
+        }
+
+        var specByPlayer = new Dictionary<Guid, string>();
+        foreach (var uuid in submitted)
+        {
+            var spec = ExperimentalSpecLogLookup.FindSpecForUuid(specRows, uuid);
+            if (spec is null)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return Fail(400, "Missing spec assignment for one or more players.");
+            }
+
+            specByPlayer[uuid] = spec;
+        }
+
+        var uuidsList = submitted.ToList();
+        var wlRows = await db.ExperimentalSpecsWl
+            .Where(x => uuidsList.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+
+        if (wlRows.Count != uuidsList.Count)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(404, "One or more players are missing experimental_specs_wl rows.");
+        }
+
+        var wlByUuid = wlRows.ToDictionary(x => x.Uuid);
+        ApplyInputLines(winners, wlByUuid, specByPlayer, ApplyWin);
+        ApplyInputLines(losers, wlByUuid, specByPlayer, ApplyLoss);
+
+        log.GameId = requestedGameId;
+        log.Inputted = true;
+
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        return new ExperimentalBalanceInputServiceResult(true, 200, null);
+    }
+
+    private static ExperimentalBalanceInputServiceResult Fail(int status, string message) =>
+        new(false, status, message);
+
+    /// <summary>Null when valid; on failure <paramref name="winnerSet"/> and <paramref name="loserSet"/> are empty.</summary>
+    private static ExperimentalBalanceInputServiceResult? TryValidateWinnerLoserPayload(
+        IReadOnlyList<ExperimentalBalanceInputPlayerLine> winners,
+        IReadOnlyList<ExperimentalBalanceInputPlayerLine> losers,
+        HashSet<Guid> allBalance,
+        out HashSet<Guid> winnerSet,
+        out HashSet<Guid> loserSet)
+    {
+        winnerSet = [];
+        loserSet = [];
+
+        if (winners.Count == 0 && losers.Count == 0)
+        {
+            return Fail(400, "winners and losers must not both be empty.");
+        }
+
+        if (winners.Select(w => w.Uuid).Distinct().Count() != winners.Count)
+        {
+            return Fail(400, "Duplicate UUID in winners.");
+        }
+
+        if (losers.Select(l => l.Uuid).Distinct().Count() != losers.Count)
+        {
+            return Fail(400, "Duplicate UUID in losers.");
+        }
+
+        winnerSet = winners.Select(w => w.Uuid).ToHashSet();
+        loserSet = losers.Select(l => l.Uuid).ToHashSet();
+        if (winnerSet.Overlaps(loserSet))
+        {
+            return Fail(400, "A player cannot appear in both winners and losers.");
+        }
+
+        foreach (var (line, roleLabel) in winners.Select(w => (w, "Winner")).Concat(losers.Select(l => (l, "Loser"))))
+        {
+            var lineError = ValidateKillsDeathsAndBalanceMembership(line, roleLabel, allBalance);
+            if (lineError is not null)
+            {
+                return lineError;
+            }
+        }
+
+        return null;
+    }
+
+    private static ExperimentalBalanceInputServiceResult? ValidateKillsDeathsAndBalanceMembership(
+        ExperimentalBalanceInputPlayerLine line,
+        string roleLabel,
+        HashSet<Guid> allBalance)
+    {
+        if (line.Kills < 0 || line.Deaths < 0)
+        {
+            return Fail(400, "kills and deaths must be non-negative.");
+        }
+
+        if (!allBalance.Contains(line.Uuid))
+        {
+            return Fail(400, $"{roleLabel} UUID is not part of this balance.");
+        }
+
+        return null;
+    }
+
+    private static void ApplyInputLines(
+        IReadOnlyList<ExperimentalBalanceInputPlayerLine> lines,
+        IReadOnlyDictionary<Guid, ExperimentalSpecsWl> wlByUuid,
+        IReadOnlyDictionary<Guid, string> specByPlayer,
+        Action<ExperimentalSpecsWl, string, int, int> applySpecStats)
+    {
+        foreach (var line in lines)
+        {
+            applySpecStats(wlByUuid[line.Uuid], specByPlayer[line.Uuid], line.Kills, line.Deaths);
+        }
+    }
+
+    private static void ApplyWin(ExperimentalSpecsWl row, string spec, int kills, int deaths)
+    {
+        switch (spec)
+        {
+            case "Pyromancer": row.PyromancerWins++; row.PyromancerKills += kills; row.PyromancerDeaths += deaths; break;
+            case "Cryomancer": row.CryomancerWins++; row.CryomancerKills += kills; row.CryomancerDeaths += deaths; break;
+            case "Aquamancer": row.AquamancerWins++; row.AquamancerKills += kills; row.AquamancerDeaths += deaths; break;
+            case "Berserker": row.BerserkerWins++; row.BerserkerKills += kills; row.BerserkerDeaths += deaths; break;
+            case "Defender": row.DefenderWins++; row.DefenderKills += kills; row.DefenderDeaths += deaths; break;
+            case "Revenant": row.RevenantWins++; row.RevenantKills += kills; row.RevenantDeaths += deaths; break;
+            case "Avenger": row.AvengerWins++; row.AvengerKills += kills; row.AvengerDeaths += deaths; break;
+            case "Crusader": row.CrusaderWins++; row.CrusaderKills += kills; row.CrusaderDeaths += deaths; break;
+            case "Protector": row.ProtectorWins++; row.ProtectorKills += kills; row.ProtectorDeaths += deaths; break;
+            case "Thunderlord": row.ThunderlordWins++; row.ThunderlordKills += kills; row.ThunderlordDeaths += deaths; break;
+            case "Spiritguard": row.SpiritguardWins++; row.SpiritguardKills += kills; row.SpiritguardDeaths += deaths; break;
+            case "Earthwarden": row.EarthwardenWins++; row.EarthwardenKills += kills; row.EarthwardenDeaths += deaths; break;
+            case "Assassin": row.AssassinWins++; row.AssassinKills += kills; row.AssassinDeaths += deaths; break;
+            case "Vindicator": row.VindicatorWins++; row.VindicatorKills += kills; row.VindicatorDeaths += deaths; break;
+            case "Apothecary": row.ApothecaryWins++; row.ApothecaryKills += kills; row.ApothecaryDeaths += deaths; break;
+            case "Conjurer": row.ConjurerWins++; row.ConjurerKills += kills; row.ConjurerDeaths += deaths; break;
+            case "Sentinel": row.SentinelWins++; row.SentinelKills += kills; row.SentinelDeaths += deaths; break;
+            case "Luminary": row.LuminaryWins++; row.LuminaryKills += kills; row.LuminaryDeaths += deaths; break;
+            default:
+                throw new InvalidOperationException($"Unknown spec '{spec}'.");
+        }
+    }
+
+    private static void ApplyLoss(ExperimentalSpecsWl row, string spec, int kills, int deaths)
+    {
+        switch (spec)
+        {
+            case "Pyromancer": row.PyromancerLosses++; row.PyromancerKills += kills; row.PyromancerDeaths += deaths; break;
+            case "Cryomancer": row.CryomancerLosses++; row.CryomancerKills += kills; row.CryomancerDeaths += deaths; break;
+            case "Aquamancer": row.AquamancerLosses++; row.AquamancerKills += kills; row.AquamancerDeaths += deaths; break;
+            case "Berserker": row.BerserkerLosses++; row.BerserkerKills += kills; row.BerserkerDeaths += deaths; break;
+            case "Defender": row.DefenderLosses++; row.DefenderKills += kills; row.DefenderDeaths += deaths; break;
+            case "Revenant": row.RevenantLosses++; row.RevenantKills += kills; row.RevenantDeaths += deaths; break;
+            case "Avenger": row.AvengerLosses++; row.AvengerKills += kills; row.AvengerDeaths += deaths; break;
+            case "Crusader": row.CrusaderLosses++; row.CrusaderKills += kills; row.CrusaderDeaths += deaths; break;
+            case "Protector": row.ProtectorLosses++; row.ProtectorKills += kills; row.ProtectorDeaths += deaths; break;
+            case "Thunderlord": row.ThunderlordLosses++; row.ThunderlordKills += kills; row.ThunderlordDeaths += deaths; break;
+            case "Spiritguard": row.SpiritguardLosses++; row.SpiritguardKills += kills; row.SpiritguardDeaths += deaths; break;
+            case "Earthwarden": row.EarthwardenLosses++; row.EarthwardenKills += kills; row.EarthwardenDeaths += deaths; break;
+            case "Assassin": row.AssassinLosses++; row.AssassinKills += kills; row.AssassinDeaths += deaths; break;
+            case "Vindicator": row.VindicatorLosses++; row.VindicatorKills += kills; row.VindicatorDeaths += deaths; break;
+            case "Apothecary": row.ApothecaryLosses++; row.ApothecaryKills += kills; row.ApothecaryDeaths += deaths; break;
+            case "Conjurer": row.ConjurerLosses++; row.ConjurerKills += kills; row.ConjurerDeaths += deaths; break;
+            case "Sentinel": row.SentinelLosses++; row.SentinelKills += kills; row.SentinelDeaths += deaths; break;
+            case "Luminary": row.LuminaryLosses++; row.LuminaryKills += kills; row.LuminaryDeaths += deaths; break;
+            default:
+                throw new InvalidOperationException($"Unknown spec '{spec}'.");
+        }
+    }
+}
+
+internal static class ExperimentalSpecLogLookup
+{
+    public static string? FindSpecForUuid(IEnumerable<ExperimentalSpecLog> rows, Guid uuid)
+    {
+        foreach (var row in rows)
+        {
+            if (row.Pyromancer == uuid) return "Pyromancer";
+            if (row.Cryomancer == uuid) return "Cryomancer";
+            if (row.Aquamancer == uuid) return "Aquamancer";
+            if (row.Berserker == uuid) return "Berserker";
+            if (row.Defender == uuid) return "Defender";
+            if (row.Revenant == uuid) return "Revenant";
+            if (row.Avenger == uuid) return "Avenger";
+            if (row.Crusader == uuid) return "Crusader";
+            if (row.Protector == uuid) return "Protector";
+            if (row.Thunderlord == uuid) return "Thunderlord";
+            if (row.Spiritguard == uuid) return "Spiritguard";
+            if (row.Earthwarden == uuid) return "Earthwarden";
+            if (row.Assassin == uuid) return "Assassin";
+            if (row.Vindicator == uuid) return "Vindicator";
+            if (row.Apothecary == uuid) return "Apothecary";
+            if (row.Conjurer == uuid) return "Conjurer";
+            if (row.Sentinel == uuid) return "Sentinel";
+            if (row.Luminary == uuid) return "Luminary";
+        }
+
+        return null;
+    }
+}

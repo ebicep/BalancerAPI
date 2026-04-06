@@ -54,13 +54,14 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         modelBuilder.Entity<ExperimentalBalanceLog>(entity =>
         {
             entity.ToTable("experimental_balance_log");
-            entity.HasKey(e => new { e.BalanceId, e.GameId });
+            entity.HasKey(e => e.BalanceId);
             entity.Property(e => e.BalanceId).HasColumnName("balance_id").HasColumnType("uuid");
-            entity.Property(e => e.GameId).HasColumnName("game_id").HasMaxLength(24).IsFixedLength();
+            entity.Property(e => e.GameId).HasColumnName("game_id").HasMaxLength(24).IsFixedLength().IsRequired(false);
             entity.Property(e => e.Balance).HasColumnName("balance").HasColumnType("jsonb");
             entity.Property(e => e.Meta).HasColumnName("meta").HasColumnType("jsonb");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
             entity.Property(e => e.Posted).HasColumnName("posted");
+            entity.Property(e => e.Inputted).HasColumnName("inputted");
         });
     }
 

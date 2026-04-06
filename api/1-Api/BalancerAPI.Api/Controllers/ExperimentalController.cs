@@ -14,6 +14,7 @@ public class ExperimentalController(
     ISpecWeightsService specWeightsService,
     IExperimentalBalanceService experimentalBalanceService,
     IExperimentalBalanceConfirmService experimentalBalanceConfirmService,
+    IExperimentalBalanceInputService experimentalBalanceInputService,
     BalancerDbContext dbContext) : ControllerBase
 {
     [HttpGet("spec-weights/{uuid:guid}")]
@@ -84,6 +85,31 @@ public class ExperimentalController(
         if (result.Success)
         {
             return Ok(new ExperimentalBalanceConfirmResponse(balanceId));
+        }
+
+        return StatusCode(result.StatusCode, result.Message);
+    }
+
+    [HttpPost("balance/{balanceId:guid}/input")]
+    [MapToApiVersion("1.0")]
+    [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalBalanceInputResponse>> InputBalance(
+        Guid balanceId,
+        [FromBody] ExperimentalBalanceInputBody? body,
+        CancellationToken cancellationToken)
+    {
+        if (body is null)
+        {
+            return BadRequest("Request body is required.");
+        }
+
+        var result = await experimentalBalanceInputService.InputAsync(balanceId, body, cancellationToken);
+        if (result.Success)
+        {
+            return Ok(new ExperimentalBalanceInputResponse(balanceId));
         }
 
         return StatusCode(result.StatusCode, result.Message);

@@ -48,6 +48,7 @@ builder.Services.AddDbContextFactory<BalancerDbContext>(
 builder.Services.AddScoped<ISpecWeightsService, SpecWeightsService>();
 builder.Services.AddScoped<IExperimentalBalanceService, ExperimentalBalanceService>();
 builder.Services.AddScoped<IExperimentalBalanceConfirmService, ExperimentalBalanceConfirmService>();
+builder.Services.AddScoped<IExperimentalBalanceInputService, ExperimentalBalanceInputService>();
 builder.Services.AddScoped<ITimeService, TimeService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddHttpClient<INameUpdateService, NameUpdateService>(client => { client.BaseAddress = new Uri("https://sessionserver.mojang.com/"); });

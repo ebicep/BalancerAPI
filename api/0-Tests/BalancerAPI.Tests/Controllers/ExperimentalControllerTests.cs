@@ -20,12 +20,14 @@ public class ExperimentalControllerTests
         ISpecWeightsService specWeights,
         IExperimentalBalanceService? balance = null,
         IExperimentalBalanceConfirmService? confirm = null,
+        IExperimentalBalanceInputService? input = null,
         BalancerDbContext? dbContext = null)
     {
         var b = balance ?? Mock.Of<IExperimentalBalanceService>();
         var c = confirm ?? Mock.Of<IExperimentalBalanceConfirmService>();
+        var i = input ?? Mock.Of<IExperimentalBalanceInputService>();
         var db = dbContext ?? CreateDbContext();
-        return new ExperimentalController(specWeights, b, c, db);
+        return new ExperimentalController(specWeights, b, c, i, db);
     }
 
     [Fact]
@@ -255,6 +257,35 @@ public class ExperimentalControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var body = Assert.IsType<ExperimentalBalanceConfirmResponse>(ok.Value);
         Assert.Equal(TestBalanceId, body.BalanceId);
+    }
+
+    [Fact]
+    public async Task InputBalance_WhenServiceSucceeds_ReturnsOkWithBalanceId()
+    {
+        var input = new Mock<IExperimentalBalanceInputService>();
+        input.Setup(x => x.InputAsync(TestBalanceId, It.IsAny<ExperimentalBalanceInputBody>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalBalanceInputServiceResult(true, 200, null));
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, input: input.Object);
+
+        var body = new ExperimentalBalanceInputBody([], [], "aaaaaaaaaaaaaaaaaaaaaaaa");
+        var result = await controller.InputBalance(TestBalanceId, body, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ExperimentalBalanceInputResponse>(ok.Value);
+        Assert.Equal(TestBalanceId, response.BalanceId);
+    }
+
+    [Fact]
+    public async Task InputBalance_WhenBodyNull_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.InputBalance(TestBalanceId, null, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
     }
 
     private static BalancerDbContext CreateDbContext()

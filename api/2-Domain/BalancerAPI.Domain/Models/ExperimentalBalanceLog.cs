@@ -4,8 +4,8 @@ public class ExperimentalBalanceLog
 {
     public Guid BalanceId { get; set; }
 
-    /// <summary>MongoDB ObjectId as 24 hex chars, or the all-zero sentinel when no game id was supplied.</summary>
-    public string GameId { get; set; } = null!;
+    /// <summary>MongoDB ObjectId as 24 hex chars. Null until the result is inputted via the input endpoint.</summary>
+    public string? GameId { get; set; }
 
     /// <summary>JSON array of teams (same shape as API <c>balance</c>).</summary>
     public string Balance { get; set; } = null!;
@@ -17,4 +17,6 @@ public class ExperimentalBalanceLog
     public DateTime CreatedAt { get; set; }
 
     public bool Posted { get; set; }
+
+    public bool Inputted { get; set; }
 }

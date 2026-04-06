@@ -159,7 +159,6 @@ public sealed class ExperimentalBalanceService(
                     persistDb.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
                     {
                         BalanceId = balanceId,
-                        GameId = ExperimentalBalanceLogGameIds.Sentinel,
                         Balance = JsonSerializer.Serialize(response.Balance),
                         Meta = JsonSerializer.Serialize(response.Meta),
                         CreatedAt = meta.Time,
