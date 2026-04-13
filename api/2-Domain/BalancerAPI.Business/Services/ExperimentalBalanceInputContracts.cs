@@ -8,6 +8,8 @@ public interface IExperimentalBalanceInputService
         Guid balanceId,
         ExperimentalBalanceInputBody body,
         CancellationToken cancellationToken);
+
+    Task<ExperimentalBalanceInputServiceResult> UninputAsync(Guid balanceId, CancellationToken cancellationToken);
 }
 
 public sealed record ExperimentalBalanceInputServiceResult(

@@ -15,6 +15,12 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         PropertyNameCaseInsensitive = true
     };
 
+    private sealed record InputApplicationContext(
+        IReadOnlyList<ExperimentalBalanceInputPlayerLine> Winners,
+        IReadOnlyList<ExperimentalBalanceInputPlayerLine> Losers,
+        Dictionary<Guid, string> SpecByPlayer,
+        Dictionary<Guid, ExperimentalSpecsWl> WlByUuid);
+
     public async Task<ExperimentalBalanceInputServiceResult> InputAsync(
         Guid balanceId,
         ExperimentalBalanceInputBody body,
@@ -25,9 +31,6 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         {
             return Fail(400, "game_id must be a 24-character hexadecimal MongoDB ObjectId.");
         }
-
-        var winners = body.Winners ?? [];
-        var losers = body.Losers ?? [];
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -63,104 +66,15 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return Fail(400, "Request body must match the stored input JSON for this balance.");
         }
 
-        List<ExperimentalBalanceTeam>? teams;
-        try
-        {
-            teams = JsonSerializer.Deserialize<List<ExperimentalBalanceTeam>>(log.Balance, JsonOptions);
-        }
-        catch (JsonException)
+        var (ctxError, ctx) = await TryBuildInputApplicationContextAsync(db, balanceId, log.Balance, body, cancellationToken);
+        if (ctxError is not null)
         {
             await tx.RollbackAsync(cancellationToken);
-            return Fail(400, "Stored balance JSON is invalid.");
+            return ctxError;
         }
 
-        if (teams is null || teams.Count < 2)
-        {
-            await tx.RollbackAsync(cancellationToken);
-            return Fail(400, "Stored balance must contain at least two teams.");
-        }
-
-        var teamSets = new List<HashSet<Guid>>(teams.Count);
-        teamSets.AddRange(teams.Select(team => team.Specs.Select(s => s.Uuid).ToHashSet()));
-
-        var allBalance = new HashSet<Guid>();
-        foreach (var ts in teamSets)
-        {
-            allBalance.UnionWith(ts);
-        }
-
-        var rosterError = TryValidateWinnerLoserPayload(winners, losers, allBalance, out var winnerSet, out var loserSet);
-        if (rosterError is not null)
-        {
-            await tx.RollbackAsync(cancellationToken);
-            return rosterError;
-        }
-
-        var submitted = new HashSet<Guid>(winnerSet);
-        submitted.UnionWith(loserSet);
-        if (!submitted.SetEquals(allBalance))
-        {
-            await tx.RollbackAsync(cancellationToken);
-            return Fail(400, "winners and losers must include every player in the balance exactly once.");
-        }
-
-        var teamsValid = false;
-        for (var i = 0; i < teamSets.Count; i++)
-        {
-            if (teamSets.Where((t, j) => i != j).Any(t => winnerSet.IsSubsetOf(teamSets[i]) && loserSet.IsSubsetOf(t)))
-            {
-                teamsValid = true;
-            }
-
-            if (teamsValid)
-            {
-                break;
-            }
-        }
-
-        if (!teamsValid)
-        {
-            await tx.RollbackAsync(cancellationToken);
-            return Fail(400, "All winners must be on one team and all losers on the other.");
-        }
-
-        var specRows = await db.ExperimentalSpecLogs
-            .Where(x => x.BalanceId == balanceId)
-            .ToListAsync(cancellationToken);
-
-        if (specRows.Count == 0)
-        {
-            await tx.RollbackAsync(cancellationToken);
-            return Fail(400, "No spec log rows for this balance.");
-        }
-
-        var specByPlayer = new Dictionary<Guid, string>();
-        foreach (var uuid in submitted)
-        {
-            var spec = ExperimentalSpecLogLookup.FindSpecForUuid(specRows, uuid);
-            if (spec is null)
-            {
-                await tx.RollbackAsync(cancellationToken);
-                return Fail(400, "Missing spec assignment for one or more players.");
-            }
-
-            specByPlayer[uuid] = spec;
-        }
-
-        var uuidsList = submitted.ToList();
-        var wlRows = await db.ExperimentalSpecsWl
-            .Where(x => uuidsList.Contains(x.Uuid))
-            .ToListAsync(cancellationToken);
-
-        if (wlRows.Count != uuidsList.Count)
-        {
-            await tx.RollbackAsync(cancellationToken);
-            return Fail(404, "One or more players are missing experimental_specs_wl rows.");
-        }
-
-        var wlByUuid = wlRows.ToDictionary(x => x.Uuid);
-        ApplyInputLines(winners, wlByUuid, specByPlayer, ApplyWin);
-        ApplyInputLines(losers, wlByUuid, specByPlayer, ApplyLoss);
+        ApplyInputLines(ctx!.Winners, ctx.WlByUuid, ctx.SpecByPlayer, ApplyWin);
+        ApplyInputLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, ApplyLoss);
 
         var canonicalInputJson = JsonSerializer.Serialize(body, JsonOptions);
         if (log.Input is null)
@@ -183,6 +97,215 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         await tx.CommitAsync(cancellationToken);
 
         return new ExperimentalBalanceInputServiceResult(true, 200, null);
+    }
+
+    public async Task<ExperimentalBalanceInputServiceResult> UninputAsync(Guid balanceId, CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var log = await db.ExperimentalBalanceLogs.FindAsync([balanceId], cancellationToken);
+        if (log is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(404, "Balance log not found.");
+        }
+
+        if (!log.Posted)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(409, "Balance must be confirmed before uninput.");
+        }
+
+        if (!log.Counted)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(409, "Balance result not counted.");
+        }
+
+        if (string.IsNullOrEmpty(log.Input))
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "No stored input to reverse.");
+        }
+
+        ExperimentalBalanceInputBody? body;
+        try
+        {
+            body = JsonSerializer.Deserialize<ExperimentalBalanceInputBody>(log.Input, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored input JSON is invalid.");
+        }
+
+        if (body is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored input JSON is invalid.");
+        }
+
+        var storedGameId = ExperimentalBalanceLogGameIds.TryNormalize(body.GameId);
+        if (storedGameId is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored input JSON has an invalid game_id.");
+        }
+
+        if (log.GameId is not null && log.GameId != storedGameId)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored input game_id does not match the balance log.");
+        }
+
+        var (ctxError, ctx) = await TryBuildInputApplicationContextAsync(db, balanceId, log.Balance, body, cancellationToken);
+        if (ctxError is not null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return ctxError;
+        }
+
+        if (!TryApplyReverseLines(ctx!.Winners, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseWin)
+            || !TryApplyReverseLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseLoss))
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(409, "Cannot uninput; win/loss stats are inconsistent with the stored input.");
+        }
+
+        log.Counted = false;
+
+        var auditGameId = log.GameId ?? storedGameId;
+        db.ExperimentalInputLogs.Add(new ExperimentalInputLog
+        {
+            BalanceId = balanceId,
+            GameId = auditGameId,
+            Action = "uninput",
+            OccurredAt = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        return new ExperimentalBalanceInputServiceResult(true, 200, null);
+    }
+
+    private async Task<(ExperimentalBalanceInputServiceResult? Error, InputApplicationContext? Ctx)> TryBuildInputApplicationContextAsync(
+        BalancerDbContext db,
+        Guid balanceId,
+        string balanceJson,
+        ExperimentalBalanceInputBody body,
+        CancellationToken cancellationToken)
+    {
+        var winners = body.Winners ?? [];
+        var losers = body.Losers ?? [];
+
+        List<ExperimentalBalanceTeam>? teams;
+        try
+        {
+            teams = JsonSerializer.Deserialize<List<ExperimentalBalanceTeam>>(balanceJson, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return (Fail(400, "Stored balance JSON is invalid."), null);
+        }
+
+        if (teams is null || teams.Count < 2)
+        {
+            return (Fail(400, "Stored balance must contain at least two teams."), null);
+        }
+
+        var teamSets = new List<HashSet<Guid>>(teams.Count);
+        teamSets.AddRange(teams.Select(team => team.Specs.Select(s => s.Uuid).ToHashSet()));
+
+        var allBalance = new HashSet<Guid>();
+        foreach (var ts in teamSets)
+        {
+            allBalance.UnionWith(ts);
+        }
+
+        var rosterError = TryValidateWinnerLoserPayload(winners, losers, allBalance, out var winnerSet, out var loserSet);
+        if (rosterError is not null)
+        {
+            return (rosterError, null);
+        }
+
+        var submitted = new HashSet<Guid>(winnerSet);
+        submitted.UnionWith(loserSet);
+        if (!submitted.SetEquals(allBalance))
+        {
+            return (Fail(400, "winners and losers must include every player in the balance exactly once."), null);
+        }
+
+        var teamsValid = false;
+        for (var i = 0; i < teamSets.Count; i++)
+        {
+            if (teamSets.Where((_, j) => i != j).Any(t => winnerSet.IsSubsetOf(teamSets[i]) && loserSet.IsSubsetOf(t)))
+            {
+                teamsValid = true;
+            }
+
+            if (teamsValid)
+            {
+                break;
+            }
+        }
+
+        if (!teamsValid)
+        {
+            return (Fail(400, "All winners must be on one team and all losers on the other."), null);
+        }
+
+        var specRows = await db.ExperimentalSpecLogs
+            .Where(x => x.BalanceId == balanceId)
+            .ToListAsync(cancellationToken);
+
+        if (specRows.Count == 0)
+        {
+            return (Fail(400, "No spec log rows for this balance."), null);
+        }
+
+        var specByPlayer = new Dictionary<Guid, string>();
+        foreach (var uuid in submitted)
+        {
+            var spec = ExperimentalSpecLogLookup.FindSpecForUuid(specRows, uuid);
+            if (spec is null)
+            {
+                return (Fail(400, "Missing spec assignment for one or more players."), null);
+            }
+
+            specByPlayer[uuid] = spec;
+        }
+
+        var uuidsList = submitted.ToList();
+        var wlRows = await db.ExperimentalSpecsWl
+            .Where(x => uuidsList.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+
+        if (wlRows.Count != uuidsList.Count)
+        {
+            return (Fail(404, "One or more players are missing experimental_specs_wl rows."), null);
+        }
+
+        var wlByUuid = wlRows.ToDictionary(x => x.Uuid);
+        return (null, new InputApplicationContext(winners, losers, specByPlayer, wlByUuid));
+    }
+
+    private static bool TryApplyReverseLines(
+        IReadOnlyList<ExperimentalBalanceInputPlayerLine> lines,
+        IReadOnlyDictionary<Guid, ExperimentalSpecsWl> wlByUuid,
+        IReadOnlyDictionary<Guid, string> specByPlayer,
+        Func<ExperimentalSpecsWl, string, int, int, bool> tryReverse)
+    {
+        foreach (var line in lines)
+        {
+            if (!tryReverse(wlByUuid[line.Uuid], specByPlayer[line.Uuid], line.Kills, line.Deaths))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static ExperimentalBalanceInputServiceResult Fail(int status, string message) =>
@@ -319,6 +442,132 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             case "Conjurer": row.ConjurerLosses++; row.ConjurerKills += kills; row.ConjurerDeaths += deaths; break;
             case "Sentinel": row.SentinelLosses++; row.SentinelKills += kills; row.SentinelDeaths += deaths; break;
             case "Luminary": row.LuminaryLosses++; row.LuminaryKills += kills; row.LuminaryDeaths += deaths; break;
+            default:
+                throw new InvalidOperationException($"Unknown spec '{spec}'.");
+        }
+    }
+
+    private static bool TryReverseWin(ExperimentalSpecsWl row, string spec, int kills, int deaths)
+    {
+        switch (spec)
+        {
+            case "Pyromancer":
+                if (row.PyromancerWins < 1 || row.PyromancerKills < kills || row.PyromancerDeaths < deaths) return false;
+                row.PyromancerWins--; row.PyromancerKills -= kills; row.PyromancerDeaths -= deaths; return true;
+            case "Cryomancer":
+                if (row.CryomancerWins < 1 || row.CryomancerKills < kills || row.CryomancerDeaths < deaths) return false;
+                row.CryomancerWins--; row.CryomancerKills -= kills; row.CryomancerDeaths -= deaths; return true;
+            case "Aquamancer":
+                if (row.AquamancerWins < 1 || row.AquamancerKills < kills || row.AquamancerDeaths < deaths) return false;
+                row.AquamancerWins--; row.AquamancerKills -= kills; row.AquamancerDeaths -= deaths; return true;
+            case "Berserker":
+                if (row.BerserkerWins < 1 || row.BerserkerKills < kills || row.BerserkerDeaths < deaths) return false;
+                row.BerserkerWins--; row.BerserkerKills -= kills; row.BerserkerDeaths -= deaths; return true;
+            case "Defender":
+                if (row.DefenderWins < 1 || row.DefenderKills < kills || row.DefenderDeaths < deaths) return false;
+                row.DefenderWins--; row.DefenderKills -= kills; row.DefenderDeaths -= deaths; return true;
+            case "Revenant":
+                if (row.RevenantWins < 1 || row.RevenantKills < kills || row.RevenantDeaths < deaths) return false;
+                row.RevenantWins--; row.RevenantKills -= kills; row.RevenantDeaths -= deaths; return true;
+            case "Avenger":
+                if (row.AvengerWins < 1 || row.AvengerKills < kills || row.AvengerDeaths < deaths) return false;
+                row.AvengerWins--; row.AvengerKills -= kills; row.AvengerDeaths -= deaths; return true;
+            case "Crusader":
+                if (row.CrusaderWins < 1 || row.CrusaderKills < kills || row.CrusaderDeaths < deaths) return false;
+                row.CrusaderWins--; row.CrusaderKills -= kills; row.CrusaderDeaths -= deaths; return true;
+            case "Protector":
+                if (row.ProtectorWins < 1 || row.ProtectorKills < kills || row.ProtectorDeaths < deaths) return false;
+                row.ProtectorWins--; row.ProtectorKills -= kills; row.ProtectorDeaths -= deaths; return true;
+            case "Thunderlord":
+                if (row.ThunderlordWins < 1 || row.ThunderlordKills < kills || row.ThunderlordDeaths < deaths) return false;
+                row.ThunderlordWins--; row.ThunderlordKills -= kills; row.ThunderlordDeaths -= deaths; return true;
+            case "Spiritguard":
+                if (row.SpiritguardWins < 1 || row.SpiritguardKills < kills || row.SpiritguardDeaths < deaths) return false;
+                row.SpiritguardWins--; row.SpiritguardKills -= kills; row.SpiritguardDeaths -= deaths; return true;
+            case "Earthwarden":
+                if (row.EarthwardenWins < 1 || row.EarthwardenKills < kills || row.EarthwardenDeaths < deaths) return false;
+                row.EarthwardenWins--; row.EarthwardenKills -= kills; row.EarthwardenDeaths -= deaths; return true;
+            case "Assassin":
+                if (row.AssassinWins < 1 || row.AssassinKills < kills || row.AssassinDeaths < deaths) return false;
+                row.AssassinWins--; row.AssassinKills -= kills; row.AssassinDeaths -= deaths; return true;
+            case "Vindicator":
+                if (row.VindicatorWins < 1 || row.VindicatorKills < kills || row.VindicatorDeaths < deaths) return false;
+                row.VindicatorWins--; row.VindicatorKills -= kills; row.VindicatorDeaths -= deaths; return true;
+            case "Apothecary":
+                if (row.ApothecaryWins < 1 || row.ApothecaryKills < kills || row.ApothecaryDeaths < deaths) return false;
+                row.ApothecaryWins--; row.ApothecaryKills -= kills; row.ApothecaryDeaths -= deaths; return true;
+            case "Conjurer":
+                if (row.ConjurerWins < 1 || row.ConjurerKills < kills || row.ConjurerDeaths < deaths) return false;
+                row.ConjurerWins--; row.ConjurerKills -= kills; row.ConjurerDeaths -= deaths; return true;
+            case "Sentinel":
+                if (row.SentinelWins < 1 || row.SentinelKills < kills || row.SentinelDeaths < deaths) return false;
+                row.SentinelWins--; row.SentinelKills -= kills; row.SentinelDeaths -= deaths; return true;
+            case "Luminary":
+                if (row.LuminaryWins < 1 || row.LuminaryKills < kills || row.LuminaryDeaths < deaths) return false;
+                row.LuminaryWins--; row.LuminaryKills -= kills; row.LuminaryDeaths -= deaths; return true;
+            default:
+                throw new InvalidOperationException($"Unknown spec '{spec}'.");
+        }
+    }
+
+    private static bool TryReverseLoss(ExperimentalSpecsWl row, string spec, int kills, int deaths)
+    {
+        switch (spec)
+        {
+            case "Pyromancer":
+                if (row.PyromancerLosses < 1 || row.PyromancerKills < kills || row.PyromancerDeaths < deaths) return false;
+                row.PyromancerLosses--; row.PyromancerKills -= kills; row.PyromancerDeaths -= deaths; return true;
+            case "Cryomancer":
+                if (row.CryomancerLosses < 1 || row.CryomancerKills < kills || row.CryomancerDeaths < deaths) return false;
+                row.CryomancerLosses--; row.CryomancerKills -= kills; row.CryomancerDeaths -= deaths; return true;
+            case "Aquamancer":
+                if (row.AquamancerLosses < 1 || row.AquamancerKills < kills || row.AquamancerDeaths < deaths) return false;
+                row.AquamancerLosses--; row.AquamancerKills -= kills; row.AquamancerDeaths -= deaths; return true;
+            case "Berserker":
+                if (row.BerserkerLosses < 1 || row.BerserkerKills < kills || row.BerserkerDeaths < deaths) return false;
+                row.BerserkerLosses--; row.BerserkerKills -= kills; row.BerserkerDeaths -= deaths; return true;
+            case "Defender":
+                if (row.DefenderLosses < 1 || row.DefenderKills < kills || row.DefenderDeaths < deaths) return false;
+                row.DefenderLosses--; row.DefenderKills -= kills; row.DefenderDeaths -= deaths; return true;
+            case "Revenant":
+                if (row.RevenantLosses < 1 || row.RevenantKills < kills || row.RevenantDeaths < deaths) return false;
+                row.RevenantLosses--; row.RevenantKills -= kills; row.RevenantDeaths -= deaths; return true;
+            case "Avenger":
+                if (row.AvengerLosses < 1 || row.AvengerKills < kills || row.AvengerDeaths < deaths) return false;
+                row.AvengerLosses--; row.AvengerKills -= kills; row.AvengerDeaths -= deaths; return true;
+            case "Crusader":
+                if (row.CrusaderLosses < 1 || row.CrusaderKills < kills || row.CrusaderDeaths < deaths) return false;
+                row.CrusaderLosses--; row.CrusaderKills -= kills; row.CrusaderDeaths -= deaths; return true;
+            case "Protector":
+                if (row.ProtectorLosses < 1 || row.ProtectorKills < kills || row.ProtectorDeaths < deaths) return false;
+                row.ProtectorLosses--; row.ProtectorKills -= kills; row.ProtectorDeaths -= deaths; return true;
+            case "Thunderlord":
+                if (row.ThunderlordLosses < 1 || row.ThunderlordKills < kills || row.ThunderlordDeaths < deaths) return false;
+                row.ThunderlordLosses--; row.ThunderlordKills -= kills; row.ThunderlordDeaths -= deaths; return true;
+            case "Spiritguard":
+                if (row.SpiritguardLosses < 1 || row.SpiritguardKills < kills || row.SpiritguardDeaths < deaths) return false;
+                row.SpiritguardLosses--; row.SpiritguardKills -= kills; row.SpiritguardDeaths -= deaths; return true;
+            case "Earthwarden":
+                if (row.EarthwardenLosses < 1 || row.EarthwardenKills < kills || row.EarthwardenDeaths < deaths) return false;
+                row.EarthwardenLosses--; row.EarthwardenKills -= kills; row.EarthwardenDeaths -= deaths; return true;
+            case "Assassin":
+                if (row.AssassinLosses < 1 || row.AssassinKills < kills || row.AssassinDeaths < deaths) return false;
+                row.AssassinLosses--; row.AssassinKills -= kills; row.AssassinDeaths -= deaths; return true;
+            case "Vindicator":
+                if (row.VindicatorLosses < 1 || row.VindicatorKills < kills || row.VindicatorDeaths < deaths) return false;
+                row.VindicatorLosses--; row.VindicatorKills -= kills; row.VindicatorDeaths -= deaths; return true;
+            case "Apothecary":
+                if (row.ApothecaryLosses < 1 || row.ApothecaryKills < kills || row.ApothecaryDeaths < deaths) return false;
+                row.ApothecaryLosses--; row.ApothecaryKills -= kills; row.ApothecaryDeaths -= deaths; return true;
+            case "Conjurer":
+                if (row.ConjurerLosses < 1 || row.ConjurerKills < kills || row.ConjurerDeaths < deaths) return false;
+                row.ConjurerLosses--; row.ConjurerKills -= kills; row.ConjurerDeaths -= deaths; return true;
+            case "Sentinel":
+                if (row.SentinelLosses < 1 || row.SentinelKills < kills || row.SentinelDeaths < deaths) return false;
+                row.SentinelLosses--; row.SentinelKills -= kills; row.SentinelDeaths -= deaths; return true;
+            case "Luminary":
+                if (row.LuminaryLosses < 1 || row.LuminaryKills < kills || row.LuminaryDeaths < deaths) return false;
+                row.LuminaryLosses--; row.LuminaryKills -= kills; row.LuminaryDeaths -= deaths; return true;
             default:
                 throw new InvalidOperationException($"Unknown spec '{spec}'.");
         }
