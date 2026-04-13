@@ -190,6 +190,72 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         return new ExperimentalBalanceInputServiceResult(true, 200, null);
     }
 
+    public async Task<ExperimentalBalanceInputServiceResult> ClearInputAsync(Guid balanceId, CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var log = await db.ExperimentalBalanceLogs.FindAsync([balanceId], cancellationToken);
+        if (log is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(404, "Balance log not found.");
+        }
+
+        if (log.Input is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(409, "Input is already null.");
+        }
+
+        ExperimentalBalanceInputBody? inputBody;
+        try
+        {
+            inputBody = JsonSerializer.Deserialize<ExperimentalBalanceInputBody>(log.Input, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored input JSON is invalid.");
+        }
+
+        if (inputBody is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored input JSON is invalid.");
+        }
+
+        var storedGameId = ExperimentalBalanceLogGameIds.TryNormalize(inputBody.GameId);
+        if (storedGameId is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored input JSON has an invalid game_id.");
+        }
+
+        if (log.GameId is not null && log.GameId != storedGameId)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Stored input game_id does not match the balance log.");
+        }
+
+        var auditGameId = log.GameId ?? storedGameId;
+
+        log.Input = null;
+
+        db.ExperimentalInputLogs.Add(new ExperimentalInputLog
+        {
+            BalanceId = balanceId,
+            GameId = auditGameId,
+            Action = "clear",
+            OccurredAt = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        return new ExperimentalBalanceInputServiceResult(true, 200, null);
+    }
+
     private async Task<(ExperimentalBalanceInputServiceResult? Error, InputApplicationContext? Ctx)> TryBuildInputApplicationContextAsync(
         BalancerDbContext db,
         Guid balanceId,

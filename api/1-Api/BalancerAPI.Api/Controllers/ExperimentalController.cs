@@ -134,6 +134,25 @@ public class ExperimentalController(
         return StatusCode(result.StatusCode, result.Message);
     }
 
+    [HttpPost("balance/{balanceId:guid}/clear-input")]
+    [MapToApiVersion("1.0")]
+    [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalBalanceInputResponse>> ClearInputBalance(
+        Guid balanceId,
+        CancellationToken cancellationToken)
+    {
+        var result = await experimentalBalanceInputService.ClearInputAsync(balanceId, cancellationToken);
+        if (result.Success)
+        {
+            return Ok(new ExperimentalBalanceInputResponse(balanceId));
+        }
+
+        return StatusCode(result.StatusCode, result.Message);
+    }
+
     private async Task<ResolvePlayersResult> ResolvePlayerUuidsAsync(
         ExperimentalBalanceInputRequest request,
         CancellationToken cancellationToken)

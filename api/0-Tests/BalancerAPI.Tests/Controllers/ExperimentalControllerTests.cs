@@ -305,6 +305,23 @@ public class ExperimentalControllerTests
         Assert.Equal(TestBalanceId, response.BalanceId);
     }
 
+    [Fact]
+    public async Task ClearInputBalance_WhenServiceSucceeds_ReturnsOkWithBalanceId()
+    {
+        var input = new Mock<IExperimentalBalanceInputService>();
+        input.Setup(x => x.ClearInputAsync(TestBalanceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalBalanceInputServiceResult(true, 200, null));
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, input: input.Object);
+
+        var result = await controller.ClearInputBalance(TestBalanceId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ExperimentalBalanceInputResponse>(ok.Value);
+        Assert.Equal(TestBalanceId, response.BalanceId);
+    }
+
     private static BalancerDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<BalancerDbContext>()

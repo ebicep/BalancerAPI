@@ -9,7 +9,7 @@ public class ExperimentalInputLog
     /// <summary>MongoDB ObjectId as 24 hex chars (same as input request <c>game_id</c>).</summary>
     public string GameId { get; set; } = null!;
 
-    /// <summary>Audit action, e.g. <c>input</c> or <c>uninput</c>.</summary>
+    /// <summary>Audit action, e.g. <c>input</c>, <c>uninput</c>, or <c>clear</c>.</summary>
     public string Action { get; set; } = null!;
 
     /// <summary>UTC time of the action (column <c>date</c>).</summary>

@@ -660,4 +660,194 @@ public class ExperimentalBalanceInputServiceTests
             Assert.Single(verify.ExperimentalInputLogs.Where(x => x.BalanceId == balanceId));
         }
     }
+
+    [Fact]
+    public async Task ClearInputAsync_WhenValid_ClearsInputAndWritesClearAudit()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+        var inputJson = SerializeInputBody(BuildValidZeroStatsBody());
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(BuildLog(
+                balanceId,
+                metaTime,
+                inputJson: inputJson,
+                counted: true,
+                gameId: PayloadMongoGameId));
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var result = await sut.ClearInputAsync(balanceId, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(200, result.StatusCode);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            var log = verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId);
+            Assert.Null(log.Input);
+
+            var clearAudit = verify.ExperimentalInputLogs.Single(x => x.BalanceId == balanceId);
+            Assert.Equal("clear", clearAudit.Action);
+            Assert.Equal(PayloadMongoGameId, clearAudit.GameId);
+        }
+    }
+
+    [Fact]
+    public async Task ClearInputAsync_WhenBalanceMissing_Returns404()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+
+        var result = await sut.ClearInputAsync(Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(404, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ClearInputAsync_WhenStoredInputJsonInvalid_Returns400()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(BuildLog(
+                balanceId,
+                metaTime,
+                inputJson: "not-json",
+                gameId: PayloadMongoGameId));
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var result = await sut.ClearInputAsync(balanceId, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(400, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ClearInputAsync_WhenStoredInputHasInvalidGameId_Returns400()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+        var badGameBody = new ExperimentalBalanceInputBody(
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            GameId: "not-an-object-id");
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(BuildLog(
+                balanceId,
+                metaTime,
+                inputJson: SerializeInputBody(badGameBody),
+                gameId: null));
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var result = await sut.ClearInputAsync(balanceId, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(400, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ClearInputAsync_WhenGameIdMismatch_Returns400()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        var otherGameBody = new ExperimentalBalanceInputBody(
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            GameId: "bbbbbbbbbbbbbbbbbbbbbbbb");
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(BuildLog(
+                balanceId,
+                metaTime,
+                inputJson: SerializeInputBody(otherGameBody),
+                gameId: PayloadMongoGameId));
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var result = await sut.ClearInputAsync(balanceId, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(400, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ClearInputAsync_WhenLogGameIdNull_UsesGameIdFromStoredInputJson()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(BuildLog(
+                balanceId,
+                metaTime,
+                inputJson: SerializeInputBody(BuildValidZeroStatsBody()),
+                gameId: null));
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var result = await sut.ClearInputAsync(balanceId, CancellationToken.None);
+
+        Assert.True(result.Success);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.Null(verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId).Input);
+            var audit = verify.ExperimentalInputLogs.Single(x => x.BalanceId == balanceId);
+            Assert.Equal("clear", audit.Action);
+            Assert.Equal(PayloadMongoGameId, audit.GameId);
+        }
+    }
+
+    [Fact]
+    public async Task ClearInputAsync_WhenInputAlreadyNull_Returns409()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(BuildLog(
+                balanceId,
+                metaTime,
+                inputJson: null,
+                gameId: PayloadMongoGameId));
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var result = await sut.ClearInputAsync(balanceId, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.StatusCode);
+    }
 }

@@ -10,6 +10,8 @@ public interface IExperimentalBalanceInputService
         CancellationToken cancellationToken);
 
     Task<ExperimentalBalanceInputServiceResult> UninputAsync(Guid balanceId, CancellationToken cancellationToken);
+
+    Task<ExperimentalBalanceInputServiceResult> ClearInputAsync(Guid balanceId, CancellationToken cancellationToken);
 }
 
 public sealed record ExperimentalBalanceInputServiceResult(
