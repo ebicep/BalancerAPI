@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
@@ -44,10 +45,22 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return Fail(409, "Balance must be confirmed before input.");
         }
 
-        if (log.Inputted)
+        if (log.Counted)
         {
             await tx.RollbackAsync(cancellationToken);
-            return Fail(409, "Balance result already inputted.");
+            return Fail(409, "Balance result already counted.");
+        }
+
+        if (log.GameId is not null && log.GameId != requestedGameId)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "game_id does not match the stored game for this balance.");
+        }
+
+        if (log.Input is not null && !StoredInputMatchesRequest(log.Input, body))
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(400, "Request body must match the stored input JSON for this balance.");
         }
 
         List<ExperimentalBalanceTeam>? teams;
@@ -149,8 +162,22 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         ApplyInputLines(winners, wlByUuid, specByPlayer, ApplyWin);
         ApplyInputLines(losers, wlByUuid, specByPlayer, ApplyLoss);
 
+        var canonicalInputJson = JsonSerializer.Serialize(body, JsonOptions);
+        if (log.Input is null)
+        {
+            log.Input = canonicalInputJson;
+        }
+
         log.GameId = requestedGameId;
-        log.Inputted = true;
+        log.Counted = true;
+
+        db.ExperimentalInputLogs.Add(new ExperimentalInputLog
+        {
+            BalanceId = balanceId,
+            GameId = requestedGameId,
+            Action = "input",
+            OccurredAt = DateTime.UtcNow
+        });
 
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
@@ -160,6 +187,13 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
     private static ExperimentalBalanceInputServiceResult Fail(int status, string message) =>
         new(false, status, message);
+
+    private static bool StoredInputMatchesRequest(string storedJson, ExperimentalBalanceInputBody body)
+    {
+        var incoming = JsonNode.Parse(JsonSerializer.Serialize(body, JsonOptions))!;
+        var stored = JsonNode.Parse(storedJson)!;
+        return JsonNode.DeepEquals(stored, incoming);
+    }
 
     /// <summary>Null when valid; on failure <paramref name="winnerSet"/> and <paramref name="loserSet"/> are empty.</summary>
     private static ExperimentalBalanceInputServiceResult? TryValidateWinnerLoserPayload(

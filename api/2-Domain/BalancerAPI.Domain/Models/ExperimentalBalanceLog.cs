@@ -18,5 +18,9 @@ public class ExperimentalBalanceLog
 
     public bool Posted { get; set; }
 
-    public bool Inputted { get; set; }
+    /// <summary>Last successful input API request body (JSON). Not cleared on uninput.</summary>
+    public string? Input { get; set; }
+
+    /// <summary>Whether WL stats currently reflect the stored <see cref="Input"/>.</summary>
+    public bool Counted { get; set; }
 }

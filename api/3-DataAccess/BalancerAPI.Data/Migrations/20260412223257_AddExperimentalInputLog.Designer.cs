@@ -3,6 +3,7 @@ using System;
 using BalancerAPI.Data.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BalancerAPI.Migrations
 {
     [DbContext(typeof(BalancerDbContext))]
-    partial class BalancerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260412223257_AddExperimentalInputLog")]
+    partial class AddExperimentalInputLog
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -150,10 +153,6 @@ namespace BalancerAPI.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("balance");
 
-                    b.Property<bool>("Counted")
-                        .HasColumnType("boolean")
-                        .HasColumnName("counted");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -164,9 +163,9 @@ namespace BalancerAPI.Migrations
                         .HasColumnName("game_id")
                         .IsFixedLength();
 
-                    b.Property<string>("Input")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("input");
+                    b.Property<bool>("Inputted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("inputted");
 
                     b.Property<string>("Meta")
                         .IsRequired()
@@ -578,24 +577,20 @@ namespace BalancerAPI.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("action");
-
                     b.Property<Guid>("BalanceId")
                         .HasColumnType("uuid")
                         .HasColumnName("balance_id");
 
-                    b.Property<string>("GameId")
+                    b.Property<string>("Input")
                         .IsRequired()
-                        .HasMaxLength(24)
-                        .HasColumnType("character(24)")
-                        .HasColumnName("game_id")
-                        .IsFixedLength();
+                        .HasColumnType("jsonb")
+                        .HasColumnName("input");
 
-                    b.Property<DateTime>("OccurredAt")
+                    b.Property<bool>("Inputted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("inputted");
+
+                    b.Property<DateTime>("LoggedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("date");
 

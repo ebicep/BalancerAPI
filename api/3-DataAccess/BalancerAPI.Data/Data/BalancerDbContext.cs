@@ -24,6 +24,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalSpecsWlCurrentDay> ExperimentalSpecsWlCurrentDay => Set<ExperimentalSpecsWlCurrentDay>();
     public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
     public DbSet<ExperimentalBalanceLog> ExperimentalBalanceLogs => Set<ExperimentalBalanceLog>();
+    public DbSet<ExperimentalInputLog> ExperimentalInputLogs => Set<ExperimentalInputLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +48,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureCurrentDayView(modelBuilder);
         ConfigureBalancePlayerDataView(modelBuilder);
         ConfigureExperimentalBalanceLog(modelBuilder);
+        ConfigureExperimentalInputLog(modelBuilder);
     }
 
     private static void ConfigureExperimentalBalanceLog(ModelBuilder modelBuilder)
@@ -61,7 +63,22 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.Property(e => e.Meta).HasColumnName("meta").HasColumnType("jsonb");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
             entity.Property(e => e.Posted).HasColumnName("posted");
-            entity.Property(e => e.Inputted).HasColumnName("inputted");
+            entity.Property(e => e.Input).HasColumnName("input").HasColumnType("jsonb").IsRequired(false);
+            entity.Property(e => e.Counted).HasColumnName("counted");
+        });
+    }
+
+    private static void ConfigureExperimentalInputLog(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalInputLog>(entity =>
+        {
+            entity.ToTable("experimental_input_log");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.BalanceId).HasColumnName("balance_id").HasColumnType("uuid");
+            entity.Property(e => e.GameId).HasColumnName("game_id").HasMaxLength(24).IsFixedLength();
+            entity.Property(e => e.Action).HasColumnName("action").HasMaxLength(32);
+            entity.Property(e => e.OccurredAt).HasColumnName("date").HasColumnType("timestamp with time zone");
         });
     }
 

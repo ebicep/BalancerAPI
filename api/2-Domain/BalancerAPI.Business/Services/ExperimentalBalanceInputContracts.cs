@@ -16,6 +16,7 @@ public sealed record ExperimentalBalanceInputServiceResult(
     string? Message);
 
 /// <summary>
+/// Serialized to <c>experimental_balance_log.input</c> on first successful input; must match stored JSON when re-applying after uninput.
 /// <paramref name="GameId"/> is written to <c>experimental_balance_log.game_id</c> on success.
 /// </summary>
 public sealed record ExperimentalBalanceInputBody(
