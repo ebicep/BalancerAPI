@@ -79,6 +79,6 @@ public sealed class NamesEndpointSmokeTests : IClassFixture<WebApplicationFactor
 
     private static bool IsSmokeEnabled()
     {
-        return true;//string.Equals(Environment.GetEnvironmentVariable("RUN_SMOKE_TESTS"), "1", StringComparison.Ordinal);
+        return string.Equals(Environment.GetEnvironmentVariable("RUN_SMOKE_TESTS"), "1", StringComparison.Ordinal);
     }
 }

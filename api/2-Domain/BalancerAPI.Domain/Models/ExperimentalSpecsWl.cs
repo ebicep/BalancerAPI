@@ -7,6 +7,8 @@ public class ExperimentalSpecsWl
 {
     public required Guid Uuid { get; set; }
 
+    public DateTime LastUpdated { get; set; }
+
     public int PyromancerWins { get; set; }
     public int PyromancerLosses { get; set; }
     public int PyromancerKills { get; set; }

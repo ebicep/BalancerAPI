@@ -115,6 +115,10 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.HasKey(e => e.Uuid);
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Weight).HasColumnName("weight");
+            entity.Property(e => e.LastUpdated)
+                .HasColumnName("last_updated")
+                .HasColumnType("timestamp with time zone")
+                .HasDefaultValueSql("now()");
         });
     }
 
@@ -224,7 +228,10 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.Property(e => e.ConjurerOffset).HasColumnName("conjurer_offset");
             entity.Property(e => e.SentinelOffset).HasColumnName("sentinel_offset");
             entity.Property(e => e.LuminaryOffset).HasColumnName("luminary_offset");
-            entity.Property(e => e.LastUpdated).HasColumnName("last_updated");
+            entity.Property(e => e.LastUpdated)
+                .HasColumnName("last_updated")
+                .HasColumnType("timestamp with time zone")
+                .HasDefaultValueSql("now()");
         });
     }
 
@@ -288,6 +295,10 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.ToTable("experimental_specs_wl");
             entity.HasKey(e => e.Uuid);
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.LastUpdated)
+                .HasColumnName("last_updated")
+                .HasColumnType("timestamp with time zone")
+                .HasDefaultValueSql("now()");
             ConfigureWlColumns(entity);
         });
     }
