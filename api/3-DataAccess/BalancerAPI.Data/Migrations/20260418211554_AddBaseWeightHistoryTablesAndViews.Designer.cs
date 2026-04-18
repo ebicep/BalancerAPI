@@ -3,6 +3,7 @@ using System;
 using BalancerAPI.Data.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BalancerAPI.Migrations
 {
     [DbContext(typeof(BalancerDbContext))]
-    partial class BalancerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260418211554_AddBaseWeightHistoryTablesAndViews")]
+    partial class AddBaseWeightHistoryTablesAndViews
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -871,89 +874,6 @@ namespace BalancerAPI.Migrations
                     b.HasKey("Uuid");
 
                     b.ToTable("experimental_spec_weights", (string)null);
-                });
-
-            modelBuilder.Entity("BalancerAPI.Domain.Models.ExperimentalSpecWeightCurrentWeek", b =>
-                {
-                    b.Property<int>("ApothecaryOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("apothecary_offset");
-
-                    b.Property<int>("AquamancerOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("aquamancer_offset");
-
-                    b.Property<int>("AssassinOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("assassin_offset");
-
-                    b.Property<int>("AvengerOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("avenger_offset");
-
-                    b.Property<int>("BerserkerOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("berserker_offset");
-
-                    b.Property<int>("ConjurerOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("conjurer_offset");
-
-                    b.Property<int>("CrusaderOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("crusader_offset");
-
-                    b.Property<int>("CryomancerOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("cryomancer_offset");
-
-                    b.Property<int>("DefenderOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("defender_offset");
-
-                    b.Property<int>("EarthwardenOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("earthwarden_offset");
-
-                    b.Property<int>("LuminaryOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("luminary_offset");
-
-                    b.Property<int>("ProtectorOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("protector_offset");
-
-                    b.Property<int>("PyromancerOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("pyromancer_offset");
-
-                    b.Property<int>("RevenantOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("revenant_offset");
-
-                    b.Property<int>("SentinelOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("sentinel_offset");
-
-                    b.Property<int>("SpiritguardOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("spiritguard_offset");
-
-                    b.Property<int>("ThunderlordOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("thunderlord_offset");
-
-                    b.Property<Guid>("Uuid")
-                        .HasColumnType("uuid")
-                        .HasColumnName("uuid");
-
-                    b.Property<int>("VindicatorOffset")
-                        .HasColumnType("integer")
-                        .HasColumnName("vindicator_offset");
-
-                    b.ToTable((string)null);
-
-                    b.ToView("experimental_spec_weights_current_week", (string)null);
                 });
 
             modelBuilder.Entity("BalancerAPI.Domain.Models.ExperimentalSpecWeightWeekly", b =>

@@ -1,7 +1,7 @@
 namespace BalancerAPI.Domain.Models;
 
 /// <summary>
-/// Database view: current week stats as cumulative minus the latest weekly snapshot row for the player, or all zeros if that snapshot row is missing.
+/// Database view: current week stats as cumulative minus the previous <c>time_week</c> snapshot row for the player, or all zeros if that snapshot row is missing.
 /// </summary>
 public class ExperimentalSpecsWlCurrentWeek
 {

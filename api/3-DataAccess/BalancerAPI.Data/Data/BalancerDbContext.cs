@@ -8,9 +8,14 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
 {
     public DbSet<PlayerName> Names => Set<PlayerName>();
     public DbSet<BaseWeight> BaseWeights => Set<BaseWeight>();
+    public DbSet<BaseWeightDaily> BaseWeightsDaily => Set<BaseWeightDaily>();
+    public DbSet<BaseWeightWeekly> BaseWeightsWeekly => Set<BaseWeightWeekly>();
+    public DbSet<BaseWeightCurrentDay> BaseWeightsCurrentDay => Set<BaseWeightCurrentDay>();
+    public DbSet<BaseWeightCurrentWeek> BaseWeightsCurrentWeek => Set<BaseWeightCurrentWeek>();
     public DbSet<ExperimentalSpecLog> ExperimentalSpecLogs => Set<ExperimentalSpecLog>();
     public DbSet<ExperimentalSpecWeight> ExperimentalSpecWeights => Set<ExperimentalSpecWeight>();
     public DbSet<ExperimentalSpecWeightWeekly> ExperimentalSpecWeightsWeekly => Set<ExperimentalSpecWeightWeekly>();
+    public DbSet<ExperimentalSpecWeightCurrentWeek> ExperimentalSpecWeightsCurrentWeek => Set<ExperimentalSpecWeightCurrentWeek>();
     public DbSet<ExperimentalSpecsWl> ExperimentalSpecsWl => Set<ExperimentalSpecsWl>();
     public DbSet<ExperimentalSpecsWlWeekly> ExperimentalSpecsWlWeekly => Set<ExperimentalSpecsWlWeekly>();
     public DbSet<ExperimentalSpecsWlDaily> ExperimentalSpecsWlDaily => Set<ExperimentalSpecsWlDaily>();
@@ -32,9 +37,14 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
 
         ConfigureNames(modelBuilder);
         ConfigureBaseWeights(modelBuilder);
+        ConfigureBaseWeightsDaily(modelBuilder);
+        ConfigureBaseWeightsWeekly(modelBuilder);
+        ConfigureBaseWeightsCurrentDayView(modelBuilder);
+        ConfigureBaseWeightsCurrentWeekView(modelBuilder);
         ConfigureExperimentalSpecLogs(modelBuilder);
         ConfigureExperimentalSpecWeights(modelBuilder);
         ConfigureExperimentalSpecWeightsWeekly(modelBuilder);
+        ConfigureExperimentalSpecWeightsCurrentWeekView(modelBuilder);
         ConfigureExperimentalSpecsWl(modelBuilder);
         ConfigureExperimentalSpecsWlWeekly(modelBuilder);
         ConfigureExperimentalSpecsWlDaily(modelBuilder);
@@ -105,6 +115,58 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.HasKey(e => e.Uuid);
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Weight).HasColumnName("weight");
+        });
+    }
+
+    private static void ConfigureBaseWeightsDaily(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<BaseWeightDaily>(entity =>
+        {
+            entity.ToTable("base_weights_daily");
+            entity.HasKey(e => new { e.Uuid, e.DayStartDate });
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.DayStartDate).HasColumnName("day_start_date");
+            entity.Property(e => e.Weight).HasColumnName("weight");
+        });
+    }
+
+    private static void ConfigureBaseWeightsWeekly(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<BaseWeightWeekly>(entity =>
+        {
+            entity.ToTable("base_weights_weekly");
+            entity.HasKey(e => new { e.Uuid, e.WeekStartDate });
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date");
+            entity.Property(e => e.Weight).HasColumnName("weight");
+        });
+    }
+
+    private static void ConfigureBaseWeightsCurrentDayView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<BaseWeightCurrentDay>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("base_weights_current_day");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.CurrentWeight).HasColumnName("current_weight");
+            entity.Property(e => e.PreviousWeight).HasColumnName("previous_weight");
+            entity.Property(e => e.DayStartDate).HasColumnName("day_start_date");
+            entity.Property(e => e.WeightChange).HasColumnName("weight_change");
+        });
+    }
+
+    private static void ConfigureBaseWeightsCurrentWeekView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<BaseWeightCurrentWeek>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("base_weights_current_week");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.CurrentWeight).HasColumnName("current_weight");
+            entity.Property(e => e.PreviousWeight).HasColumnName("previous_weight");
+            entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date");
+            entity.Property(e => e.WeightChange).HasColumnName("weight_change");
         });
     }
 
@@ -192,6 +254,30 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.Property(e => e.ConjurerOffset).HasColumnName("conjurer_offset");
             entity.Property(e => e.SentinelOffset).HasColumnName("sentinel_offset");
             entity.Property(e => e.LuminaryOffset).HasColumnName("luminary_offset");
+        });
+    }
+
+    private static void ConfigureExperimentalSpecWeightsCurrentWeekView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecWeightCurrentWeek>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_spec_weights_current_week");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+
+            var specs = new[]
+            {
+                "Pyromancer", "Cryomancer", "Aquamancer", "Berserker", "Defender", "Revenant",
+                "Avenger", "Crusader", "Protector", "Thunderlord", "Spiritguard", "Earthwarden",
+                "Assassin", "Vindicator", "Apothecary", "Conjurer", "Sentinel", "Luminary"
+            };
+
+            foreach (var spec in specs)
+            {
+                var propertyName = $"{spec}Offset";
+                var columnName = $"{spec.ToLowerInvariant()}_offset";
+                entity.Property(typeof(int), propertyName).HasColumnName(columnName);
+            }
         });
     }
 
