@@ -158,5 +158,131 @@ public class ExperimentalBalanceConfirmServiceTests
         Assert.Equal(400, result.StatusCode);
     }
 
+    [Fact]
+    public async Task UnconfirmAsync_WhenValid_RemovesSpecLogsAndClearsPosted()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var pyromancer = Guid.NewGuid();
+        var cryomancer = Guid.NewGuid();
+        var createdAt = new DateTime(2026, 4, 6, 10, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = JsonSerializer.Serialize(Array.Empty<ExperimentalBalanceTeam>()),
+                Meta = JsonSerializer.Serialize(new ExperimentalBalanceMeta(1, 1, [], 1, createdAt)),
+                CreatedAt = createdAt,
+                Posted = true,
+                Counted = false
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog
+            {
+                BalanceId = balanceId,
+                Pyromancer = pyromancer,
+                Cryomancer = cryomancer
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceConfirmService(new TestDbContextFactory(options));
+        var result = await sut.UnconfirmAsync(balanceId, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(200, result.StatusCode);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.Empty(verify.ExperimentalSpecLogs.Where(x => x.BalanceId == balanceId));
+            var log = verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId);
+            Assert.False(log.Posted);
+        }
+    }
+
+    [Fact]
+    public async Task UnconfirmAsync_WhenAlreadyUnconfirmed_Returns409()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var createdAt = new DateTime(2026, 4, 6, 11, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = JsonSerializer.Serialize(new ExperimentalBalanceMeta(1, 1, [], 1, createdAt)),
+                CreatedAt = createdAt,
+                Posted = false
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceConfirmService(new TestDbContextFactory(options));
+        var result = await sut.UnconfirmAsync(balanceId, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task UnconfirmAsync_WhenBalanceMissing_Returns404()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var sut = new ExperimentalBalanceConfirmService(new TestDbContextFactory(options));
+
+        var result = await sut.UnconfirmAsync(Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(404, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task UnconfirmAsync_WhenCounted_Returns409()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var createdAt = new DateTime(2026, 4, 6, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = JsonSerializer.Serialize(new ExperimentalBalanceMeta(1, 1, [], 1, createdAt)),
+                CreatedAt = createdAt,
+                Posted = true,
+                Counted = true
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog
+            {
+                BalanceId = balanceId,
+                Pyromancer = Guid.NewGuid()
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceConfirmService(new TestDbContextFactory(options));
+        var result = await sut.UnconfirmAsync(balanceId, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.StatusCode);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.Single(verify.ExperimentalSpecLogs.Where(x => x.BalanceId == balanceId));
+            var log = verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId);
+            Assert.True(log.Posted);
+        }
+    }
+
 }
 

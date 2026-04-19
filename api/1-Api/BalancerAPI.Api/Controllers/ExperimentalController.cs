@@ -90,6 +90,25 @@ public class ExperimentalController(
         return StatusCode(result.StatusCode, result.Message);
     }
 
+    [HttpPost("balance/{balanceId:guid}/unconfirm")]
+    [MapToApiVersion("1.0")]
+    [ProducesResponseType(typeof(ExperimentalBalanceConfirmResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalBalanceConfirmResponse>> UnconfirmBalance(
+        Guid balanceId,
+        CancellationToken cancellationToken)
+    {
+        var result = await experimentalBalanceConfirmService.UnconfirmAsync(balanceId, cancellationToken);
+        if (result.Success)
+        {
+            return Ok(new ExperimentalBalanceConfirmResponse(balanceId));
+        }
+
+        return StatusCode(result.StatusCode, result.Message);
+    }
+
     [HttpPost("balance/{balanceId:guid}/input")]
     [MapToApiVersion("1.0")]
     [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]

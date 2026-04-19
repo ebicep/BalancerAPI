@@ -99,6 +99,49 @@ public sealed class ExperimentalBalanceConfirmService(IDbContextFactory<Balancer
         return new ExperimentalBalanceConfirmServiceResult(true, 200, null);
     }
 
+    public async Task<ExperimentalBalanceConfirmServiceResult> UnconfirmAsync(
+        Guid balanceId,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var log = await db.ExperimentalBalanceLogs
+            .Where(x => x.BalanceId == balanceId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (log is null)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return new ExperimentalBalanceConfirmServiceResult(false, 404, "Balance log not found.");
+        }
+
+        if (!log.Posted)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return new ExperimentalBalanceConfirmServiceResult(false, 409, "Balance already unconfirmed.");
+        }
+
+        if (log.Counted)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return new ExperimentalBalanceConfirmServiceResult(false, 409, "Balance must be uninput before unconfirm.");
+        }
+
+        var specRows = await db.ExperimentalSpecLogs
+            .Where(x => x.BalanceId == balanceId)
+            .ToListAsync(cancellationToken);
+        db.ExperimentalSpecLogs.RemoveRange(specRows);
+
+        log.Posted = false;
+
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        return new ExperimentalBalanceConfirmServiceResult(true, 200, null);
+    }
+
     private static bool TryAssignSpec(ExperimentalSpecLog row, string spec, Guid uuid)
     {
         switch (spec)

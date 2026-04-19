@@ -260,6 +260,23 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task UnconfirmBalance_WhenServiceSucceeds_ReturnsOkWithBalanceId()
+    {
+        var confirm = new Mock<IExperimentalBalanceConfirmService>();
+        confirm.Setup(x => x.UnconfirmAsync(TestBalanceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalBalanceConfirmServiceResult(true, 200, null));
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, confirm: confirm.Object);
+
+        var result = await controller.UnconfirmBalance(TestBalanceId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalBalanceConfirmResponse>(ok.Value);
+        Assert.Equal(TestBalanceId, body.BalanceId);
+    }
+
+    [Fact]
     public async Task InputBalance_WhenServiceSucceeds_ReturnsOkWithBalanceId()
     {
         var input = new Mock<IExperimentalBalanceInputService>();
