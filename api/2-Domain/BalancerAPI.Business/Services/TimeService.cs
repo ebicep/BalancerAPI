@@ -119,6 +119,80 @@ public sealed class TimeService(BalancerDbContext dbContext, IDbContextFactory<B
         return newId;
     }
 
+    public async Task<bool> UndoDayAsync(int dayId, CancellationToken cancellationToken)
+    {
+        await using var tx = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var timeDay = await dbContext.TimeDays
+            .SingleOrDefaultAsync(x => x.Id == dayId, cancellationToken);
+        if (timeDay is null)
+        {
+            return false;
+        }
+
+        var baseWeightsDaily = await dbContext.BaseWeightsDaily
+            .Where(x => x.DayStartDate == dayId)
+            .ToListAsync(cancellationToken);
+        if (baseWeightsDaily.Count > 0)
+        {
+            dbContext.BaseWeightsDaily.RemoveRange(baseWeightsDaily);
+        }
+
+        var specsWlDaily = await dbContext.ExperimentalSpecsWlDaily
+            .Where(x => x.DayStartDate == dayId)
+            .ToListAsync(cancellationToken);
+        if (specsWlDaily.Count > 0)
+        {
+            dbContext.ExperimentalSpecsWlDaily.RemoveRange(specsWlDaily);
+        }
+
+        dbContext.TimeDays.Remove(timeDay);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> UndoWeekAsync(int weekId, CancellationToken cancellationToken)
+    {
+        await using var tx = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var timeWeek = await dbContext.TimeWeeks
+            .SingleOrDefaultAsync(x => x.Id == weekId, cancellationToken);
+        if (timeWeek is null)
+        {
+            return false;
+        }
+
+        var baseWeightsWeekly = await dbContext.BaseWeightsWeekly
+            .Where(x => x.WeekStartDate == weekId)
+            .ToListAsync(cancellationToken);
+        if (baseWeightsWeekly.Count > 0)
+        {
+            dbContext.BaseWeightsWeekly.RemoveRange(baseWeightsWeekly);
+        }
+
+        var specWeightsWeekly = await dbContext.ExperimentalSpecWeightsWeekly
+            .Where(x => x.WeekStartDate == weekId)
+            .ToListAsync(cancellationToken);
+        if (specWeightsWeekly.Count > 0)
+        {
+            dbContext.ExperimentalSpecWeightsWeekly.RemoveRange(specWeightsWeekly);
+        }
+
+        var specsWlWeekly = await dbContext.ExperimentalSpecsWlWeekly
+            .Where(x => x.WeekStartDate == weekId)
+            .ToListAsync(cancellationToken);
+        if (specsWlWeekly.Count > 0)
+        {
+            dbContext.ExperimentalSpecsWlWeekly.RemoveRange(specsWlWeekly);
+        }
+
+        dbContext.TimeWeeks.Remove(timeWeek);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+        return true;
+    }
+
     private async Task<List<BaseWeightDaily>> LoadChangedBaseWeightsDailyAsync(
         int newId,
         DateTime boundary,
@@ -442,6 +516,23 @@ public sealed class TimeService(BalancerDbContext dbContext, IDbContextFactory<B
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return (newId, timestamp);
+    }
+
+    public async Task<bool> UndoSeasonAsync(int seasonId, CancellationToken cancellationToken)
+    {
+        await using var tx = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var timeSeason = await dbContext.TimeSeasons
+            .SingleOrDefaultAsync(x => x.Id == seasonId, cancellationToken);
+        if (timeSeason is null)
+        {
+            return false;
+        }
+
+        dbContext.TimeSeasons.Remove(timeSeason);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+        return true;
     }
 
     public async Task<(int Season, DateTime Timestamp)?> GetLatestSeasonAsync(CancellationToken cancellationToken)

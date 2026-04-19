@@ -18,6 +18,16 @@ public class TimeController(ITimeService timeService) : ControllerBase
         return Ok(new NewDayResponse(newDay));
     }
 
+    [HttpDelete("day/{dayId:int}")]
+    [MapToApiVersion("1.0")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UndoDay(int dayId, CancellationToken cancellationToken)
+    {
+        var wasUndone = await timeService.UndoDayAsync(dayId, cancellationToken);
+        return wasUndone ? NoContent() : NotFound();
+    }
+
     [HttpPost("new-week")]
     [MapToApiVersion("1.0")]
     [ProducesResponseType(typeof(NewWeekResponse), StatusCodes.Status200OK)]
@@ -27,6 +37,16 @@ public class TimeController(ITimeService timeService) : ControllerBase
         return Ok(new NewWeekResponse(newWeek));
     }
 
+    [HttpDelete("week/{weekId:int}")]
+    [MapToApiVersion("1.0")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UndoWeek(int weekId, CancellationToken cancellationToken)
+    {
+        var wasUndone = await timeService.UndoWeekAsync(weekId, cancellationToken);
+        return wasUndone ? NoContent() : NotFound();
+    }
+
     [HttpPost("new-season")]
     [MapToApiVersion("1.0")]
     [ProducesResponseType(typeof(NewSeasonResponse), StatusCodes.Status200OK)]
@@ -34,6 +54,16 @@ public class TimeController(ITimeService timeService) : ControllerBase
     {
         var (season, timestamp) = await timeService.CreateNewSeasonAsync(cancellationToken);
         return Ok(new NewSeasonResponse(season, timestamp));
+    }
+
+    [HttpDelete("season/{seasonId:int}")]
+    [MapToApiVersion("1.0")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UndoSeason(int seasonId, CancellationToken cancellationToken)
+    {
+        var wasUndone = await timeService.UndoSeasonAsync(seasonId, cancellationToken);
+        return wasUndone ? NoContent() : NotFound();
     }
 
     [HttpGet("season")]
