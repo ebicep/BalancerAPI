@@ -23,8 +23,6 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<TimeDay> TimeDays => Set<TimeDay>();
     public DbSet<TimeSeason> TimeSeasons => Set<TimeSeason>();
     public DbSet<Setting> Settings => Set<Setting>();
-    public DbSet<AdjustLogWeekly> AdjustLogWeekly => Set<AdjustLogWeekly>();
-    public DbSet<AdjustLogDaily> AdjustLogDaily => Set<AdjustLogDaily>();
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
     public DbSet<ExperimentalSpecsWlCurrentDay> ExperimentalSpecsWlCurrentDay => Set<ExperimentalSpecsWlCurrentDay>();
     public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
@@ -52,8 +50,6 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureTimeDay(modelBuilder);
         ConfigureTimeSeason(modelBuilder);
         ConfigureSettings(modelBuilder);
-        ConfigureAdjustLogWeekly(modelBuilder);
-        ConfigureAdjustLogDaily(modelBuilder);
         ConfigureCurrentWeekView(modelBuilder);
         ConfigureCurrentDayView(modelBuilder);
         ConfigureBalancePlayerDataView(modelBuilder);
@@ -369,45 +365,6 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.Property(e => e.Key).HasColumnName("key");
             entity.Property(e => e.Value).HasColumnName("value").HasColumnType("numeric");
             entity.Property(e => e.DisplayName).HasColumnName("display_name");
-        });
-    }
-
-    private static void ConfigureAdjustLogWeekly(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<AdjustLogWeekly>(entity =>
-        {
-            entity.ToTable("adjust_log_weekly");
-            entity.HasKey(e => e.Uuid);
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
-            entity.Property(e => e.Pyromancer).HasColumnName("pyromancer");
-            entity.Property(e => e.Cryomancer).HasColumnName("cryomancer");
-            entity.Property(e => e.Aquamancer).HasColumnName("aquamancer");
-            entity.Property(e => e.Berserker).HasColumnName("berserker");
-            entity.Property(e => e.Defender).HasColumnName("defender");
-            entity.Property(e => e.Revenant).HasColumnName("revenant");
-            entity.Property(e => e.Avenger).HasColumnName("avenger");
-            entity.Property(e => e.Crusader).HasColumnName("crusader");
-            entity.Property(e => e.Protector).HasColumnName("protector");
-            entity.Property(e => e.Thunderlord).HasColumnName("thunderlord");
-            entity.Property(e => e.Spiritguard).HasColumnName("spiritguard");
-            entity.Property(e => e.Earthwarden).HasColumnName("earthwarden");
-            entity.Property(e => e.Assassin).HasColumnName("assassin");
-            entity.Property(e => e.Vindicator).HasColumnName("vindicator");
-            entity.Property(e => e.Apothecary).HasColumnName("apothecary");
-            entity.Property(e => e.Conjurer).HasColumnName("conjurer");
-            entity.Property(e => e.Sentinel).HasColumnName("sentinel");
-            entity.Property(e => e.Luminary).HasColumnName("luminary");
-        });
-    }
-
-    private static void ConfigureAdjustLogDaily(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<AdjustLogDaily>(entity =>
-        {
-            entity.ToTable("adjust_log_daily");
-            entity.HasKey(e => e.Uuid);
-            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
-            entity.Property(e => e.Adjustment).HasColumnName("adjustment");
         });
     }
 
