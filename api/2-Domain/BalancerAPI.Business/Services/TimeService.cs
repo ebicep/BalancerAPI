@@ -40,6 +40,12 @@ public sealed class TimeService(BalancerDbContext dbContext, IDbContextFactory<B
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        var adjustmentRows = await dbContext.AdjustmentDaily.ToListAsync(cancellationToken);
+        if (adjustmentRows.Count > 0)
+        {
+            dbContext.AdjustmentDaily.RemoveRange(adjustmentRows);
+        }
+
         var boundary = previousBoundary ?? DateTime.MinValue;
 
         var loadBaseTask = LoadChangedBaseWeightsDailyAsync(newId, boundary, cancellationToken);

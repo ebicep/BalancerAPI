@@ -40,6 +40,10 @@ public class TimeServiceSnapshotTests
                 new ExperimentalSpecsWl { Uuid = Guid.NewGuid(), LastUpdated = boundary.AddMinutes(-1) },
                 new ExperimentalSpecsWl { Uuid = Guid.NewGuid(), LastUpdated = boundary.AddMinutes(1) });
 
+            seed.AdjustmentDaily.AddRange(
+                new AdjustmentDaily { Uuid = Guid.NewGuid(), Trajectory = 2 },
+                new AdjustmentDaily { Uuid = Guid.NewGuid(), Trajectory = -1 });
+
             await seed.SaveChangesAsync();
         }
 
@@ -49,6 +53,7 @@ public class TimeServiceSnapshotTests
             var newDayId = await service.CreateNewDayAsync(CancellationToken.None);
 
             Assert.Equal(1, newDayId);
+            Assert.Empty(await db.AdjustmentDaily.ToListAsync());
 
             var baseDaily = await db.BaseWeightsDaily.Where(x => x.DayStartDate == newDayId).ToListAsync();
             Assert.Single(baseDaily);

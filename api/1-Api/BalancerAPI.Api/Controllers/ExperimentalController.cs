@@ -3,6 +3,7 @@ using Asp.Versioning;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 
 namespace BalancerAPI.Api.Controllers;
@@ -128,7 +129,7 @@ public class ExperimentalController(
         var result = await experimentalBalanceInputService.InputAsync(balanceId, body, cancellationToken);
         if (result.Success)
         {
-            return Ok(new ExperimentalBalanceInputResponse(balanceId));
+            return Ok(result.Response!);
         }
 
         return StatusCode(result.StatusCode, result.Message);
@@ -142,12 +143,14 @@ public class ExperimentalController(
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalBalanceInputResponse>> UninputBalance(
         Guid balanceId,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)]
+        ExperimentalBalanceInputResponse? trajectoryEcho,
         CancellationToken cancellationToken)
     {
-        var result = await experimentalBalanceInputService.UninputAsync(balanceId, cancellationToken);
+        var result = await experimentalBalanceInputService.UninputAsync(balanceId, trajectoryEcho, cancellationToken);
         if (result.Success)
         {
-            return Ok(new ExperimentalBalanceInputResponse(balanceId));
+            return Ok(result.Response!);
         }
 
         return StatusCode(result.StatusCode, result.Message);
@@ -166,7 +169,7 @@ public class ExperimentalController(
         var result = await experimentalBalanceInputService.ClearInputAsync(balanceId, cancellationToken);
         if (result.Success)
         {
-            return Ok(new ExperimentalBalanceInputResponse(balanceId));
+            return Ok(result.Response!);
         }
 
         return StatusCode(result.StatusCode, result.Message);

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using BalancerAPI.Api.Controllers;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
@@ -281,7 +282,11 @@ public class ExperimentalControllerTests
     {
         var input = new Mock<IExperimentalBalanceInputService>();
         input.Setup(x => x.InputAsync(TestBalanceId, It.IsAny<ExperimentalBalanceInputBody>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ExperimentalBalanceInputServiceResult(true, 200, null));
+            .ReturnsAsync(new ExperimentalBalanceInputServiceResult(
+                true,
+                200,
+                null,
+                new ExperimentalBalanceInputResponse(TestBalanceId, new Dictionary<Guid, ExperimentalAdjustmentTrajectoryPair>())));
 
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, input: input.Object);
@@ -292,6 +297,7 @@ public class ExperimentalControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<ExperimentalBalanceInputResponse>(ok.Value);
         Assert.Equal(TestBalanceId, response.BalanceId);
+        Assert.NotNull(response.AdjustmentTrajectories);
     }
 
     [Fact]
@@ -309,13 +315,17 @@ public class ExperimentalControllerTests
     public async Task UninputBalance_WhenServiceSucceeds_ReturnsOkWithBalanceId()
     {
         var input = new Mock<IExperimentalBalanceInputService>();
-        input.Setup(x => x.UninputAsync(TestBalanceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ExperimentalBalanceInputServiceResult(true, 200, null));
+        input.Setup(x => x.UninputAsync(TestBalanceId, It.IsAny<ExperimentalBalanceInputResponse?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalBalanceInputServiceResult(
+                true,
+                200,
+                null,
+                new ExperimentalBalanceInputResponse(TestBalanceId, null)));
 
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, input: input.Object);
 
-        var result = await controller.UninputBalance(TestBalanceId, CancellationToken.None);
+        var result = await controller.UninputBalance(TestBalanceId, null, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<ExperimentalBalanceInputResponse>(ok.Value);
@@ -327,7 +337,11 @@ public class ExperimentalControllerTests
     {
         var input = new Mock<IExperimentalBalanceInputService>();
         input.Setup(x => x.ClearInputAsync(TestBalanceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ExperimentalBalanceInputServiceResult(true, 200, null));
+            .ReturnsAsync(new ExperimentalBalanceInputServiceResult(
+                true,
+                200,
+                null,
+                new ExperimentalBalanceInputResponse(TestBalanceId, null)));
 
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, input: input.Object);

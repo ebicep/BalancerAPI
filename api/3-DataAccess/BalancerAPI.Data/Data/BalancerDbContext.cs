@@ -28,6 +28,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
     public DbSet<ExperimentalBalanceLog> ExperimentalBalanceLogs => Set<ExperimentalBalanceLog>();
     public DbSet<ExperimentalInputLog> ExperimentalInputLogs => Set<ExperimentalInputLog>();
+    public DbSet<AdjustmentDaily> AdjustmentDaily => Set<AdjustmentDaily>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,6 +56,18 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureBalancePlayerDataView(modelBuilder);
         ConfigureExperimentalBalanceLog(modelBuilder);
         ConfigureExperimentalInputLog(modelBuilder);
+        ConfigureAdjustmentDaily(modelBuilder);
+    }
+
+    private static void ConfigureAdjustmentDaily(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AdjustmentDaily>(entity =>
+        {
+            entity.ToTable("adjustment_daily");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Trajectory).HasColumnName("trajectory");
+        });
     }
 
     private static void ConfigureExperimentalBalanceLog(ModelBuilder modelBuilder)

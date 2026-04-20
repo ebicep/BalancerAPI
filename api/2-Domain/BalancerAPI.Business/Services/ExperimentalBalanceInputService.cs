@@ -73,7 +73,20 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return ctxError;
         }
 
-        ApplyInputLines(ctx!.Winners, ctx.WlByUuid, ctx.SpecByPlayer, ApplyWin);
+        var roster = BuildRoster(ctx!);
+        var tracked = await LoadAdjustmentDailyTrackedAsync(db, roster, cancellationToken);
+        var trajectories = new Dictionary<Guid, ExperimentalAdjustmentTrajectoryPair>();
+        foreach (var line in ctx!.Winners)
+        {
+            ApplyTrajectoryForOutcome(db, tracked, line.Uuid, won: true, trajectories);
+        }
+
+        foreach (var line in ctx.Losers)
+        {
+            ApplyTrajectoryForOutcome(db, tracked, line.Uuid, won: false, trajectories);
+        }
+
+        ApplyInputLines(ctx.Winners, ctx.WlByUuid, ctx.SpecByPlayer, ApplyWin);
         ApplyInputLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, ApplyLoss);
 
         var canonicalInputJson = JsonSerializer.Serialize(body, JsonOptions);
@@ -96,10 +109,18 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return new ExperimentalBalanceInputServiceResult(true, 200, null);
+        var orderedTrajectories = trajectories.OrderBy(kv => kv.Key).ToDictionary(kv => kv.Key, kv => kv.Value);
+        return new ExperimentalBalanceInputServiceResult(
+            true,
+            200,
+            null,
+            new ExperimentalBalanceInputResponse(balanceId, orderedTrajectories));
     }
 
-    public async Task<ExperimentalBalanceInputServiceResult> UninputAsync(Guid balanceId, CancellationToken cancellationToken)
+    public async Task<ExperimentalBalanceInputServiceResult> UninputAsync(
+        Guid balanceId,
+        ExperimentalBalanceInputResponse? trajectoryEcho,
+        CancellationToken cancellationToken)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -166,6 +187,32 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return ctxError;
         }
 
+        var shouldTryTrajectoryRestore = trajectoryEcho?.AdjustmentTrajectories is { Count: > 0 };
+        var canApplyTrajectoryRestore = false;
+        if (shouldTryTrajectoryRestore)
+        {
+            // Only apply trajectory restoration for "latest undo" calls.
+            var latestInputLog = await db.ExperimentalInputLogs
+                .OrderByDescending(x => x.OccurredAt)
+                .ThenByDescending(x => x.Id)
+                .Select(x => x.BalanceId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            canApplyTrajectoryRestore = trajectoryEcho!.BalanceId == balanceId && latestInputLog == balanceId;
+            if (canApplyTrajectoryRestore)
+            {
+                var roster = BuildRoster(ctx!);
+                foreach (var uuid in trajectoryEcho.AdjustmentTrajectories!.Keys)
+                {
+                    if (!roster.Contains(uuid))
+                    {
+                        await tx.RollbackAsync(cancellationToken);
+                        return Fail(400, "adjustment_trajectories contains a UUID not in this balance input.");
+                    }
+                }
+            }
+        }
+
         if (!TryApplyReverseLines(ctx!.Winners, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseWin)
             || !TryApplyReverseLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseLoss))
         {
@@ -174,6 +221,39 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         }
 
         log.Counted = false;
+
+        if (canApplyTrajectoryRestore)
+        {
+            var restoreUuids = trajectoryEcho!.AdjustmentTrajectories!.Keys.ToList();
+            var existingRows = await db.AdjustmentDaily
+                .Where(x => restoreUuids.Contains(x.Uuid))
+                .ToDictionaryAsync(x => x.Uuid, cancellationToken);
+
+            foreach (var (uuid, pair) in trajectoryEcho.AdjustmentTrajectories)
+            {
+                existingRows.TryGetValue(uuid, out var row);
+                if (!pair.Old.HasValue)
+                {
+                    if (row is not null)
+                    {
+                        db.AdjustmentDaily.Remove(row);
+                    }
+                }
+                else
+                {
+                    if (row is null)
+                    {
+                        var entity = new AdjustmentDaily { Uuid = uuid, Trajectory = pair.Old.Value };
+                        db.AdjustmentDaily.Add(entity);
+                        existingRows[uuid] = entity;
+                    }
+                    else
+                    {
+                        row.Trajectory = pair.Old.Value;
+                    }
+                }
+            }
+        }
 
         var auditGameId = log.GameId ?? storedGameId;
         db.ExperimentalInputLogs.Add(new ExperimentalInputLog
@@ -187,7 +267,11 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return new ExperimentalBalanceInputServiceResult(true, 200, null);
+        return new ExperimentalBalanceInputServiceResult(
+            true,
+            200,
+            null,
+            new ExperimentalBalanceInputResponse(balanceId, null));
     }
 
     public async Task<ExperimentalBalanceInputServiceResult> ClearInputAsync(Guid balanceId, CancellationToken cancellationToken)
@@ -253,7 +337,11 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return new ExperimentalBalanceInputServiceResult(true, 200, null);
+        return new ExperimentalBalanceInputServiceResult(
+            true,
+            200,
+            null,
+            new ExperimentalBalanceInputResponse(balanceId, null));
     }
 
     private async Task<(ExperimentalBalanceInputServiceResult? Error, InputApplicationContext? Ctx)> TryBuildInputApplicationContextAsync(
@@ -375,7 +463,74 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
     }
 
     private static ExperimentalBalanceInputServiceResult Fail(int status, string message) =>
-        new(false, status, message);
+        new(false, status, message, null);
+
+    private static HashSet<Guid> BuildRoster(InputApplicationContext ctx)
+    {
+        var roster = new HashSet<Guid>();
+        foreach (var line in ctx.Winners)
+        {
+            roster.Add(line.Uuid);
+        }
+
+        foreach (var line in ctx.Losers)
+        {
+            roster.Add(line.Uuid);
+        }
+
+        return roster;
+    }
+
+    private static async Task<Dictionary<Guid, AdjustmentDaily?>> LoadAdjustmentDailyTrackedAsync(
+        BalancerDbContext db,
+        HashSet<Guid> roster,
+        CancellationToken cancellationToken)
+    {
+        var list = roster.ToList();
+        var rows = await db.AdjustmentDaily.Where(a => list.Contains(a.Uuid)).ToListAsync(cancellationToken);
+        var byUuid = rows.ToDictionary(r => r.Uuid);
+        var tracked = new Dictionary<Guid, AdjustmentDaily?>();
+        foreach (var uuid in roster)
+        {
+            tracked[uuid] = byUuid.GetValueOrDefault(uuid);
+        }
+
+        return tracked;
+    }
+
+    private static int ComputeNextTrajectory(int? current, bool won)
+    {
+        if (won)
+        {
+            return current is > 0 ? current.Value + 1 : 1;
+        }
+
+        return current is < 0 ? current.Value - 1 : -1;
+    }
+
+    private static void ApplyTrajectoryForOutcome(
+        BalancerDbContext db,
+        Dictionary<Guid, AdjustmentDaily?> tracked,
+        Guid uuid,
+        bool won,
+        Dictionary<Guid, ExperimentalAdjustmentTrajectoryPair> trajectories)
+    {
+        var row = tracked[uuid];
+        int? oldT = row?.Trajectory;
+        var next = ComputeNextTrajectory(oldT, won);
+        if (row is null)
+        {
+            var entity = new AdjustmentDaily { Uuid = uuid, Trajectory = next };
+            db.AdjustmentDaily.Add(entity);
+            tracked[uuid] = entity;
+        }
+        else
+        {
+            row.Trajectory = next;
+        }
+
+        trajectories[uuid] = new ExperimentalAdjustmentTrajectoryPair(oldT, next);
+    }
 
     private static bool StoredInputMatchesRequest(string storedJson, ExperimentalBalanceInputBody body)
     {
