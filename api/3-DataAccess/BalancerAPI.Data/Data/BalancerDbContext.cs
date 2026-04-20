@@ -29,6 +29,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalBalanceLog> ExperimentalBalanceLogs => Set<ExperimentalBalanceLog>();
     public DbSet<ExperimentalInputLog> ExperimentalInputLogs => Set<ExperimentalInputLog>();
     public DbSet<AdjustmentDaily> AdjustmentDaily => Set<AdjustmentDaily>();
+    public DbSet<AdjustmentDailyLog> AdjustmentDailyLogs => Set<AdjustmentDailyLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -57,6 +58,21 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureExperimentalBalanceLog(modelBuilder);
         ConfigureExperimentalInputLog(modelBuilder);
         ConfigureAdjustmentDaily(modelBuilder);
+        ConfigureAdjustmentDailyLog(modelBuilder);
+    }
+
+    private static void ConfigureAdjustmentDailyLog(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AdjustmentDailyLog>(entity =>
+        {
+            entity.ToTable("adjustment_daily_log");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").HasColumnType("uuid");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.PreviousWeight).HasColumnName("previous_weight");
+            entity.Property(e => e.NewWeight).HasColumnName("new_weight");
+            entity.Property(e => e.Date).HasColumnName("date").HasColumnType("timestamp with time zone");
+        });
     }
 
     private static void ConfigureAdjustmentDaily(ModelBuilder modelBuilder)
