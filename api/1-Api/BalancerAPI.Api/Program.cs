@@ -52,6 +52,7 @@ builder.Services.AddScoped<IExperimentalBalanceInputService, ExperimentalBalance
 builder.Services.AddScoped<ITimeService, TimeService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IAdjustmentAutoDailyService, AdjustmentAutoDailyService>();
+builder.Services.AddScoped<IAdjustmentAutoWeeklyService, AdjustmentAutoWeeklyService>();
 builder.Services.AddHttpClient<INameUpdateService, NameUpdateService>(client => { client.BaseAddress = new Uri("https://sessionserver.mojang.com/"); });
 
 var app = builder.Build();

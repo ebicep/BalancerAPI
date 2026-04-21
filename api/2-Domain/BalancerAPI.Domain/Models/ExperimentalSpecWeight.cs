@@ -1,5 +1,9 @@
 namespace BalancerAPI.Domain.Models;
 
+/// <summary>
+/// Per-spec offsets: a positive value is subtracted from <see cref="BaseWeight.Weight"/> to get the effective spec weight
+/// (<c>base_weight - {spec}_offset</c>).
+/// </summary>
 public class ExperimentalSpecWeight
 {
     public required Guid Uuid { get; set; }

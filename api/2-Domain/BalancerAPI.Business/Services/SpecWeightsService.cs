@@ -27,24 +27,24 @@ public sealed class SpecWeightsService(BalancerDbContext dbContext) : ISpecWeigh
         var baseWeight = row.Weight;
         var spec = row.Spec;
         return new SpecWeightsResponse(
-            baseWeight + spec.PyromancerOffset,
-            baseWeight + spec.CryomancerOffset,
-            baseWeight + spec.AquamancerOffset,
-            baseWeight + spec.BerserkerOffset,
-            baseWeight + spec.DefenderOffset,
-            baseWeight + spec.RevenantOffset,
-            baseWeight + spec.AvengerOffset,
-            baseWeight + spec.CrusaderOffset,
-            baseWeight + spec.ProtectorOffset,
-            baseWeight + spec.ThunderlordOffset,
-            baseWeight + spec.SpiritguardOffset,
-            baseWeight + spec.EarthwardenOffset,
-            baseWeight + spec.AssassinOffset,
-            baseWeight + spec.VindicatorOffset,
-            baseWeight + spec.ApothecaryOffset,
-            baseWeight + spec.ConjurerOffset,
-            baseWeight + spec.SentinelOffset,
-            baseWeight + spec.LuminaryOffset);
+            baseWeight - spec.PyromancerOffset,
+            baseWeight - spec.CryomancerOffset,
+            baseWeight - spec.AquamancerOffset,
+            baseWeight - spec.BerserkerOffset,
+            baseWeight - spec.DefenderOffset,
+            baseWeight - spec.RevenantOffset,
+            baseWeight - spec.AvengerOffset,
+            baseWeight - spec.CrusaderOffset,
+            baseWeight - spec.ProtectorOffset,
+            baseWeight - spec.ThunderlordOffset,
+            baseWeight - spec.SpiritguardOffset,
+            baseWeight - spec.EarthwardenOffset,
+            baseWeight - spec.AssassinOffset,
+            baseWeight - spec.VindicatorOffset,
+            baseWeight - spec.ApothecaryOffset,
+            baseWeight - spec.ConjurerOffset,
+            baseWeight - spec.SentinelOffset,
+            baseWeight - spec.LuminaryOffset);
     }
 }
 

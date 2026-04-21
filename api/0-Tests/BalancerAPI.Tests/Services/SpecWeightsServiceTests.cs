@@ -11,7 +11,7 @@ public class SpecWeightsServiceTests
     private static readonly DateTime FixedLastUpdated = new(2025, 3, 1, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public async Task GetCombinedAsync_WhenBothRowsExist_ReturnsWeightPlusEachOffset()
+    public async Task GetCombinedAsync_WhenBothRowsExist_ReturnsBaseWeightMinusEachOffset()
     {
         await using var db = CreateDbContext();
         db.BaseWeights.Add(new BaseWeight { Uuid = TestUuid, Weight = 1000 });
@@ -44,24 +44,24 @@ public class SpecWeightsServiceTests
         var result = await service.GetCombinedAsync(TestUuid, CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.Equal(1001, result.Pyromancer);
-        Assert.Equal(1002, result.Cryomancer);
-        Assert.Equal(1003, result.Aquamancer);
-        Assert.Equal(1004, result.Berserker);
-        Assert.Equal(1005, result.Defender);
-        Assert.Equal(1006, result.Revenant);
-        Assert.Equal(1007, result.Avenger);
-        Assert.Equal(1008, result.Crusader);
-        Assert.Equal(1009, result.Protector);
-        Assert.Equal(1010, result.Thunderlord);
-        Assert.Equal(1011, result.Spiritguard);
-        Assert.Equal(1012, result.Earthwarden);
-        Assert.Equal(1013, result.Assassin);
-        Assert.Equal(1014, result.Vindicator);
-        Assert.Equal(1015, result.Apothecary);
-        Assert.Equal(1016, result.Conjurer);
-        Assert.Equal(1017, result.Sentinel);
-        Assert.Equal(1018, result.Luminary);
+        Assert.Equal(999, result.Pyromancer);
+        Assert.Equal(998, result.Cryomancer);
+        Assert.Equal(997, result.Aquamancer);
+        Assert.Equal(996, result.Berserker);
+        Assert.Equal(995, result.Defender);
+        Assert.Equal(994, result.Revenant);
+        Assert.Equal(993, result.Avenger);
+        Assert.Equal(992, result.Crusader);
+        Assert.Equal(991, result.Protector);
+        Assert.Equal(990, result.Thunderlord);
+        Assert.Equal(989, result.Spiritguard);
+        Assert.Equal(988, result.Earthwarden);
+        Assert.Equal(987, result.Assassin);
+        Assert.Equal(986, result.Vindicator);
+        Assert.Equal(985, result.Apothecary);
+        Assert.Equal(984, result.Conjurer);
+        Assert.Equal(983, result.Sentinel);
+        Assert.Equal(982, result.Luminary);
     }
 
     [Fact]
