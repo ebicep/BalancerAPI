@@ -13,7 +13,10 @@ public sealed record NewSeasonResponse(int Season, DateTime Timestamp);
 
 public sealed record LatestSeasonResponse(int Season, DateTime Timestamp);
 
-public sealed class TimeService(BalancerDbContext dbContext, IDbContextFactory<BalancerDbContext> dbContextFactory)
+public sealed class TimeService(
+    BalancerDbContext dbContext,
+    IDbContextFactory<BalancerDbContext> dbContextFactory,
+    IAdjustmentAutoWeeklyService adjustmentAutoWeeklyService)
     : ITimeService
 {
     public async Task<int> CreateNewDayAsync(CancellationToken cancellationToken)
@@ -73,6 +76,7 @@ public sealed class TimeService(BalancerDbContext dbContext, IDbContextFactory<B
     public async Task<int> CreateNewWeekAsync(CancellationToken cancellationToken)
     {
         await using var tx = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await adjustmentAutoWeeklyService.ApplyAutoWeeklyAsync(cancellationToken);
 
         var maxId = await dbContext.TimeWeeks
             .Select(x => (int?)x.Id)

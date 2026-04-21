@@ -3,6 +3,7 @@ using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Moq;
 
 namespace BalancerAPI.Tests.Services;
 
@@ -21,6 +22,14 @@ public class TimeServiceSnapshotTests
             .UseInMemoryDatabase(dbName)
             .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
+
+    private static Mock<IAdjustmentAutoWeeklyService> CreateAutoWeeklyServiceMock()
+    {
+        var service = new Mock<IAdjustmentAutoWeeklyService>();
+        service.Setup(x => x.ApplyAutoWeeklyAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AdjustmentAutoWeeklyResponse(0, []));
+        return service;
+    }
 
     [Fact]
     public async Task CreateNewDayAsync_SnapshotsOnlyChangedPlayers()
@@ -49,7 +58,8 @@ public class TimeServiceSnapshotTests
 
         await using (var db = new BalancerDbContext(options))
         {
-            var service = new TimeService(db, new TestDbContextFactory(options));
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
             var newDayId = await service.CreateNewDayAsync(CancellationToken.None);
 
             Assert.Equal(1, newDayId);
@@ -98,7 +108,8 @@ public class TimeServiceSnapshotTests
 
         await using (var db = new BalancerDbContext(options))
         {
-            var service = new TimeService(db, new TestDbContextFactory(options));
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
             var newWeekId = await service.CreateNewWeekAsync(CancellationToken.None);
 
             Assert.Equal(1, newWeekId);
@@ -136,7 +147,8 @@ public class TimeServiceSnapshotTests
 
         await using (var db = new BalancerDbContext(options))
         {
-            var service = new TimeService(db, new TestDbContextFactory(options));
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
             var day1 = await service.CreateNewDayAsync(CancellationToken.None);
             var day2 = await service.CreateNewDayAsync(CancellationToken.None);
 
@@ -175,7 +187,8 @@ public class TimeServiceSnapshotTests
 
         await using (var db = new BalancerDbContext(options))
         {
-            var service = new TimeService(db, new TestDbContextFactory(options));
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
             var wasUndone = await service.UndoDayAsync(removeDayId, CancellationToken.None);
 
             Assert.True(wasUndone);
@@ -219,7 +232,8 @@ public class TimeServiceSnapshotTests
 
         await using (var db = new BalancerDbContext(options))
         {
-            var service = new TimeService(db, new TestDbContextFactory(options));
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
             var wasUndone = await service.UndoWeekAsync(removeWeekId, CancellationToken.None);
 
             Assert.True(wasUndone);
@@ -252,7 +266,8 @@ public class TimeServiceSnapshotTests
 
         await using (var db = new BalancerDbContext(options))
         {
-            var service = new TimeService(db, new TestDbContextFactory(options));
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
             var wasUndone = await service.UndoSeasonAsync(removeSeasonId, CancellationToken.None);
 
             Assert.True(wasUndone);
@@ -284,7 +299,8 @@ public class TimeServiceSnapshotTests
 
         await using (var db = new BalancerDbContext(options))
         {
-            var service = new TimeService(db, new TestDbContextFactory(options));
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
 
             Assert.False(await service.UndoDayAsync(999, CancellationToken.None));
             Assert.False(await service.UndoWeekAsync(999, CancellationToken.None));
@@ -298,6 +314,40 @@ public class TimeServiceSnapshotTests
             Assert.Equal(1, await db.ExperimentalSpecWeightsWeekly.CountAsync());
             Assert.Equal(1, await db.ExperimentalSpecsWlDaily.CountAsync());
             Assert.Equal(1, await db.ExperimentalSpecsWlWeekly.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task CreateNewWeekAsync_RunsAutoWeeklyBeforeInsertingNewWeek()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var boundary = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            seed.TimeWeeks.Add(new TimeWeek { Id = 0, Timestamp = boundary });
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var observedWeekCountAtAutoWeekly = -1;
+            var autoWeekly = new Mock<IAdjustmentAutoWeeklyService>();
+            autoWeekly.Setup(x => x.ApplyAutoWeeklyAsync(It.IsAny<CancellationToken>()))
+                .Callback(() =>
+                {
+                    using var callbackDb = new BalancerDbContext(options);
+                    observedWeekCountAtAutoWeekly = callbackDb.TimeWeeks.Count();
+                })
+                .ReturnsAsync(new AdjustmentAutoWeeklyResponse(0, []));
+
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+            var newWeekId = await service.CreateNewWeekAsync(CancellationToken.None);
+
+            Assert.Equal(1, newWeekId);
+            Assert.Equal(1, observedWeekCountAtAutoWeekly);
+            autoWeekly.Verify(x => x.ApplyAutoWeeklyAsync(It.IsAny<CancellationToken>()), Times.Once);
+            Assert.Equal(2, await db.TimeWeeks.CountAsync());
         }
     }
 }
