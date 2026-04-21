@@ -30,6 +30,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalInputLog> ExperimentalInputLogs => Set<ExperimentalInputLog>();
     public DbSet<AdjustmentDaily> AdjustmentDaily => Set<AdjustmentDaily>();
     public DbSet<AdjustmentDailyLog> AdjustmentDailyLogs => Set<AdjustmentDailyLog>();
+    public DbSet<AdjustmentWeeklyLog> AdjustmentWeeklyLogs => Set<AdjustmentWeeklyLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,6 +60,26 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureExperimentalInputLog(modelBuilder);
         ConfigureAdjustmentDaily(modelBuilder);
         ConfigureAdjustmentDailyLog(modelBuilder);
+        ConfigureAdjustmentWeeklyLog(modelBuilder);
+    }
+
+    private static void ConfigureAdjustmentWeeklyLog(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AdjustmentWeeklyLog>(entity =>
+        {
+            entity.ToTable("adjustment_weekly_log");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").HasColumnType("uuid");
+            entity.Property(e => e.WeekKey).HasColumnName("week_key");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Spec).HasColumnName("spec").HasMaxLength(32);
+            entity.Property(e => e.Wins).HasColumnName("wins");
+            entity.Property(e => e.Losses).HasColumnName("losses");
+            entity.Property(e => e.Adjusted).HasColumnName("adjusted");
+            entity.Property(e => e.PreviousWeight).HasColumnName("previous_weight");
+            entity.Property(e => e.PreviousOffset).HasColumnName("previous_offset");
+            entity.Property(e => e.Date).HasColumnName("date").HasColumnType("timestamp with time zone");
+        });
     }
 
     private static void ConfigureAdjustmentDailyLog(ModelBuilder modelBuilder)

@@ -24,6 +24,13 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
         }
 
         var adjusted = new Dictionary<Guid, AdjustmentAutoWeeklyPlayerBlock>();
+        var weeklyLogs = new List<AdjustmentWeeklyLog>();
+        var recordedAt = DateTime.UtcNow;
+        var weekKey = await dbContext.TimeWeeks
+            .AsNoTracking()
+            .OrderByDescending(x => x.Id)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
 
         foreach (var row in joinedRows.DistinctBy(x => x.wl.Uuid))
         {
@@ -53,6 +60,20 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
                     baseWeight.Weight - currentOffset,
                     previousOffset,
                     currentOffset));
+
+                weeklyLogs.Add(new AdjustmentWeeklyLog
+                {
+                    Id = Guid.NewGuid(),
+                    WeekKey = weekKey,
+                    Uuid = wl.Uuid,
+                    Spec = spec,
+                    Wins = wins,
+                    Losses = losses,
+                    Adjusted = adjustment,
+                    PreviousWeight = baseWeight.Weight - previousOffset,
+                    PreviousOffset = previousOffset,
+                    Date = recordedAt
+                });
             }
 
             if (specChanges.Count == 0)
@@ -71,6 +92,7 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
             return new AdjustmentAutoWeeklyResponse(0, []);
         }
 
+        dbContext.AdjustmentWeeklyLogs.AddRange(weeklyLogs);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new AdjustmentAutoWeeklyResponse(adjusted.Count, adjusted);
