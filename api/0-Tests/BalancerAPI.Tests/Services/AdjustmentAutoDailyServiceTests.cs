@@ -38,7 +38,7 @@ public class AdjustmentAutoDailyServiceTests
         var service = new AdjustmentAutoDailyService(db);
         var result = await service.ApplyAutoDailyAsync(CancellationToken.None);
 
-        Assert.Equal(0, result.Amount);
+        Assert.Equal(0, result.Count);
         Assert.Empty(result.Adjusted);
         Assert.Equal(2, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
         Assert.Equal(100, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
@@ -57,7 +57,7 @@ public class AdjustmentAutoDailyServiceTests
         var result = await service.ApplyAutoDailyAsync(CancellationToken.None);
         var after = DateTime.UtcNow;
 
-        Assert.Equal(1, result.Amount);
+        Assert.Equal(1, result.Count);
         var entry = Assert.Single(result.Adjusted);
         Assert.Equal(U1, entry.Uuid);
         Assert.Equal(string.Empty, entry.Name);
@@ -84,7 +84,7 @@ public class AdjustmentAutoDailyServiceTests
         var service = new AdjustmentAutoDailyService(db);
         var result = await service.ApplyAutoDailyAsync(CancellationToken.None);
 
-        Assert.Equal(1, result.Amount);
+        Assert.Equal(1, result.Count);
         var entry = Assert.Single(result.Adjusted);
         Assert.Equal(99, entry.CurrentWeight);
         Assert.Equal(-2, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
@@ -100,7 +100,7 @@ public class AdjustmentAutoDailyServiceTests
         var service = new AdjustmentAutoDailyService(db);
         var result = await service.ApplyAutoDailyAsync(CancellationToken.None);
 
-        Assert.Equal(0, result.Amount);
+        Assert.Equal(0, result.Count);
         Assert.Empty(result.Adjusted);
         Assert.Equal(5, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
     }
@@ -115,11 +115,11 @@ public class AdjustmentAutoDailyServiceTests
 
         var service = new AdjustmentAutoDailyService(db);
         var first = await service.ApplyAutoDailyAsync(CancellationToken.None);
-        Assert.Equal(1, first.Amount);
+        Assert.Equal(1, first.Count);
         Assert.Equal(101, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
 
         var second = await service.ApplyAutoDailyAsync(CancellationToken.None);
-        Assert.Equal(0, second.Amount);
+        Assert.Equal(0, second.Count);
         Assert.Empty(second.Adjusted);
         Assert.Equal(101, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
         Assert.Equal(2, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
@@ -150,7 +150,7 @@ public class AdjustmentAutoDailyServiceTests
         var service = new AdjustmentAutoDailyService(db);
         var result = await service.ApplyAutoDailyAsync(CancellationToken.None);
 
-        Assert.Equal(0, result.Amount);
+        Assert.Equal(0, result.Count);
         Assert.Empty(result.Adjusted);
         Assert.Empty(await db.AdjustmentDailyLogs.ToListAsync());
     }
@@ -172,7 +172,7 @@ public class AdjustmentAutoDailyServiceTests
         var service = new AdjustmentAutoDailyService(db);
         var result = await service.ApplyAutoDailyAsync(CancellationToken.None);
 
-        Assert.Equal(2, result.Amount);
+        Assert.Equal(2, result.Count);
         Assert.Equal(2, result.Adjusted.Count);
         Assert.Equal(101, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
         Assert.Equal(198, (await db.BaseWeights.SingleAsync(x => x.Uuid == U2)).Weight);

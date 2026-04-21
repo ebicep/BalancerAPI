@@ -8,7 +8,7 @@ public interface IAdjustmentAutoDailyService
 }
 
 public sealed record AdjustmentAutoDailyResponse(
-    [property: JsonPropertyName("amount")] int Amount,
+    [property: JsonPropertyName("count")] int Count,
     [property: JsonPropertyName("adjusted")] IReadOnlyList<AdjustmentAutoDailyAdjustedEntry> Adjusted);
 
 public sealed record AdjustmentAutoDailyAdjustedEntry(
