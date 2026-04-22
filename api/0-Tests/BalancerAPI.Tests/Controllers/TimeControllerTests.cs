@@ -27,8 +27,9 @@ public class TimeControllerTests
     public async Task NewWeek_ReturnsOkWithNewWeek()
     {
         var service = new Mock<ITimeService>();
+        var autoWeekly = new AdjustmentAutoWeeklyResponse(1, []);
         service.Setup(x => x.CreateNewWeekAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(7);
+            .ReturnsAsync(new NewWeekResponse(7, autoWeekly));
 
         var controller = new TimeController(service.Object);
 
@@ -37,6 +38,7 @@ public class TimeControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<NewWeekResponse>(ok.Value);
         Assert.Equal(7, response.NewWeek);
+        Assert.Equal(autoWeekly, response.AutoWeekly);
     }
 
     [Fact]

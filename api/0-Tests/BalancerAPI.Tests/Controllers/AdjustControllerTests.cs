@@ -23,7 +23,8 @@ public class AdjustControllerTests
         service.Setup(x => x.ApplyAutoDailyAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var controller = new AdjustController(service.Object);
+        var manual = new Mock<IManualWeightAdjustmentService>();
+        var controller = new AdjustController(service.Object, manual.Object);
         var actionResult = await controller.AutoDaily(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(actionResult.Result);

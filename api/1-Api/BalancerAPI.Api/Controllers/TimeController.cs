@@ -34,7 +34,7 @@ public class TimeController(ITimeService timeService) : ControllerBase
     public async Task<ActionResult<NewWeekResponse>> NewWeek(CancellationToken cancellationToken)
     {
         var newWeek = await timeService.CreateNewWeekAsync(cancellationToken);
-        return Ok(new NewWeekResponse(newWeek));
+        return Ok(newWeek);
     }
 
     [HttpDelete("week/{weekId:int}")]

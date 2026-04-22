@@ -7,7 +7,7 @@ namespace BalancerAPI.Business.Services;
 
 public sealed record NewDayResponse(int NewDay);
 
-public sealed record NewWeekResponse(int NewWeek);
+public sealed record NewWeekResponse(int NewWeek, AdjustmentAutoWeeklyResponse AutoWeekly);
 
 public sealed record NewSeasonResponse(int Season, DateTime Timestamp);
 
@@ -73,10 +73,10 @@ public sealed class TimeService(
         return newId;
     }
 
-    public async Task<int> CreateNewWeekAsync(CancellationToken cancellationToken)
+    public async Task<NewWeekResponse> CreateNewWeekAsync(CancellationToken cancellationToken)
     {
         await using var tx = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-        await adjustmentAutoWeeklyService.ApplyAutoWeeklyAsync(cancellationToken);
+        var autoWeekly = await adjustmentAutoWeeklyService.ApplyAutoWeeklyAsync(cancellationToken);
 
         var maxId = await dbContext.TimeWeeks
             .Select(x => (int?)x.Id)
@@ -126,7 +126,7 @@ public sealed class TimeService(
         await dbContext.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return newId;
+        return new NewWeekResponse(newId, autoWeekly);
     }
 
     public async Task<bool> UndoDayAsync(int dayId, CancellationToken cancellationToken)

@@ -110,9 +110,11 @@ public class TimeServiceSnapshotTests
         {
             var autoWeekly = CreateAutoWeeklyServiceMock();
             var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
-            var newWeekId = await service.CreateNewWeekAsync(CancellationToken.None);
+            var response = await service.CreateNewWeekAsync(CancellationToken.None);
+            var newWeekId = response.NewWeek;
 
             Assert.Equal(1, newWeekId);
+            Assert.Equal(0, response.AutoWeekly.Count);
 
             var baseWeekly = await db.BaseWeightsWeekly.Where(x => x.WeekStartDate == newWeekId).ToListAsync();
             Assert.Single(baseWeekly);
@@ -332,6 +334,7 @@ public class TimeServiceSnapshotTests
         await using (var db = new BalancerDbContext(options))
         {
             var observedWeekCountAtAutoWeekly = -1;
+            var expectedAutoWeekly = new AdjustmentAutoWeeklyResponse(2, []);
             var autoWeekly = new Mock<IAdjustmentAutoWeeklyService>();
             autoWeekly.Setup(x => x.ApplyAutoWeeklyAsync(It.IsAny<CancellationToken>()))
                 .Callback(() =>
@@ -339,12 +342,14 @@ public class TimeServiceSnapshotTests
                     using var callbackDb = new BalancerDbContext(options);
                     observedWeekCountAtAutoWeekly = callbackDb.TimeWeeks.Count();
                 })
-                .ReturnsAsync(new AdjustmentAutoWeeklyResponse(0, []));
+                .ReturnsAsync(expectedAutoWeekly);
 
             var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
-            var newWeekId = await service.CreateNewWeekAsync(CancellationToken.None);
+            var response = await service.CreateNewWeekAsync(CancellationToken.None);
+            var newWeekId = response.NewWeek;
 
             Assert.Equal(1, newWeekId);
+            Assert.Equal(expectedAutoWeekly, response.AutoWeekly);
             Assert.Equal(1, observedWeekCountAtAutoWeekly);
             autoWeekly.Verify(x => x.ApplyAutoWeeklyAsync(It.IsAny<CancellationToken>()), Times.Once);
             Assert.Equal(2, await db.TimeWeeks.CountAsync());
