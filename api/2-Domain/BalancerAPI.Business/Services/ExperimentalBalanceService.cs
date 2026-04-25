@@ -121,58 +121,57 @@ public sealed class ExperimentalBalanceService(
 
             var specTypeDiff = MaxSpecTypeDiff(blueAssign, redAssign);
 
-            if (weightDiff <= maxWeightDiff
-                && flatDiff <= maxFlatTeamDiff
-                && wlDiff <= maxWlDiff
-                && kdDiff <= maxKdDiff
-                && specTypeDiff <= maxSpecTypeDiff)
+            if (weightDiff > maxWeightDiff
+                || flatDiff > maxFlatTeamDiff
+                || wlDiff > maxWlDiff
+                || !(kdDiff <= maxKdDiff)
+                || specTypeDiff > maxSpecTypeDiff) continue;
+            
+            sw.Stop();
+            steps.Add(new ExperimentalBalanceMetaStep(
+                Name: "algorithm.computeBalance",
+                DurationMs: sw.Elapsed.TotalMilliseconds,
+                StartOffsetMs: computeStartOffset));
+
+            var serializeStartOffset = requestStopwatch.Elapsed.TotalMilliseconds;
+            var serializeStopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var teamBalance = BuildTeamBalance(blueAssign, redAssign, playerData.PlayerDataByPlayer, playerData.NamesByPlayer);
+            serializeStopwatch.Stop();
+            steps.Add(new ExperimentalBalanceMetaStep(
+                Name: "response.serialize",
+                DurationMs: serializeStopwatch.Elapsed.TotalMilliseconds,
+                StartOffsetMs: serializeStartOffset));
+
+            var latestSeason = await LoadLatestSeasonAsync(cancellationToken);
+            var meta = new ExperimentalBalanceMeta(
+                Iterations: iter + 1,
+                DurationMs: requestStopwatch.Elapsed.TotalMilliseconds,
+                Steps: steps,
+                Season: latestSeason?.Id ?? 0,
+                Time: latestSeason?.Timestamp ?? DateTime.UtcNow);
+
+            var balanceId = Guid.NewGuid();
+            var response = new ExperimentalBalanceResponse(balanceId, teamBalance, meta);
+
+            try
             {
-                sw.Stop();
-                steps.Add(new ExperimentalBalanceMetaStep(
-                    Name: "algorithm.computeBalance",
-                    DurationMs: sw.Elapsed.TotalMilliseconds,
-                    StartOffsetMs: computeStartOffset));
-
-                var serializeStartOffset = requestStopwatch.Elapsed.TotalMilliseconds;
-                var serializeStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                var teamBalance = BuildTeamBalance(blueAssign, redAssign, playerData.PlayerDataByPlayer, playerData.NamesByPlayer);
-                serializeStopwatch.Stop();
-                steps.Add(new ExperimentalBalanceMetaStep(
-                    Name: "response.serialize",
-                    DurationMs: serializeStopwatch.Elapsed.TotalMilliseconds,
-                    StartOffsetMs: serializeStartOffset));
-
-                var latestSeason = await LoadLatestSeasonAsync(cancellationToken);
-                var meta = new ExperimentalBalanceMeta(
-                    Iterations: iter + 1,
-                    DurationMs: requestStopwatch.Elapsed.TotalMilliseconds,
-                    Steps: steps,
-                    Season: latestSeason?.Id ?? 0,
-                    Time: latestSeason?.Timestamp ?? DateTime.UtcNow);
-
-                var balanceId = Guid.NewGuid();
-                var response = new ExperimentalBalanceResponse(balanceId, teamBalance, meta);
-
-                try
+                await using var persistDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                persistDb.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
                 {
-                    await using var persistDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                    persistDb.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
-                    {
-                        BalanceId = balanceId,
-                        Balance = JsonSerializer.Serialize(response.Balance),
-                        Meta = JsonSerializer.Serialize(response.Meta),
-                        CreatedAt = meta.Time,
-                        Posted = false
-                    });
-                    await persistDb.SaveChangesAsync(cancellationToken);
-                }
-                catch (DbUpdateException)
-                {
-                    return Fail(500, "Failed to persist balance log.");
-                }
-
-                return new ExperimentalBalanceServiceResult(true, response, null);
+                    BalanceId = balanceId,
+                    Balance = JsonSerializer.Serialize(response.Balance),
+                    Meta = JsonSerializer.Serialize(response.Meta),
+                    CreatedAt = meta.Time,
+                    Posted = false
+                });
+                await persistDb.SaveChangesAsync(cancellationToken);
             }
+            catch (DbUpdateException)
+            {
+                return Fail(500, "Failed to persist balance log.");
+            }
+
+            return new ExperimentalBalanceServiceResult(true, response, null);
         }
 
         sw.Stop();
