@@ -36,10 +36,19 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
         var baseWeight = row;
         var previousWeight = baseWeight.Weight;
         baseWeight.Weight += body.Amount;
+        var recordedAt = DateTime.UtcNow;
+        var response = new ManualBaseAdjustResponse(uuid, displayName, previousWeight, baseWeight.Weight);
+        dbContext.AdjustmentManualDailyLogs.Add(new AdjustmentManualDailyLog
+        {
+            Id = Guid.NewGuid(),
+            Uuid = uuid,
+            PreviousWeight = response.PreviousWeight,
+            NewWeight = response.NewWeight,
+            Date = recordedAt
+        });
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return ManualWeightAdjustServiceResult<ManualBaseAdjustResponse>.Ok(
-            new ManualBaseAdjustResponse(uuid, displayName, previousWeight, baseWeight.Weight));
+        return ManualWeightAdjustServiceResult<ManualBaseAdjustResponse>.Ok(response);
     }
 
     public async Task<ManualWeightAdjustServiceResult<ManualSpecAdjustResponse>> PatchSpecAsync(
@@ -95,21 +104,33 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
         var previousOffset = GetOffset(specRow, canonicalSpec);
         var previousSpecWeight = baseWeight.Weight - previousOffset;
         AddToOffset(specRow, canonicalSpec, body.Amount);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
         var newOffset = GetOffset(specRow, canonicalSpec);
         var newSpecWeight = baseWeight.Weight - newOffset;
+        var recordedAt = DateTime.UtcNow;
+        var response = new ManualSpecAdjustResponse(
+            uuid,
+            displayName,
+            canonicalSpec,
+            previousOffset,
+            newOffset,
+            baseWeight.Weight,
+            previousSpecWeight,
+            newSpecWeight);
+        dbContext.AdjustmentManualWeeklyLogs.Add(new AdjustmentManualWeeklyLog
+        {
+            Id = Guid.NewGuid(),
+            Uuid = uuid,
+            Spec = canonicalSpec,
+            PreviousOffset = response.PreviousOffset,
+            NewOffset = response.NewOffset,
+            BaseWeight = response.BaseWeight,
+            PreviousSpecWeight = response.PreviousSpecWeight,
+            NewSpecWeight = response.NewSpecWeight,
+            Date = recordedAt
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
 
-        return ManualWeightAdjustServiceResult<ManualSpecAdjustResponse>.Ok(
-            new ManualSpecAdjustResponse(
-                uuid,
-                displayName,
-                canonicalSpec,
-                previousOffset,
-                newOffset,
-                baseWeight.Weight,
-                previousSpecWeight,
-                newSpecWeight));
+        return ManualWeightAdjustServiceResult<ManualSpecAdjustResponse>.Ok(response);
     }
 
     private async Task<(bool Success, int StatusCode, string? Message, Guid? Uuid, string? DisplayName)> ResolvePlayerKeyAsync(

@@ -74,14 +74,13 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.ToTable("adjustment_manual_weekly_log");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id").HasColumnType("uuid");
-            entity.Property(e => e.WeekKey).HasColumnName("week_key");
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Spec).HasColumnName("spec").HasMaxLength(32);
-            entity.Property(e => e.Wins).HasColumnName("wins");
-            entity.Property(e => e.Losses).HasColumnName("losses");
-            entity.Property(e => e.Adjusted).HasColumnName("adjusted");
-            entity.Property(e => e.PreviousWeight).HasColumnName("previous_weight");
             entity.Property(e => e.PreviousOffset).HasColumnName("previous_offset");
+            entity.Property(e => e.NewOffset).HasColumnName("new_offset");
+            entity.Property(e => e.BaseWeight).HasColumnName("base_weight");
+            entity.Property(e => e.PreviousSpecWeight).HasColumnName("previous_spec_weight");
+            entity.Property(e => e.NewSpecWeight).HasColumnName("new_spec_weight");
             entity.Property(e => e.Date).HasColumnName("date").HasColumnType("timestamp with time zone");
         });
     }

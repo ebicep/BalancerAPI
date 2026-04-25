@@ -7,23 +7,20 @@ public class AdjustmentManualWeeklyLog
 {
     public Guid Id { get; set; }
 
-    /// <summary>Week key matching weekly snapshot week_start_date values.</summary>
-    public int WeekKey { get; set; }
-
     /// <summary>Player uuid.</summary>
     public Guid Uuid { get; set; }
 
     public required string Spec { get; set; }
 
-    public int Wins { get; set; }
-
-    public int Losses { get; set; }
-
-    public int Adjusted { get; set; }
-
-    public int PreviousWeight { get; set; }
-
     public int PreviousOffset { get; set; }
+
+    public int NewOffset { get; set; }
+
+    public int BaseWeight { get; set; }
+
+    public int PreviousSpecWeight { get; set; }
+
+    public int NewSpecWeight { get; set; }
 
     /// <summary>UTC time the adjustment was recorded.</summary>
     public DateTime Date { get; set; }

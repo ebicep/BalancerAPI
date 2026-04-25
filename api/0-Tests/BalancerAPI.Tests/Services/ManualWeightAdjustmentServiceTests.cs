@@ -28,6 +28,9 @@ public class ManualWeightAdjustmentServiceTests
         Assert.Equal(100, result.Response.PreviousWeight);
         Assert.Equal(105, result.Response.NewWeight);
         Assert.Equal(105, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
+        var log = await db.AdjustmentManualDailyLogs.SingleAsync(x => x.Uuid == U1);
+        Assert.Equal(result.Response.PreviousWeight, log.PreviousWeight);
+        Assert.Equal(result.Response.NewWeight, log.NewWeight);
     }
 
     [Fact]
@@ -45,6 +48,9 @@ public class ManualWeightAdjustmentServiceTests
         Assert.NotNull(result.Response);
         Assert.Equal("TestPlayer", result.Response.Name);
         Assert.Equal(40, result.Response.NewWeight);
+        var log = await db.AdjustmentManualDailyLogs.SingleAsync(x => x.Uuid == U1);
+        Assert.Equal(result.Response.PreviousWeight, log.PreviousWeight);
+        Assert.Equal(result.Response.NewWeight, log.NewWeight);
     }
 
     [Fact]
@@ -117,6 +123,13 @@ public class ManualWeightAdjustmentServiceTests
         Assert.Equal(90, result.Response.PreviousSpecWeight);
         Assert.Equal(87, result.Response.NewSpecWeight);
         Assert.Equal(13, (await db.ExperimentalSpecWeights.SingleAsync(x => x.Uuid == U1)).PyromancerOffset);
+        var log = await db.AdjustmentManualWeeklyLogs.SingleAsync(x => x.Uuid == U1 && x.Spec == "Pyromancer");
+        Assert.Equal(result.Response.Spec, log.Spec);
+        Assert.Equal(result.Response.PreviousOffset, log.PreviousOffset);
+        Assert.Equal(result.Response.NewOffset, log.NewOffset);
+        Assert.Equal(result.Response.BaseWeight, log.BaseWeight);
+        Assert.Equal(result.Response.PreviousSpecWeight, log.PreviousSpecWeight);
+        Assert.Equal(result.Response.NewSpecWeight, log.NewSpecWeight);
     }
 
     [Fact]

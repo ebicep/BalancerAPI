@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -31,14 +31,13 @@ namespace BalancerAPI.Migrations
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
-                    week_key = table.Column<int>(type: "integer", nullable: false),
                     uuid = table.Column<Guid>(type: "uuid", nullable: false),
                     spec = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    wins = table.Column<int>(type: "integer", nullable: false),
-                    losses = table.Column<int>(type: "integer", nullable: false),
-                    adjusted = table.Column<int>(type: "integer", nullable: false),
-                    previous_weight = table.Column<int>(type: "integer", nullable: false),
                     previous_offset = table.Column<int>(type: "integer", nullable: false),
+                    new_offset = table.Column<int>(type: "integer", nullable: false),
+                    base_weight = table.Column<int>(type: "integer", nullable: false),
+                    previous_spec_weight = table.Column<int>(type: "integer", nullable: false),
+                    new_spec_weight = table.Column<int>(type: "integer", nullable: false),
                     date = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
