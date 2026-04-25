@@ -88,6 +88,12 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
         ApplyInputLines(ctx.Winners, ctx.WlByUuid, ctx.SpecByPlayer, ApplyWin);
         ApplyInputLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, ApplyLoss);
+        var now = DateTime.UtcNow;
+        var baseRows = await db.BaseWeights.Where(b => roster.Contains(b.Uuid)).ToListAsync(cancellationToken);
+        foreach (var row in baseRows)
+        {
+            row.LastPlayed = now;
+        }
 
         var canonicalInputJson = JsonSerializer.Serialize(body, JsonOptions);
         if (log.Input is null)

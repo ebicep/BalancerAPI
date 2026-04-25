@@ -91,6 +91,7 @@ public class ExperimentalBalanceInputServiceTests
             foreach (var u in new[] { U1, U2, U3, U4 })
             {
                 db.ExperimentalSpecsWl.Add(new ExperimentalSpecsWl { Uuid = u });
+                db.BaseWeights.Add(new BaseWeight { Uuid = u, Weight = 1000, LastUpdated = metaTime });
             }
 
             await db.SaveChangesAsync();
@@ -159,6 +160,13 @@ public class ExperimentalBalanceInputServiceTests
             Assert.Equal(1, w4.BerserkerLosses);
             Assert.Equal(1, w4.BerserkerKills);
             Assert.Equal(3, w4.BerserkerDeaths);
+
+            foreach (var uuid in new[] { U1, U2, U3, U4 })
+            {
+                var bw = verify.BaseWeights.Single(x => x.Uuid == uuid);
+                Assert.NotNull(bw.LastPlayed);
+                Assert.True(bw.LastPlayed >= metaTime);
+            }
         }
     }
 

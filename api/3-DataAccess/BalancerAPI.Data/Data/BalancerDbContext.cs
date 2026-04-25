@@ -201,6 +201,9 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
                 .HasColumnName("last_updated")
                 .HasColumnType("timestamp with time zone")
                 .HasDefaultValueSql("now()");
+            entity.Property(e => e.LastPlayed)
+                .HasColumnName("last_played")
+                .HasColumnType("timestamp with time zone");
         });
     }
 
