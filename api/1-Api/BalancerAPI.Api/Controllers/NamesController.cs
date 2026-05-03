@@ -1,5 +1,7 @@
 using Asp.Versioning;
+using BalancerAPI.Common.Auth;
 using BalancerAPI.Business.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BalancerAPI.Api.Controllers;
@@ -11,6 +13,7 @@ public class NamesController(INameUpdateService nameUpdateService) : ControllerB
 {
     [HttpPost("update")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.NamesUpdate)]
     [ProducesResponseType(typeof(UpdateNamesResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<UpdateNamesResponse>> Update(CancellationToken cancellationToken)
     {

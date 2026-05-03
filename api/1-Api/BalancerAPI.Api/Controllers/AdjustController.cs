@@ -1,5 +1,7 @@
 using Asp.Versioning;
+using BalancerAPI.Common.Auth;
 using BalancerAPI.Business.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BalancerAPI.Api.Controllers;
@@ -13,6 +15,7 @@ public class AdjustController(
 {
     [HttpPost("auto-daily")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.AdjustAuto)]
     [ProducesResponseType(typeof(AdjustmentAutoDailyResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<AdjustmentAutoDailyResponse>> AutoDaily(CancellationToken cancellationToken)
     {
@@ -22,6 +25,7 @@ public class AdjustController(
 
     [HttpPatch("base/{player}")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.AdjustManual)]
     [ProducesResponseType(typeof(ManualBaseAdjustResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -53,6 +57,7 @@ public class AdjustController(
 
     [HttpPatch("spec/{player}")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.AdjustManual)]
     [ProducesResponseType(typeof(ManualSpecAdjustResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

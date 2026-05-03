@@ -1,15 +1,44 @@
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
+using BalancerAPI.Api.Authentication;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Api.Routing;
+using BalancerAPI.Api.Security;
+using BalancerAPI.Api.Swagger;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddOptions<ApiKeyOptions>()
+    .Bind(builder.Configuration.GetSection(ApiKeyOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<ApiKeyOptions>, ApiKeyOptionsValidator>();
+
+builder.Services.AddMemoryCache();
+
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = ApiKeyAuthenticationHandler.SchemeName;
+        options.DefaultChallengeScheme = ApiKeyAuthenticationHandler.SchemeName;
+    })
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+        ApiKeyAuthenticationHandler.SchemeName,
+        _ => { });
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
+        .RequireAuthenticatedUser()
+        .Build();
+    options.AddApiPermissionPolicies();
+});
 
 builder.Services.AddControllers(options =>
 {
@@ -78,6 +107,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
@@ -104,5 +134,22 @@ sealed class ConfigureSwaggerOptions(IApiVersionDescriptionProvider provider) : 
             var groupName = apiDesc.GroupName;
             return string.Equals(groupName, docName, StringComparison.OrdinalIgnoreCase);
         });
+
+        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "API Key",
+            Description = "Authorization: Bearer bkr_<guid>_<secret>"
+        });
+
+        options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
+        });
+
+        options.OperationFilter<AuthErrorResponsesOperationFilter>();
     }
 }

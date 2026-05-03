@@ -1,11 +1,15 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using BalancerAPI.Business.Services;
+using BalancerAPI.Common.Auth;
+using BalancerAPI.Common.Security;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -29,10 +33,22 @@ public sealed class NamesEndpointSmokeTests : IClassFixture<WebApplicationFactor
             return;
         }
 
+        const string pepper = "smoke-test-pepper-aaaaaaaaaaaaaaaaaaaaaaaaaa";
+        var apiClientId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        const string apiSecret = "smoke-secret-key-material-aaaaaaaaaaaaaaaaa";
+
         var dbRoot = new InMemoryDatabaseRoot();
         var databaseName = $"smoke-{Guid.NewGuid()}";
         var app = _factory.WithWebHostBuilder(builder =>
         {
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Authentication:ApiKey:Pepper"] = pepper,
+                    ["Authentication:ApiKey:PepperVersion"] = "1"
+                });
+            });
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IDbContextOptionsConfiguration<BalancerDbContext>>();
@@ -55,11 +71,23 @@ public sealed class NamesEndpointSmokeTests : IClassFixture<WebApplicationFactor
                 Name = seededOldName,
                 PreviousNames = []
             });
+            db.ApiClients.Add(new ApiClient
+            {
+                Id = apiClientId,
+                Name = "smoke",
+                SecretHash = ApiKeyHasher.HashSecret(apiSecret, pepper),
+                PepperVersion = 1,
+                Roles = [ApiRoles.BotFull],
+                CreatedAt = DateTimeOffset.UtcNow,
+                RevokedAt = null
+            });
             await db.SaveChangesAsync();
         }
 
         var client = app.CreateClient();
-        using var response = await client.PostAsync("/names/update", content: null);
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", ApiKeyFormat.BuildKey(apiClientId, apiSecret));
+        using var response = await client.PostAsync("/api/v1/names/update", content: null);
         response.EnsureSuccessStatusCode();
 
         var payload = await response.Content.ReadFromJsonAsync<UpdateNamesResponse>();

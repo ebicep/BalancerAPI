@@ -1,9 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>29416d4a-e649-43a9-a811-ee40fe751874</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +14,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.OpenApi" Version="2.4.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
   </ItemGroup>
@@ -22,6 +24,10 @@
     <ProjectReference Include="..\..\2-Domain\BalancerAPI.Domain\BalancerAPI.Domain.csproj" />
     <ProjectReference Include="..\..\3-DataAccess\BalancerAPI.Data\BalancerAPI.Data.csproj" />
     <ProjectReference Include="..\..\4-Infrastructure\BalancerAPI.Common\BalancerAPI.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BalancerAPI.Tests" />
   </ItemGroup>
 
 </Project>

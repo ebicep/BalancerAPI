@@ -1,5 +1,7 @@
 using Asp.Versioning;
+using BalancerAPI.Common.Auth;
 using BalancerAPI.Business.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BalancerAPI.Api.Controllers;
@@ -11,6 +13,7 @@ public class SettingsController(ISettingsService settingsService) : ControllerBa
 {
     [HttpGet]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.SettingsRead)]
     [ProducesResponseType(typeof(SettingsResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<SettingsResponse>> GetAll(CancellationToken cancellationToken)
     {
@@ -20,6 +23,7 @@ public class SettingsController(ISettingsService settingsService) : ControllerBa
 
     [HttpGet("{key}")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.SettingsRead)]
     [ProducesResponseType(typeof(SettingResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<SettingResponse>> GetByKey(string key, CancellationToken cancellationToken)
@@ -35,6 +39,7 @@ public class SettingsController(ISettingsService settingsService) : ControllerBa
 
     [HttpPost("{key}")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.SettingsWrite)]
     [ProducesResponseType(typeof(SettingResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<SettingResponse>> Upsert(
         string key,

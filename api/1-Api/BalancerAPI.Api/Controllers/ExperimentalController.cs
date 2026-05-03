@@ -1,7 +1,9 @@
 using System.Text.Json.Serialization;
 using Asp.Versioning;
+using BalancerAPI.Common.Auth;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +22,7 @@ public class ExperimentalController(
 {
     [HttpGet("spec-weights/{uuid:guid}")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
     [ProducesResponseType(typeof(SpecWeightsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<SpecWeightsResponse>> GetSpecWeights(Guid uuid, CancellationToken cancellationToken)
@@ -35,6 +38,7 @@ public class ExperimentalController(
 
     [HttpPost("balance")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalBalance)]
     [ProducesResponseType(typeof(ExperimentalBalanceResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -74,6 +78,7 @@ public class ExperimentalController(
 
     [HttpPost("balance/{balanceId:guid}/confirm")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalConfirm)]
     [ProducesResponseType(typeof(ExperimentalBalanceConfirmResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -93,6 +98,7 @@ public class ExperimentalController(
 
     [HttpPost("balance/{balanceId:guid}/unconfirm")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalConfirm)]
     [ProducesResponseType(typeof(ExperimentalBalanceConfirmResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -112,6 +118,7 @@ public class ExperimentalController(
 
     [HttpPost("balance/{balanceId:guid}/input")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalInput)]
     [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -137,6 +144,7 @@ public class ExperimentalController(
 
     [HttpPost("balance/{balanceId:guid}/uninput")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalInput)]
     [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -158,6 +166,7 @@ public class ExperimentalController(
 
     [HttpPost("balance/{balanceId:guid}/clear-input")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalInput)]
     [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

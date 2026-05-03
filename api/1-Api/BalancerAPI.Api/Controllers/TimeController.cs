@@ -1,5 +1,7 @@
 using Asp.Versioning;
+using BalancerAPI.Common.Auth;
 using BalancerAPI.Business.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BalancerAPI.Api.Controllers;
@@ -11,6 +13,7 @@ public class TimeController(ITimeService timeService) : ControllerBase
 {
     [HttpPost("new-day")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeWrite)]
     [ProducesResponseType(typeof(NewDayResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<NewDayResponse>> NewDay(CancellationToken cancellationToken)
     {
@@ -20,6 +23,7 @@ public class TimeController(ITimeService timeService) : ControllerBase
 
     [HttpDelete("day/{dayId:int}")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeWrite)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UndoDay(int dayId, CancellationToken cancellationToken)
@@ -30,6 +34,7 @@ public class TimeController(ITimeService timeService) : ControllerBase
 
     [HttpPost("new-week")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeWrite)]
     [ProducesResponseType(typeof(NewWeekResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<NewWeekResponse>> NewWeek(CancellationToken cancellationToken)
     {
@@ -39,6 +44,7 @@ public class TimeController(ITimeService timeService) : ControllerBase
 
     [HttpDelete("week/{weekId:int}")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeWrite)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UndoWeek(int weekId, CancellationToken cancellationToken)
@@ -49,6 +55,7 @@ public class TimeController(ITimeService timeService) : ControllerBase
 
     [HttpPost("new-season")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeWrite)]
     [ProducesResponseType(typeof(NewSeasonResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<NewSeasonResponse>> NewSeason(CancellationToken cancellationToken)
     {
@@ -58,6 +65,7 @@ public class TimeController(ITimeService timeService) : ControllerBase
 
     [HttpDelete("season/{seasonId:int}")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeWrite)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UndoSeason(int seasonId, CancellationToken cancellationToken)
@@ -68,6 +76,7 @@ public class TimeController(ITimeService timeService) : ControllerBase
 
     [HttpGet("season")]
     [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeRead)]
     [ProducesResponseType(typeof(LatestSeasonResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LatestSeasonResponse>> GetSeason(CancellationToken cancellationToken)

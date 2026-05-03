@@ -33,6 +33,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<AdjustmentWeeklyLog> AdjustmentWeeklyLogs => Set<AdjustmentWeeklyLog>();
     public DbSet<AdjustmentManualDailyLog> AdjustmentManualDailyLogs => Set<AdjustmentManualDailyLog>();
     public DbSet<AdjustmentManualWeeklyLog> AdjustmentManualWeeklyLogs => Set<AdjustmentManualWeeklyLog>();
+    public DbSet<ApiClient> ApiClients => Set<ApiClient>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,6 +66,36 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureAdjustmentWeeklyLog(modelBuilder);
         ConfigureAdjustmentManualDailyLog(modelBuilder);
         ConfigureAdjustmentManualWeeklyLog(modelBuilder);
+        ConfigureApiClients(modelBuilder);
+    }
+
+    private static void ConfigureApiClients(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ApiClient>(entity =>
+        {
+            entity.ToTable("api_clients");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").HasColumnType("uuid");
+            entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(128).IsRequired();
+            entity.Property(e => e.SecretHash).HasColumnName("secret_hash").HasColumnType("bytea");
+            entity.Property(e => e.PepperVersion)
+                .HasColumnName("pepper_version")
+                .HasDefaultValue(1)
+                .IsRequired();
+            entity.Property(e => e.Roles)
+                .HasColumnName("roles")
+                .HasColumnType("text[]");
+            entity.Property(e => e.RevokedAt)
+                .HasColumnName("revoked_at")
+                .HasColumnType("timestamp with time zone");
+            entity.Property(e => e.CreatedAt)
+                .HasColumnName("created_at")
+                .HasColumnType("timestamp with time zone")
+                .IsRequired();
+            entity.Property(e => e.LastUsedAt)
+                .HasColumnName("last_used_at")
+                .HasColumnType("timestamp with time zone");
+        });
     }
 
     private static void ConfigureAdjustmentManualWeeklyLog(ModelBuilder modelBuilder)
