@@ -105,7 +105,12 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// In Development, HTTP URLs (e.g. http://localhost:5099) must stay HTTP — otherwise
+// clients like Node fetch follow redirects to HTTPS and hit dev cert trust issues.
+if (!app.Environment.IsDevelopment())
+{
+	app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
