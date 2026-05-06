@@ -16,7 +16,9 @@ public class AdjustControllerTests
                 Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
                 "n",
                 10,
-                11)
+                11,
+                3,
+                2)
         ]);
 
         var service = new Mock<IAdjustmentAutoDailyService>();

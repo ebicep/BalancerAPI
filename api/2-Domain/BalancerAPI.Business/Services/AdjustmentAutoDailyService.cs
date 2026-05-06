@@ -30,11 +30,13 @@ public sealed class AdjustmentAutoDailyService(BalancerDbContext dbContext) : IA
         {
             var adj = row.Adjustment;
             var baseWeight = row.BaseWeight;
+            var previousTrajectory = adj.Trajectory;
             var d = ComputeDelta(adj.Trajectory);
 
             var previousWeight = baseWeight.Weight;
             baseWeight.Weight += d;
-            adj.Trajectory = d > 0 ? 2 : -2;
+            var newTrajectory = d > 0 ? 2 : -2;
+            adj.Trajectory = newTrajectory;
 
             dbContext.AdjustmentDailyLogs.Add(new AdjustmentDailyLog
             {
@@ -49,7 +51,9 @@ public sealed class AdjustmentAutoDailyService(BalancerDbContext dbContext) : IA
                 adj.Uuid,
                 row.Name ?? string.Empty,
                 previousWeight,
-                baseWeight.Weight));
+                baseWeight.Weight,
+                previousTrajectory,
+                newTrajectory));
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

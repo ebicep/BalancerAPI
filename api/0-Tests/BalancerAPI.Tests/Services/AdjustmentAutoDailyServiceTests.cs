@@ -63,6 +63,8 @@ public class AdjustmentAutoDailyServiceTests
         Assert.Equal(string.Empty, entry.Name);
         Assert.Equal(100, entry.PreviousWeight);
         Assert.Equal(101, entry.CurrentWeight);
+        Assert.Equal(3, entry.PreviousTrajectory);
+        Assert.Equal(2, entry.NewTrajectory);
         Assert.Equal(2, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
         Assert.Equal(101, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
 
@@ -87,6 +89,8 @@ public class AdjustmentAutoDailyServiceTests
         Assert.Equal(1, result.Count);
         var entry = Assert.Single(result.Adjusted);
         Assert.Equal(99, entry.CurrentWeight);
+        Assert.Equal(-3, entry.PreviousTrajectory);
+        Assert.Equal(-2, entry.NewTrajectory);
         Assert.Equal(-2, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
     }
 
@@ -140,6 +144,8 @@ public class AdjustmentAutoDailyServiceTests
 
         var entry = Assert.Single(result.Adjusted);
         Assert.Equal("PlayerOne", entry.Name);
+        Assert.Equal(3, entry.PreviousTrajectory);
+        Assert.Equal(2, entry.NewTrajectory);
     }
 
     [Fact]
@@ -174,6 +180,12 @@ public class AdjustmentAutoDailyServiceTests
 
         Assert.Equal(2, result.Count);
         Assert.Equal(2, result.Adjusted.Count);
+        var u1Entry = result.Adjusted.Single(e => e.Uuid == U1);
+        Assert.Equal(3, u1Entry.PreviousTrajectory);
+        Assert.Equal(2, u1Entry.NewTrajectory);
+        var u2Entry = result.Adjusted.Single(e => e.Uuid == U2);
+        Assert.Equal(-4, u2Entry.PreviousTrajectory);
+        Assert.Equal(-2, u2Entry.NewTrajectory);
         Assert.Equal(101, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
         Assert.Equal(198, (await db.BaseWeights.SingleAsync(x => x.Uuid == U2)).Weight);
         Assert.Equal(300, (await db.BaseWeights.SingleAsync(x => x.Uuid == U3)).Weight);

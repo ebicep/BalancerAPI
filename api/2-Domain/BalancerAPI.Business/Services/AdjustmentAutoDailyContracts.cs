@@ -15,4 +15,6 @@ public sealed record AdjustmentAutoDailyAdjustedEntry(
     [property: JsonPropertyName("uuid")] Guid Uuid,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("previousWeight")] int PreviousWeight,
-    [property: JsonPropertyName("currentWeight")] int CurrentWeight);
+    [property: JsonPropertyName("currentWeight")] int CurrentWeight,
+    [property: JsonPropertyName("previousTrajectory")] int PreviousTrajectory,
+    [property: JsonPropertyName("newTrajectory")] int NewTrajectory);
