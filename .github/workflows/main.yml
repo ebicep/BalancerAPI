@@ -25,4 +25,4 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: true
-          tags: ebicep/balance_api:latest
+          tags: ebicep/balancer_api:latest
