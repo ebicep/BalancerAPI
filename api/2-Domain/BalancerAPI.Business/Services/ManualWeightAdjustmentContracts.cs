@@ -26,7 +26,9 @@ public sealed record ManualBaseAdjustResponse(
     [property: JsonPropertyName("uuid")] Guid Uuid,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("previousWeight")] int PreviousWeight,
-    [property: JsonPropertyName("newWeight")] int NewWeight);
+    [property: JsonPropertyName("newWeight")] int NewWeight,
+    [property: JsonPropertyName("previousTrajectory")] int PreviousTrajectory,
+    [property: JsonPropertyName("newTrajectory")] int NewTrajectory);
 
 public sealed record ManualSpecAdjustResponse(
     [property: JsonPropertyName("uuid")] Guid Uuid,

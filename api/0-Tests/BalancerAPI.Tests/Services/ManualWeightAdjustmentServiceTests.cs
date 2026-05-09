@@ -27,10 +27,35 @@ public class ManualWeightAdjustmentServiceTests
         Assert.Equal(string.Empty, result.Response.Name);
         Assert.Equal(100, result.Response.PreviousWeight);
         Assert.Equal(105, result.Response.NewWeight);
+        Assert.Equal(0, result.Response.PreviousTrajectory);
+        Assert.Equal(0, result.Response.NewTrajectory);
         Assert.Equal(105, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
+        Assert.Empty(await db.AdjustmentDaily.ToListAsync());
         var log = await db.AdjustmentManualDailyLogs.SingleAsync(x => x.Uuid == U1);
         Assert.Equal(result.Response.PreviousWeight, log.PreviousWeight);
         Assert.Equal(result.Response.NewWeight, log.NewWeight);
+    }
+
+    [Fact]
+    public async Task PatchBaseAsync_WhenTrajectoryExists_ResetsTrajectoryToZero()
+    {
+        await using var db = CreateDbContext();
+        db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 100, LastUpdated = FixedLastUpdated });
+        db.AdjustmentDaily.Add(new AdjustmentDaily { Uuid = U1, Trajectory = 5 });
+        await db.SaveChangesAsync();
+
+        var sut = new ManualWeightAdjustmentService(db);
+        var result = await sut.PatchBaseAsync(U1.ToString(), new ManualAdjustBaseRequest(5), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(105, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
+        Assert.NotNull(result.Response);
+        Assert.Equal(5, result.Response.PreviousTrajectory);
+        Assert.Equal(0, result.Response.NewTrajectory);
+        Assert.Equal(0, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
+        var log = await db.AdjustmentManualDailyLogs.SingleAsync(x => x.Uuid == U1);
+        Assert.Equal(100, log.PreviousWeight);
+        Assert.Equal(105, log.NewWeight);
     }
 
     [Fact]
@@ -48,6 +73,8 @@ public class ManualWeightAdjustmentServiceTests
         Assert.NotNull(result.Response);
         Assert.Equal("TestPlayer", result.Response.Name);
         Assert.Equal(40, result.Response.NewWeight);
+        Assert.Equal(0, result.Response.PreviousTrajectory);
+        Assert.Equal(0, result.Response.NewTrajectory);
         var log = await db.AdjustmentManualDailyLogs.SingleAsync(x => x.Uuid == U1);
         Assert.Equal(result.Response.PreviousWeight, log.PreviousWeight);
         Assert.Equal(result.Response.NewWeight, log.NewWeight);

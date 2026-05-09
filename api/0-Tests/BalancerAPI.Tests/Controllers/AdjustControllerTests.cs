@@ -40,7 +40,9 @@ public class AdjustControllerTests
             Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
             "TestPlayer",
             100,
-            105);
+            105,
+            5,
+            0);
 
         var service = new Mock<IAdjustmentAutoDailyService>();
         var manual = new Mock<IManualWeightAdjustmentService>();

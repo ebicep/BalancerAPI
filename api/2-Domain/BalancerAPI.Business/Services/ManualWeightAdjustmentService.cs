@@ -36,8 +36,23 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
         var baseWeight = row;
         var previousWeight = baseWeight.Weight;
         baseWeight.Weight += body.Amount;
+        var adjustmentDaily = await dbContext.AdjustmentDaily
+            .AsTracking()
+            .FirstOrDefaultAsync(x => x.Uuid == uuid, cancellationToken);
+        var previousTrajectory = adjustmentDaily?.Trajectory ?? 0;
+        if (adjustmentDaily is not null)
+        {
+            adjustmentDaily.Trajectory = 0;
+        }
+        var newTrajectory = adjustmentDaily?.Trajectory ?? 0;
         var recordedAt = DateTime.UtcNow;
-        var response = new ManualBaseAdjustResponse(uuid, displayName, previousWeight, baseWeight.Weight);
+        var response = new ManualBaseAdjustResponse(
+            uuid,
+            displayName,
+            previousWeight,
+            baseWeight.Weight,
+            previousTrajectory,
+            newTrajectory);
         dbContext.AdjustmentManualDailyLogs.Add(new AdjustmentManualDailyLog
         {
             Id = Guid.NewGuid(),
