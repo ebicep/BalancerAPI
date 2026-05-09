@@ -1,0 +1,7 @@
+**/[Bb]in/
+**/[Oo]bj/
+.git
+.idea
+.vs
+**/*.user
+api/0-Tests/
