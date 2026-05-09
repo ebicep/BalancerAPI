@@ -18,6 +18,7 @@ public static class ApiPermissions
 
     public const string AdjustAuto = "adjust.auto";
     public const string AdjustManual = "adjust.manual";
+    public const string PlayersAdd = "players.add";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -31,6 +32,7 @@ public static class ApiPermissions
         ExperimentalConfirm,
         ExperimentalInput,
         AdjustAuto,
-        AdjustManual
+        AdjustManual,
+        PlayersAdd
     ];
 }

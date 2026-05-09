@@ -17,7 +17,8 @@ public static class RolePermissions
                 ApiPermissions.ExperimentalConfirm,
                 ApiPermissions.ExperimentalInput,
                 ApiPermissions.AdjustAuto,
-                ApiPermissions.AdjustManual
+                ApiPermissions.AdjustManual,
+                ApiPermissions.PlayersAdd
             ],
             [ApiRoles.WebReadOnly] =
             [
