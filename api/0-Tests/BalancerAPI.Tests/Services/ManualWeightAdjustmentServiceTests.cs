@@ -194,6 +194,58 @@ public class ManualWeightAdjustmentServiceTests
         Assert.Equal(404, result.StatusCode);
     }
 
+    [Fact]
+    public async Task PatchSpecAsync_WhenOffsetWouldExceedUpperBound_SetsOffsetTo10000()
+    {
+        await using var db = CreateDbContext();
+        db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 100, LastUpdated = FixedLastUpdated });
+        db.ExperimentalSpecWeights.Add(new ExperimentalSpecWeight
+        {
+            Uuid = U1,
+            PyromancerOffset = 9999,
+            LastUpdated = FixedLastUpdated
+        });
+        await db.SaveChangesAsync();
+
+        var sut = new ManualWeightAdjustmentService(db);
+        var result = await sut.PatchSpecAsync(
+            U1.ToString(),
+            new ManualAdjustSpecRequest(2, "Pyromancer"),
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Response);
+        Assert.Equal(9999, result.Response.PreviousOffset);
+        Assert.Equal(10000, result.Response.NewOffset);
+        Assert.Equal(10000, (await db.ExperimentalSpecWeights.SingleAsync(x => x.Uuid == U1)).PyromancerOffset);
+    }
+
+    [Fact]
+    public async Task PatchSpecAsync_WhenOffsetWouldExceedLowerBound_SetsOffsetTo10000()
+    {
+        await using var db = CreateDbContext();
+        db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 100, LastUpdated = FixedLastUpdated });
+        db.ExperimentalSpecWeights.Add(new ExperimentalSpecWeight
+        {
+            Uuid = U1,
+            PyromancerOffset = -9999,
+            LastUpdated = FixedLastUpdated
+        });
+        await db.SaveChangesAsync();
+
+        var sut = new ManualWeightAdjustmentService(db);
+        var result = await sut.PatchSpecAsync(
+            U1.ToString(),
+            new ManualAdjustSpecRequest(-2, "Pyromancer"),
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Response);
+        Assert.Equal(-9999, result.Response.PreviousOffset);
+        Assert.Equal(10000, result.Response.NewOffset);
+        Assert.Equal(10000, (await db.ExperimentalSpecWeights.SingleAsync(x => x.Uuid == U1)).PyromancerOffset);
+    }
+
     [Theory]
     [InlineData("Pyromancer", "Pyromancer")]
     [InlineData("PYROMANCER", "Pyromancer")]

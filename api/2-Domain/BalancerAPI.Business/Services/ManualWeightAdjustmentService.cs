@@ -229,59 +229,67 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
         switch (spec)
         {
             case "Pyromancer":
-                sw.PyromancerOffset += amount;
+                sw.PyromancerOffset = ApplyOffsetBounds(sw.PyromancerOffset, amount);
                 break;
             case "Cryomancer":
-                sw.CryomancerOffset += amount;
+                sw.CryomancerOffset = ApplyOffsetBounds(sw.CryomancerOffset, amount);
                 break;
             case "Aquamancer":
-                sw.AquamancerOffset += amount;
+                sw.AquamancerOffset = ApplyOffsetBounds(sw.AquamancerOffset, amount);
                 break;
             case "Berserker":
-                sw.BerserkerOffset += amount;
+                sw.BerserkerOffset = ApplyOffsetBounds(sw.BerserkerOffset, amount);
                 break;
             case "Defender":
-                sw.DefenderOffset += amount;
+                sw.DefenderOffset = ApplyOffsetBounds(sw.DefenderOffset, amount);
                 break;
             case "Revenant":
-                sw.RevenantOffset += amount;
+                sw.RevenantOffset = ApplyOffsetBounds(sw.RevenantOffset, amount);
                 break;
             case "Avenger":
-                sw.AvengerOffset += amount;
+                sw.AvengerOffset = ApplyOffsetBounds(sw.AvengerOffset, amount);
                 break;
             case "Crusader":
-                sw.CrusaderOffset += amount;
+                sw.CrusaderOffset = ApplyOffsetBounds(sw.CrusaderOffset, amount);
                 break;
             case "Protector":
-                sw.ProtectorOffset += amount;
+                sw.ProtectorOffset = ApplyOffsetBounds(sw.ProtectorOffset, amount);
                 break;
             case "Thunderlord":
-                sw.ThunderlordOffset += amount;
+                sw.ThunderlordOffset = ApplyOffsetBounds(sw.ThunderlordOffset, amount);
                 break;
             case "Spiritguard":
-                sw.SpiritguardOffset += amount;
+                sw.SpiritguardOffset = ApplyOffsetBounds(sw.SpiritguardOffset, amount);
                 break;
             case "Earthwarden":
-                sw.EarthwardenOffset += amount;
+                sw.EarthwardenOffset = ApplyOffsetBounds(sw.EarthwardenOffset, amount);
                 break;
             case "Assassin":
-                sw.AssassinOffset += amount;
+                sw.AssassinOffset = ApplyOffsetBounds(sw.AssassinOffset, amount);
                 break;
             case "Vindicator":
-                sw.VindicatorOffset += amount;
+                sw.VindicatorOffset = ApplyOffsetBounds(sw.VindicatorOffset, amount);
                 break;
             case "Apothecary":
-                sw.ApothecaryOffset += amount;
+                sw.ApothecaryOffset = ApplyOffsetBounds(sw.ApothecaryOffset, amount);
                 break;
             case "Conjurer":
-                sw.ConjurerOffset += amount;
+                sw.ConjurerOffset = ApplyOffsetBounds(sw.ConjurerOffset, amount);
                 break;
             case "Sentinel":
-                sw.SentinelOffset += amount;
+                sw.SentinelOffset = ApplyOffsetBounds(sw.SentinelOffset, amount);
                 break;
             case "Luminary":
-                sw.LuminaryOffset += amount;
+                sw.LuminaryOffset = ApplyOffsetBounds(sw.LuminaryOffset, amount);
                 break;
         }
+    }
+
+    private static int ApplyOffsetBounds(int currentOffset, int amount)
+    {
+        var candidate = currentOffset + amount;
+        return candidate is > 10000 or < -10000
+            ? 10000
+            : candidate;
     }
 }
