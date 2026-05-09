@@ -1,16 +1,13 @@
-using System.Net;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Moq;
-using Moq.Protected;
 
 namespace BalancerAPI.Tests.Services;
 
 public class NameUpdateServiceTests
 {
-    private const string KnownUuidNoDash = "9f2b22303b2c4b0fa141d7b598e236c7";
     private static readonly Guid KnownUuid = Guid.Parse("9f2b2230-3b2c-4b0f-a141-d7b598e236c7");
 
     [Fact]
@@ -21,8 +18,11 @@ public class NameUpdateServiceTests
         dbContext.Names.Add(new PlayerName { Uuid = uuid, Name = "oldName", PreviousNames = [] });
         await dbContext.SaveChangesAsync();
 
-        var handler = CreateMockHandler(_ => true, $$$"""{"id":"{{{KnownUuidNoDash}}}","name":"oldName","properties":[],"profileActions":[]}""");
-        var service = new NameUpdateService(dbContext, CreateHttpClient(handler));
+        var resolver = CreateResolverMock(new Dictionary<Guid, PlayerResolveResult>
+        {
+            [uuid] = PlayerResolveResult.Ok(uuid, "oldName")
+        });
+        var service = new NameUpdateService(dbContext, resolver.Object);
 
         var updated = await service.UpdateNamesAsync(CancellationToken.None);
 
@@ -39,8 +39,11 @@ public class NameUpdateServiceTests
         dbContext.Names.Add(new PlayerName { Uuid = uuid, Name = "oldName", PreviousNames = [] });
         await dbContext.SaveChangesAsync();
 
-        var handler = CreateMockHandler(_ => true, $$$"""{"id":"{{{KnownUuidNoDash}}}","name":"sumSmash","properties":[],"profileActions":[]}""");
-        var service = new NameUpdateService(dbContext, CreateHttpClient(handler));
+        var resolver = CreateResolverMock(new Dictionary<Guid, PlayerResolveResult>
+        {
+            [uuid] = PlayerResolveResult.Ok(uuid, "sumSmash")
+        });
+        var service = new NameUpdateService(dbContext, resolver.Object);
 
         var updated = await service.UpdateNamesAsync(CancellationToken.None);
 
@@ -62,8 +65,11 @@ public class NameUpdateServiceTests
         dbContext.Names.Add(new PlayerName { Uuid = uuid, Name = "oldName", PreviousNames = [] });
         await dbContext.SaveChangesAsync();
 
-        var handler = CreateMockHandler(_ => true, "{}");
-        var service = new NameUpdateService(dbContext, CreateHttpClient(handler));
+        var resolver = CreateResolverMock(new Dictionary<Guid, PlayerResolveResult>
+        {
+            [uuid] = PlayerResolveResult.Ok(uuid, string.Empty)
+        });
+        var service = new NameUpdateService(dbContext, resolver.Object);
 
         var updated = await service.UpdateNamesAsync(CancellationToken.None);
 
@@ -74,49 +80,11 @@ public class NameUpdateServiceTests
     }
 
     [Fact]
-    public async Task UpdateNamesAsync_UsesUuidWithoutDashesInMojangUrl()
-    {
-        var uuid = KnownUuid;
-        var expectedPath = $"/session/minecraft/profile/{uuid:N}".ToLowerInvariant();
-
-        await using var dbContext = CreateDbContext();
-        dbContext.Names.Add(new PlayerName { Uuid = uuid, Name = "oldName", PreviousNames = [] });
-        await dbContext.SaveChangesAsync();
-
-        var handler = new Mock<HttpMessageHandler>(MockBehavior.Strict);
-        handler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(request =>
-                    request.Method == HttpMethod.Get &&
-                    request.RequestUri != null &&
-                    request.RequestUri.AbsolutePath == expectedPath),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent($$$"""{"id":"{{{KnownUuidNoDash}}}","name":"sumSmash","properties":[],"profileActions":[]}""")
-            })
-            .Verifiable();
-
-        var service = new NameUpdateService(dbContext, CreateHttpClient(handler));
-        _ = await service.UpdateNamesAsync(CancellationToken.None);
-
-        handler.Protected().Verify(
-            "SendAsync",
-            Times.Once(),
-            ItExpr.IsAny<HttpRequestMessage>(),
-            ItExpr.IsAny<CancellationToken>());
-    }
-
-    [Fact]
     public async Task UpdateNamesAsync_WithMultipleRows_UpdatesOnlyChangedRowsAfterParallelFetches()
     {
         var uuid1 = KnownUuid;
         var uuid2 = Guid.Parse("11111111-2222-3333-4444-555555555555");
         var uuid3 = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
-        var noDash2 = uuid2.ToString("N").ToLowerInvariant();
-        var noDash3 = uuid3.ToString("N").ToLowerInvariant();
-
         await using var dbContext = CreateDbContext();
         dbContext.Names.AddRange(
             new PlayerName { Uuid = uuid1, Name = "oldName", PreviousNames = [] },
@@ -124,30 +92,13 @@ public class NameUpdateServiceTests
             new PlayerName { Uuid = uuid3, Name = "otherOld", PreviousNames = [] });
         await dbContext.SaveChangesAsync();
 
-        var handler = CreateMockHandler(
-            _ => true,
-            request =>
-            {
-                var path = request.RequestUri!.AbsolutePath;
-                if (path.EndsWith(KnownUuidNoDash, StringComparison.Ordinal))
-                {
-                    return $$$"""{"id":"{{{KnownUuidNoDash}}}","name":"sumSmash","properties":[],"profileActions":[]}""";
-                }
-
-                if (path.EndsWith(noDash2, StringComparison.Ordinal))
-                {
-                    return $$$"""{"id":"{{{noDash2}}}","name":"sameName","properties":[],"profileActions":[]}""";
-                }
-
-                if (path.EndsWith(noDash3, StringComparison.Ordinal))
-                {
-                    return $$$"""{"id":"{{{noDash3}}}","name":"otherNew","properties":[],"profileActions":[]}""";
-                }
-
-                throw new InvalidOperationException($"Unexpected path {path}");
-            });
-
-        var service = new NameUpdateService(dbContext, CreateHttpClient(handler));
+        var resolver = CreateResolverMock(new Dictionary<Guid, PlayerResolveResult>
+        {
+            [uuid1] = PlayerResolveResult.Ok(uuid1, "sumSmash"),
+            [uuid2] = PlayerResolveResult.Ok(uuid2, "sameName"),
+            [uuid3] = PlayerResolveResult.Ok(uuid3, "otherNew")
+        });
+        var service = new NameUpdateService(dbContext, resolver.Object);
 
         var updated = await service.UpdateNamesAsync(CancellationToken.None);
 
@@ -173,45 +124,24 @@ public class NameUpdateServiceTests
         return new BalancerDbContext(options);
     }
 
-    private static Mock<HttpMessageHandler> CreateMockHandler(
-        Func<HttpRequestMessage, bool> requestMatcher,
-        string responseBody)
+    private static Mock<IMinecraftPlayerResolveService> CreateResolverMock(
+        IReadOnlyDictionary<Guid, PlayerResolveResult> responses)
     {
-        var handler = new Mock<HttpMessageHandler>(MockBehavior.Strict);
-        handler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(request => requestMatcher(request)),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+        var resolver = new Mock<IMinecraftPlayerResolveService>(MockBehavior.Strict);
+        resolver
+            .Setup(x => x.ResolveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string player, CancellationToken _) =>
             {
-                Content = new StringContent(responseBody)
-            });
-        return handler;
-    }
+                if (!Guid.TryParse(player, out var parsed))
+                {
+                    return PlayerResolveResult.Fail(400, "UUID format is invalid.");
+                }
 
-    private static Mock<HttpMessageHandler> CreateMockHandler(
-        Func<HttpRequestMessage, bool> requestMatcher,
-        Func<HttpRequestMessage, string> responseBodyFactory)
-    {
-        var handler = new Mock<HttpMessageHandler>(MockBehavior.Strict);
-        handler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(request => requestMatcher(request)),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync((HttpRequestMessage request, CancellationToken _) => new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(responseBodyFactory(request))
+                return responses.TryGetValue(parsed, out var response)
+                    ? response
+                    : PlayerResolveResult.Fail(404, "UUID was not found in Mojang session profile.");
             });
-        return handler;
-    }
 
-    private static HttpClient CreateHttpClient(Mock<HttpMessageHandler> handler)
-    {
-        return new HttpClient(handler.Object)
-        {
-            BaseAddress = new Uri("https://sessionserver.mojang.com/")
-        };
+        return resolver;
     }
 }

@@ -84,7 +84,7 @@ builder.Services.AddScoped<IAdjustmentAutoDailyService, AdjustmentAutoDailyServi
 builder.Services.AddScoped<IAdjustmentAutoWeeklyService, AdjustmentAutoWeeklyService>();
 builder.Services.AddScoped<IManualWeightAdjustmentService, ManualWeightAdjustmentService>();
 builder.Services.AddScoped<IPlayerAddService, PlayerAddService>();
-builder.Services.AddHttpClient<INameUpdateService, NameUpdateService>(client => { client.BaseAddress = new Uri("https://sessionserver.mojang.com/"); });
+builder.Services.AddScoped<INameUpdateService, NameUpdateService>();
 builder.Services.AddHttpClient<IMinecraftPlayerResolveService, MinecraftPlayerResolveService>();
 
 var app = builder.Build();

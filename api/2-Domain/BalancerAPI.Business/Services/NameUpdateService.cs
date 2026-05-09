@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +9,9 @@ public interface INameUpdateService
     Task<IReadOnlyList<UpdatedNameEntry>> UpdateNamesAsync(CancellationToken cancellationToken);
 }
 
-public sealed class NameUpdateService(BalancerDbContext dbContext, HttpClient httpClient) : INameUpdateService
+public sealed class NameUpdateService(
+    BalancerDbContext dbContext,
+    IMinecraftPlayerResolveService minecraftPlayerResolveService) : INameUpdateService
 {
     public async Task<IReadOnlyList<UpdatedNameEntry>> UpdateNamesAsync(CancellationToken cancellationToken)
     {
@@ -18,9 +19,8 @@ public sealed class NameUpdateService(BalancerDbContext dbContext, HttpClient ht
         var fetchTasks = names
             .Select(async row =>
             {
-                var uuidNoDash = row.Uuid.ToString("N").ToLowerInvariant();
-                var profile = await FetchProfileAsync(uuidNoDash, cancellationToken);
-                return new FetchedNameResult(row, profile?.Name);
+                var resolved = await minecraftPlayerResolveService.ResolveAsync(row.Uuid.ToString(), cancellationToken);
+                return new FetchedNameResult(row, resolved);
             })
             .ToArray();
 
@@ -30,7 +30,13 @@ public sealed class NameUpdateService(BalancerDbContext dbContext, HttpClient ht
         foreach (var result in fetchedResults)
         {
             var row = result.Row;
-            var fetchedName = result.FetchedName;
+            var resolved = result.Resolved;
+            if (!resolved.Success)
+            {
+                continue;
+            }
+
+            var fetchedName = resolved.Name;
 
             if (string.IsNullOrWhiteSpace(fetchedName))
             {
@@ -61,29 +67,10 @@ public sealed class NameUpdateService(BalancerDbContext dbContext, HttpClient ht
 
         return updated;
     }
-
-    private async Task<MojangProfileResponse?> FetchProfileAsync(string uuidNoDash, CancellationToken cancellationToken)
-    {
-        using var response = await httpClient.GetAsync($"session/minecraft/profile/{uuidNoDash}", cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
-
-        return await response.Content.ReadFromJsonAsync<MojangProfileResponse>(cancellationToken);
-    }
 }
 
 public sealed record UpdatedNameEntry(Guid Uuid, string Previous, string Current);
 
 public sealed record UpdateNamesResponse(IReadOnlyList<UpdatedNameEntry> Updated);
 
-internal sealed record MojangProfileResponse(
-    string? Id,
-    string? Name,
-    IReadOnlyList<MojangProfileProperty>? Properties,
-    IReadOnlyList<string>? ProfileActions);
-
-internal sealed record MojangProfileProperty(string? Name, string? Value);
-
-internal sealed record FetchedNameResult(PlayerName Row, string? FetchedName);
+internal sealed record FetchedNameResult(PlayerName Row, PlayerResolveResult Resolved);
