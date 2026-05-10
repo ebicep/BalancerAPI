@@ -116,6 +116,33 @@ public class ExperimentalController(
         return StatusCode(result.StatusCode, result.Message);
     }
 
+    [HttpGet("balance/{balanceId:guid}/generate-input")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalBalanceInputBody), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ExperimentalBalanceInputBody>> GenerateInputBalance(
+        Guid balanceId,
+        CancellationToken cancellationToken)
+    {
+        var log = await dbContext.ExperimentalBalanceLogs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.BalanceId == balanceId, cancellationToken);
+        if (log is null)
+        {
+            return NotFound();
+        }
+
+        var built = ExperimentalBalanceMockInputBodyBuilder.TryBuild(log.Balance);
+        if (!built.Success)
+        {
+            return BadRequest(built.Error);
+        }
+
+        return Ok(built.Body!);
+    }
+
     [HttpPost("balance/{balanceId:guid}/input")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalInput)]

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using BalancerAPI.Api.Controllers;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
@@ -351,6 +352,108 @@ public class ExperimentalControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<ExperimentalBalanceInputResponse>(ok.Value);
         Assert.Equal(TestBalanceId, response.BalanceId);
+    }
+
+    [Fact]
+    public async Task GenerateInputBalance_WhenLogExists_ReturnsOkWithMockBody()
+    {
+        var teams = new List<ExperimentalBalanceTeam>
+        {
+            new(
+                200,
+                0,
+                12,
+                8.0,
+                [
+                    new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0),
+                    new ExperimentalBalancePlayerSpec(U2, "beta", "Cryomancer", 100, 0, 5, 4.0)
+                ]),
+            new(
+                200,
+                0,
+                8,
+                4.0,
+                [
+                    new ExperimentalBalancePlayerSpec(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0),
+                    new ExperimentalBalancePlayerSpec(U4, "delta", "Berserker", 100, 0, 5, 2.0)
+                ])
+        };
+        await using var db = CreateDbContext();
+        db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+        {
+            BalanceId = TestBalanceId,
+            Balance = JsonSerializer.Serialize(teams),
+            Meta = "{}",
+            CreatedAt = DateTime.UtcNow,
+            Posted = false
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GenerateInputBalance(TestBalanceId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalBalanceInputBody>(ok.Value);
+        Assert.Equal(ExperimentalBalanceMockInputBodyBuilder.PlaceholderGameId, body.GameId);
+        Assert.Equal(2, body.Winners?.Count);
+        Assert.Equal(2, body.Losers?.Count);
+        Assert.Contains(body.Winners!, w => w.Uuid == TestUuid);
+        Assert.Contains(body.Losers!, l => l.Uuid == U3);
+        Assert.All(body.Winners!, w =>
+        {
+            Assert.InRange(w.Kills, 0, 15);
+            Assert.InRange(w.Deaths, 0, 15);
+        });
+        Assert.All(body.Losers!, l =>
+        {
+            Assert.InRange(l.Kills, 0, 15);
+            Assert.InRange(l.Deaths, 0, 15);
+        });
+    }
+
+    [Fact]
+    public async Task GenerateInputBalance_WhenMissing_ReturnsNotFound()
+    {
+        await using var db = CreateDbContext();
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GenerateInputBalance(TestBalanceId, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GenerateInputBalance_WhenBalanceNotTwoTeams_ReturnsBadRequest()
+    {
+        var teams = new List<ExperimentalBalanceTeam>
+        {
+            new(
+                200,
+                0,
+                12,
+                8.0,
+                [new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0)])
+        };
+        await using var db = CreateDbContext();
+        db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+        {
+            BalanceId = TestBalanceId,
+            Balance = JsonSerializer.Serialize(teams),
+            Meta = "{}",
+            CreatedAt = DateTime.UtcNow,
+            Posted = false
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GenerateInputBalance(TestBalanceId, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
     }
 
     private static BalancerDbContext CreateDbContext()
