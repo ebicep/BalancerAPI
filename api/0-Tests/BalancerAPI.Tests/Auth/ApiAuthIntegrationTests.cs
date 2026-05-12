@@ -45,6 +45,18 @@ public sealed class ApiAuthIntegrationTests : IClassFixture<WebApplicationFactor
     }
 
     [Fact]
+    public async Task GetHealth_WithoutAuth_Returns200()
+    {
+        using var app = CreateFactory(Pepper, NewDbName(), new InMemoryDatabaseRoot());
+        var client = app.CreateClient();
+
+        var response = await client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task GetSettings_WithReadOnlyKey_Returns200()
     {
         var clientId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");

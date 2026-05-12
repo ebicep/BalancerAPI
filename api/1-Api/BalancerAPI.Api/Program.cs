@@ -74,6 +74,8 @@ builder.Services.AddDbContext<BalancerDbContext>(options =>
 builder.Services.AddDbContextFactory<BalancerDbContext>(
     options => options.UseNpgsql(connectionString),
     ServiceLifetime.Scoped);
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<BalancerDbContext>(name: "database");
 builder.Services.AddScoped<ISpecWeightsService, SpecWeightsService>();
 builder.Services.AddScoped<IExperimentalBalanceService, ExperimentalBalanceService>();
 builder.Services.AddScoped<IExperimentalBalanceConfirmService, ExperimentalBalanceConfirmService>();
@@ -117,6 +119,7 @@ if (!app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();
