@@ -4,6 +4,7 @@ using BalancerAPI.Api.Controllers;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -79,7 +80,10 @@ public class ExperimentalControllerTests
 
         var result = await controller.GetSpecWeights(TestUuid, CancellationToken.None);
 
-        Assert.IsType<NotFoundResult>(result.Result);
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status404NotFound,
+            "The requested resource was not found.");
     }
 
     [Fact]
@@ -158,7 +162,10 @@ public class ExperimentalControllerTests
 
         var result = await controller.Balance(new ExperimentalController.ExperimentalBalanceInputRequest([]), CancellationToken.None);
 
-        Assert.IsType<BadRequestObjectResult>(result.Result);
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status400BadRequest,
+            "players must not be empty.");
     }
 
     [Fact]
@@ -240,7 +247,8 @@ public class ExperimentalControllerTests
             new ExperimentalController.ExperimentalBalanceInputRequest(["alpha", "does-not-exist"]),
             CancellationToken.None);
 
-        Assert.IsType<BadRequestObjectResult>(result.Result);
+        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
         balance.Verify(x => x.BalanceAsync(It.IsAny<ExperimentalBalanceRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -309,7 +317,10 @@ public class ExperimentalControllerTests
 
         var result = await controller.InputBalance(TestBalanceId, null, CancellationToken.None);
 
-        Assert.IsType<BadRequestObjectResult>(result.Result);
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status400BadRequest,
+            "Request body is required.");
     }
 
     [Fact]
@@ -422,7 +433,10 @@ public class ExperimentalControllerTests
 
         var result = await controller.GenerateInputBalance(TestBalanceId, CancellationToken.None);
 
-        Assert.IsType<NotFoundResult>(result.Result);
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status404NotFound,
+            "The requested resource was not found.");
     }
 
     [Fact]
@@ -453,7 +467,26 @@ public class ExperimentalControllerTests
 
         var result = await controller.GenerateInputBalance(TestBalanceId, CancellationToken.None);
 
-        Assert.IsType<BadRequestObjectResult>(result.Result);
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status400BadRequest,
+            "Stored balance must contain exactly two teams.");
+    }
+
+    private static ProblemDetails AssertProblem(
+        IActionResult result,
+        int expectedStatusCode,
+        string? expectedDetail = null)
+    {
+        var obj = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(expectedStatusCode, obj.StatusCode);
+        var pd = Assert.IsType<ProblemDetails>(obj.Value);
+        if (expectedDetail is not null)
+        {
+            Assert.Equal(expectedDetail, pd.Detail);
+        }
+
+        return pd;
     }
 
     private static BalancerDbContext CreateDbContext()

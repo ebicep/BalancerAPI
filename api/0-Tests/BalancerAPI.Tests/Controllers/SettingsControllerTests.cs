@@ -1,5 +1,6 @@
 using BalancerAPI.Api.Controllers;
 using BalancerAPI.Business.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 
@@ -40,7 +41,10 @@ public class SettingsControllerTests
 
         var result = await controller.GetByKey("max_flat_team_diff", CancellationToken.None);
 
-        Assert.IsType<NotFoundResult>(result.Result);
+        var obj = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status404NotFound, obj.StatusCode);
+        var pd = Assert.IsType<ProblemDetails>(obj.Value);
+        Assert.Equal("The requested resource was not found.", pd.Detail);
     }
 
     [Fact]

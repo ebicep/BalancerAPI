@@ -24,13 +24,15 @@ public class ExperimentalController(
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]
     [ProducesResponseType(typeof(SpecWeightsResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<SpecWeightsResponse>> GetSpecWeights(Guid uuid, CancellationToken cancellationToken)
     {
         var result = await specWeightsService.GetCombinedAsync(uuid, cancellationToken);
         if (result is null)
         {
-            return NotFound();
+            return Problem(
+                detail: "The requested resource was not found.",
+                statusCode: StatusCodes.Status404NotFound);
         }
 
         return Ok(result);
@@ -40,9 +42,9 @@ public class ExperimentalController(
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalBalance)]
     [ProducesResponseType(typeof(ExperimentalBalanceResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalBalanceResponse>> Balance(
         [FromBody] ExperimentalBalanceInputRequest request,
         CancellationToken cancellationToken)
@@ -50,12 +52,7 @@ public class ExperimentalController(
         var resolved = await ResolvePlayerUuidsAsync(request, cancellationToken);
         if (!resolved.Success)
         {
-            return resolved.StatusCode switch
-            {
-                400 => BadRequest(resolved.Message),
-                409 => Conflict(resolved.Message),
-                _ => StatusCode(resolved.StatusCode, resolved.Message)
-            };
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
         }
 
         var result = await experimentalBalanceService.BalanceAsync(
@@ -67,22 +64,16 @@ public class ExperimentalController(
         }
 
         var err = result.Error!;
-        return err.StatusCode switch
-        {
-            400 => BadRequest(err.Message),
-            404 => NotFound(err),
-            409 => Conflict(err.Message),
-            _ => StatusCode(err.StatusCode, err.Message)
-        };
+        return Problem(detail: err.Message, statusCode: err.StatusCode);
     }
 
     [HttpPost("balance/{balanceId:guid}/confirm")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalConfirm)]
     [ProducesResponseType(typeof(ExperimentalBalanceConfirmResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalBalanceConfirmResponse>> ConfirmBalance(
         Guid balanceId,
         CancellationToken cancellationToken)
@@ -93,16 +84,16 @@ public class ExperimentalController(
             return Ok(new ExperimentalBalanceConfirmResponse(balanceId));
         }
 
-        return StatusCode(result.StatusCode, result.Message);
+        return Problem(detail: result.Message, statusCode: result.StatusCode);
     }
 
     [HttpPost("balance/{balanceId:guid}/unconfirm")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalConfirm)]
     [ProducesResponseType(typeof(ExperimentalBalanceConfirmResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalBalanceConfirmResponse>> UnconfirmBalance(
         Guid balanceId,
         CancellationToken cancellationToken)
@@ -113,15 +104,15 @@ public class ExperimentalController(
             return Ok(new ExperimentalBalanceConfirmResponse(balanceId));
         }
 
-        return StatusCode(result.StatusCode, result.Message);
+        return Problem(detail: result.Message, statusCode: result.StatusCode);
     }
 
     [HttpGet("balance/{balanceId:guid}/generate-input")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]
     [ProducesResponseType(typeof(ExperimentalBalanceInputBody), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ExperimentalBalanceInputBody>> GenerateInputBalance(
         Guid balanceId,
         CancellationToken cancellationToken)
@@ -131,13 +122,15 @@ public class ExperimentalController(
             .FirstOrDefaultAsync(x => x.BalanceId == balanceId, cancellationToken);
         if (log is null)
         {
-            return NotFound();
+            return Problem(
+                detail: "The requested resource was not found.",
+                statusCode: StatusCodes.Status404NotFound);
         }
 
         var built = ExperimentalBalanceMockInputBodyBuilder.TryBuild(log.Balance);
         if (!built.Success)
         {
-            return BadRequest(built.Error);
+            return Problem(detail: built.Error, statusCode: StatusCodes.Status400BadRequest);
         }
 
         return Ok(built.Body!);
@@ -147,9 +140,9 @@ public class ExperimentalController(
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalInput)]
     [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalBalanceInputResponse>> InputBalance(
         Guid balanceId,
         [FromBody] ExperimentalBalanceInputBody? body,
@@ -157,7 +150,9 @@ public class ExperimentalController(
     {
         if (body is null)
         {
-            return BadRequest("Request body is required.");
+            return Problem(
+                detail: "Request body is required.",
+                statusCode: StatusCodes.Status400BadRequest);
         }
 
         var result = await experimentalBalanceInputService.InputAsync(balanceId, body, cancellationToken);
@@ -166,16 +161,16 @@ public class ExperimentalController(
             return Ok(result.Response!);
         }
 
-        return StatusCode(result.StatusCode, result.Message);
+        return Problem(detail: result.Message, statusCode: result.StatusCode);
     }
 
     [HttpPost("balance/{balanceId:guid}/uninput")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalInput)]
     [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalBalanceInputResponse>> UninputBalance(
         Guid balanceId,
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)]
@@ -188,16 +183,16 @@ public class ExperimentalController(
             return Ok(result.Response!);
         }
 
-        return StatusCode(result.StatusCode, result.Message);
+        return Problem(detail: result.Message, statusCode: result.StatusCode);
     }
 
     [HttpPost("balance/{balanceId:guid}/clear-input")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalInput)]
     [ProducesResponseType(typeof(ExperimentalBalanceInputResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalBalanceInputResponse>> ClearInputBalance(
         Guid balanceId,
         CancellationToken cancellationToken)
@@ -208,7 +203,7 @@ public class ExperimentalController(
             return Ok(result.Response!);
         }
 
-        return StatusCode(result.StatusCode, result.Message);
+        return Problem(detail: result.Message, statusCode: result.StatusCode);
     }
 
     private async Task<ResolvePlayersResult> ResolvePlayerUuidsAsync(

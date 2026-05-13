@@ -47,6 +47,7 @@ builder.Services.AddControllers(options =>
     // Ensures [controller] and [action] route tokens are kebab-cased globally.
     options.Conventions.Add(new RouteTokenTransformerConvention(new KebabCaseParameterTransformer()));
 });
+builder.Services.AddProblemDetails();
 builder.Services
     .AddApiVersioning(options =>
     {

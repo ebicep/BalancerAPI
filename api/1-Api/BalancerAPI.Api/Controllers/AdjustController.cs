@@ -27,9 +27,9 @@ public class AdjustController(
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.AdjustManual)]
     [ProducesResponseType(typeof(ManualBaseAdjustResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ManualBaseAdjustResponse>> PatchBase(
         string player,
         [FromBody] ManualAdjustBaseRequest? body,
@@ -37,7 +37,9 @@ public class AdjustController(
     {
         if (body is null)
         {
-            return BadRequest("Request body is required.");
+            return Problem(
+                detail: "Request body is required.",
+                statusCode: StatusCodes.Status400BadRequest);
         }
 
         var result = await manualWeightAdjustmentService.PatchBaseAsync(player, body, cancellationToken);
@@ -46,22 +48,16 @@ public class AdjustController(
             return Ok(result.Response);
         }
 
-        return result.StatusCode switch
-        {
-            400 => BadRequest(result.Message),
-            404 => NotFound(result.Message),
-            409 => Conflict(result.Message),
-            _ => StatusCode(result.StatusCode, result.Message)
-        };
+        return Problem(detail: result.Message, statusCode: result.StatusCode);
     }
 
     [HttpPatch("spec/{player}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.AdjustManual)]
     [ProducesResponseType(typeof(ManualSpecAdjustResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ManualSpecAdjustResponse>> PatchSpec(
         string player,
         [FromBody] ManualAdjustSpecRequest? body,
@@ -69,7 +65,9 @@ public class AdjustController(
     {
         if (body is null)
         {
-            return BadRequest("Request body is required.");
+            return Problem(
+                detail: "Request body is required.",
+                statusCode: StatusCodes.Status400BadRequest);
         }
 
         var result = await manualWeightAdjustmentService.PatchSpecAsync(player, body, cancellationToken);
@@ -78,12 +76,6 @@ public class AdjustController(
             return Ok(result.Response);
         }
 
-        return result.StatusCode switch
-        {
-            400 => BadRequest(result.Message),
-            404 => NotFound(result.Message),
-            409 => Conflict(result.Message),
-            _ => StatusCode(result.StatusCode, result.Message)
-        };
+        return Problem(detail: result.Message, statusCode: result.StatusCode);
     }
 }

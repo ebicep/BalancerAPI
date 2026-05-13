@@ -25,13 +25,15 @@ public class SettingsController(ISettingsService settingsService) : ControllerBa
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.SettingsRead)]
     [ProducesResponseType(typeof(SettingResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<SettingResponse>> GetByKey(string key, CancellationToken cancellationToken)
     {
         var setting = await settingsService.GetByKeyAsync(key, cancellationToken);
         if (setting is null)
         {
-            return NotFound();
+            return Problem(
+                detail: "The requested resource was not found.",
+                statusCode: StatusCodes.Status404NotFound);
         }
 
         return Ok(new SettingResponse(new SettingResponseData(setting.Key, setting.Value, setting.DisplayName)));
