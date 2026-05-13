@@ -13,6 +13,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<BaseWeightCurrentDay> BaseWeightsCurrentDay => Set<BaseWeightCurrentDay>();
     public DbSet<BaseWeightCurrentWeek> BaseWeightsCurrentWeek => Set<BaseWeightCurrentWeek>();
     public DbSet<ExperimentalSpecLog> ExperimentalSpecLogs => Set<ExperimentalSpecLog>();
+    public DbSet<ExperimentalSpecBan> ExperimentalSpecBans => Set<ExperimentalSpecBan>();
     public DbSet<ExperimentalSpecWeight> ExperimentalSpecWeights => Set<ExperimentalSpecWeight>();
     public DbSet<ExperimentalSpecWeightWeekly> ExperimentalSpecWeightsWeekly => Set<ExperimentalSpecWeightWeekly>();
     public DbSet<ExperimentalSpecWeightCurrentWeek> ExperimentalSpecWeightsCurrentWeek => Set<ExperimentalSpecWeightCurrentWeek>();
@@ -46,6 +47,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureBaseWeightsCurrentDayView(modelBuilder);
         ConfigureBaseWeightsCurrentWeekView(modelBuilder);
         ConfigureExperimentalSpecLogs(modelBuilder);
+        ConfigureExperimentalSpecBans(modelBuilder);
         ConfigureExperimentalSpecWeights(modelBuilder);
         ConfigureExperimentalSpecWeightsWeekly(modelBuilder);
         ConfigureExperimentalSpecWeightsCurrentWeekView(modelBuilder);
@@ -316,6 +318,34 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.Property(e => e.Conjurer).HasColumnName("conjurer").HasColumnType("uuid");
             entity.Property(e => e.Sentinel).HasColumnName("sentinel").HasColumnType("uuid");
             entity.Property(e => e.Luminary).HasColumnName("luminary").HasColumnType("uuid");
+        });
+    }
+
+    private static void ConfigureExperimentalSpecBans(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecBan>(entity =>
+        {
+            entity.ToTable("experimental_spec_bans");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Pyromancer).HasColumnName("pyromancer").HasDefaultValue(false);
+            entity.Property(e => e.Cryomancer).HasColumnName("cryomancer").HasDefaultValue(false);
+            entity.Property(e => e.Aquamancer).HasColumnName("aquamancer").HasDefaultValue(false);
+            entity.Property(e => e.Berserker).HasColumnName("berserker").HasDefaultValue(false);
+            entity.Property(e => e.Defender).HasColumnName("defender").HasDefaultValue(false);
+            entity.Property(e => e.Revenant).HasColumnName("revenant").HasDefaultValue(false);
+            entity.Property(e => e.Avenger).HasColumnName("avenger").HasDefaultValue(false);
+            entity.Property(e => e.Crusader).HasColumnName("crusader").HasDefaultValue(false);
+            entity.Property(e => e.Protector).HasColumnName("protector").HasDefaultValue(false);
+            entity.Property(e => e.Thunderlord).HasColumnName("thunderlord").HasDefaultValue(false);
+            entity.Property(e => e.Spiritguard).HasColumnName("spiritguard").HasDefaultValue(false);
+            entity.Property(e => e.Earthwarden).HasColumnName("earthwarden").HasDefaultValue(false);
+            entity.Property(e => e.Assassin).HasColumnName("assassin").HasDefaultValue(false);
+            entity.Property(e => e.Vindicator).HasColumnName("vindicator").HasDefaultValue(false);
+            entity.Property(e => e.Apothecary).HasColumnName("apothecary").HasDefaultValue(false);
+            entity.Property(e => e.Conjurer).HasColumnName("conjurer").HasDefaultValue(false);
+            entity.Property(e => e.Sentinel).HasColumnName("sentinel").HasDefaultValue(false);
+            entity.Property(e => e.Luminary).HasColumnName("luminary").HasDefaultValue(false);
         });
     }
 
