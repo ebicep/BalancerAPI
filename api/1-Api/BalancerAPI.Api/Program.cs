@@ -122,7 +122,7 @@ if (!app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health", new HealthCheckOptions
+app.MapHealthChecks("/api/v{version:apiVersion}/health", new HealthCheckOptions
 {
 	ResponseWriter = HealthCheckJsonResponseWriter.WriteAsync
 }).AllowAnonymous();

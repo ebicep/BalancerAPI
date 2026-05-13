@@ -50,7 +50,7 @@ public sealed class ApiAuthIntegrationTests : IClassFixture<WebApplicationFactor
         using var app = CreateFactory(Pepper, NewDbName(), new InMemoryDatabaseRoot());
         var client = app.CreateClient();
 
-        var response = await client.GetAsync("/health");
+        var response = await client.GetAsync("/api/v1/health");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("json", response.Content.Headers.ContentType?.MediaType ?? "", StringComparison.OrdinalIgnoreCase);
