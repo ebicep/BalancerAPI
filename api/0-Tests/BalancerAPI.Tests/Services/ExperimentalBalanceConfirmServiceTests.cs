@@ -35,13 +35,13 @@ public class ExperimentalBalanceConfirmServiceTests
         {
             new ExperimentalBalanceTeam(0, 0, 0, 0,
             [
-                new ExperimentalBalancePlayerSpec(u1, "a", "Pyromancer", 0, 0, 0, 0),
-                new ExperimentalBalancePlayerSpec(u2, "b", "Cryomancer", 0, 0, 0, 0)
+                new ExperimentalBalancePlayerSpec(u1, "a", "Pyromancer", 0, 0, 0, 0, false),
+                new ExperimentalBalancePlayerSpec(u2, "b", "Cryomancer", 0, 0, 0, 0, false)
             ]),
             new ExperimentalBalanceTeam(0, 0, 0, 0,
             [
-                new ExperimentalBalancePlayerSpec(u3, "c", "Aquamancer", 0, 0, 0, 0),
-                new ExperimentalBalancePlayerSpec(u4, "d", "Berserker", 0, 0, 0, 0)
+                new ExperimentalBalancePlayerSpec(u3, "c", "Aquamancer", 0, 0, 0, 0, false),
+                new ExperimentalBalancePlayerSpec(u4, "d", "Berserker", 0, 0, 0, 0, false)
             ])
         };
 
@@ -96,7 +96,7 @@ public class ExperimentalBalanceConfirmServiceTests
         {
             new ExperimentalBalanceTeam(0, 0, 0, 0,
             [
-                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "a", "Pyromancer", 0, 0, 0, 0)
+                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "a", "Pyromancer", 0, 0, 0, 0, false)
             ])
         };
 
@@ -132,8 +132,8 @@ public class ExperimentalBalanceConfirmServiceTests
         {
             new ExperimentalBalanceTeam(0, 0, 0, 0,
             [
-                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "a", "Pyromancer", 0, 0, 0, 0),
-                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "b", "Pyromancer", 0, 0, 0, 0)
+                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "a", "Pyromancer", 0, 0, 0, 0, false),
+                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "b", "Pyromancer", 0, 0, 0, 0, false)
             ])
         };
 

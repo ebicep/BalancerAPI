@@ -45,13 +45,13 @@ public class ExperimentalBalanceInputServiceTests
     [
         new ExperimentalBalanceTeam(0, 0, 0, 0,
         [
-            new ExperimentalBalancePlayerSpec(U1, "a", "Pyromancer", 0, 0, 0, 0),
-            new ExperimentalBalancePlayerSpec(U2, "b", "Cryomancer", 0, 0, 0, 0)
+            new ExperimentalBalancePlayerSpec(U1, "a", "Pyromancer", 0, 0, 0, 0, false),
+            new ExperimentalBalancePlayerSpec(U2, "b", "Cryomancer", 0, 0, 0, 0, false)
         ]),
         new ExperimentalBalanceTeam(0, 0, 0, 0,
         [
-            new ExperimentalBalancePlayerSpec(U3, "c", "Aquamancer", 0, 0, 0, 0),
-            new ExperimentalBalancePlayerSpec(U4, "d", "Berserker", 0, 0, 0, 0)
+            new ExperimentalBalancePlayerSpec(U3, "c", "Aquamancer", 0, 0, 0, 0, false),
+            new ExperimentalBalancePlayerSpec(U4, "d", "Berserker", 0, 0, 0, 0, false)
         ])
     ];
 

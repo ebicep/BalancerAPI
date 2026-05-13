@@ -109,8 +109,8 @@ public class ExperimentalControllerTests
                     12,
                     8.0,
                     [
-                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0),
-                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0)
+                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false),
+                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false)
                     ]),
                 new ExperimentalBalanceTeam(
                     200,
@@ -118,8 +118,8 @@ public class ExperimentalControllerTests
                     8,
                     4.0,
                     [
-                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0),
-                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0)
+                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false),
+                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0, false)
                     ])
             ],
             meta);
@@ -199,8 +199,8 @@ public class ExperimentalControllerTests
                     12,
                     8.0,
                     [
-                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0),
-                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0)
+                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false),
+                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false)
                     ]),
                 new ExperimentalBalanceTeam(
                     200,
@@ -208,8 +208,8 @@ public class ExperimentalControllerTests
                     8,
                     4.0,
                     [
-                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0),
-                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0)
+                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false),
+                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0, false)
                     ])
             ],
             meta);
@@ -376,8 +376,8 @@ public class ExperimentalControllerTests
                 12,
                 8.0,
                 [
-                    new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0),
-                    new ExperimentalBalancePlayerSpec(U2, "beta", "Cryomancer", 100, 0, 5, 4.0)
+                    new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false),
+                    new ExperimentalBalancePlayerSpec(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false)
                 ]),
             new(
                 200,
@@ -385,8 +385,8 @@ public class ExperimentalControllerTests
                 8,
                 4.0,
                 [
-                    new ExperimentalBalancePlayerSpec(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0),
-                    new ExperimentalBalancePlayerSpec(U4, "delta", "Berserker", 100, 0, 5, 2.0)
+                    new ExperimentalBalancePlayerSpec(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false),
+                    new ExperimentalBalancePlayerSpec(U4, "delta", "Berserker", 100, 0, 5, 2.0, false)
                 ])
         };
         await using var db = CreateDbContext();
@@ -449,7 +449,7 @@ public class ExperimentalControllerTests
                 0,
                 12,
                 8.0,
-                [new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0)])
+                [new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false)])
         };
         await using var db = CreateDbContext();
         db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog

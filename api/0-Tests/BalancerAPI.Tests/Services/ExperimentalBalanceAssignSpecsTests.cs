@@ -1,0 +1,144 @@
+using BalancerAPI.Business.Services;
+
+namespace BalancerAPI.Tests.Services;
+
+public class ExperimentalBalanceAssignSpecsTests
+{
+    private static Dictionary<string, HashSet<Guid>> EmptyLogSets() =>
+        ExperimentalSpecs.AllOrdered.ToDictionary(s => s, _ => new HashSet<Guid>(), StringComparer.Ordinal);
+
+    private static Dictionary<string, int> ShuffledMap(IReadOnlyList<string> specs)
+    {
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < specs.Count; i++)
+        {
+            map[specs[i]] = i;
+        }
+
+        return map;
+    }
+
+    private static Guid P(int i) => Guid.Parse($"00000000-0000-0000-0000-{i:000000000012}");
+
+    private static Dictionary<string, int> AllOrderedIndexMap() =>
+        ExperimentalSpecs.AllOrdered
+            .Select((name, idx) => (name, idx))
+            .ToDictionary(x => x.name, x => x.idx, StringComparer.Ordinal);
+
+    [Fact]
+    public void AssignSpecs_never_assigns_banned_spec_across_iterations()
+    {
+        var random = new Random(911);
+        var shuffledSpecs = ExperimentalBalanceService.GetLineupsNew(6, random);
+        var bannedSpec = shuffledSpecs[0];
+        var banIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, bannedSpec);
+        Assert.True(banIdx >= 0);
+
+        var bannedPlayer = P(1);
+        var team = new[] { bannedPlayer, P(2), P(3), P(4), P(5), P(6) };
+        var weights = team.ToDictionary(
+            id => id,
+            _ => Enumerable.Repeat(100, ExperimentalSpecs.AllOrdered.Length).ToArray());
+
+        var bans = new Dictionary<Guid, bool[]>
+        {
+            [bannedPlayer] = new bool[ExperimentalSpecs.AllOrdered.Length]
+        };
+        bans[bannedPlayer][banIdx] = true;
+
+        var logSets = EmptyLogSets();
+        var specNameToIdx = AllOrderedIndexMap();
+        var shuffledIndexMap = ShuffledMap(shuffledSpecs);
+
+        for (var iter = 0; iter < 500; iter++)
+        {
+            var result = ExperimentalBalanceService.AssignSpecs(
+                team,
+                shuffledSpecs,
+                shuffledIndexMap,
+                logSets,
+                bans,
+                specNameToIdx,
+                weights);
+
+            Assert.False(ExperimentalBalanceService.HasIncompleteSpecAssignment(result));
+            foreach (var a in result)
+            {
+                if (a.PlayerId == bannedPlayer)
+                {
+                    Assert.NotEqual(bannedSpec, a.Spec);
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void AssignSpecs_when_player_banned_from_entire_lineup_yields_incomplete_assignment()
+    {
+        var random = new Random(42);
+        var shuffledSpecs = ExperimentalBalanceService.GetLineupsNew(6, random);
+        var victim = P(1);
+        var team = new[] { victim, P(2), P(3), P(4), P(5), P(6) };
+        var weights = team.ToDictionary(
+            id => id,
+            _ => Enumerable.Repeat(100, ExperimentalSpecs.AllOrdered.Length).ToArray());
+
+        var vec = new bool[ExperimentalSpecs.AllOrdered.Length];
+        foreach (var spec in shuffledSpecs)
+        {
+            var idx = Array.IndexOf(ExperimentalSpecs.AllOrdered, spec);
+            if (idx >= 0)
+            {
+                vec[idx] = true;
+            }
+        }
+
+        var bans = new Dictionary<Guid, bool[]> { [victim] = vec };
+        var result = ExperimentalBalanceService.AssignSpecs(
+            team,
+            shuffledSpecs,
+            ShuffledMap(shuffledSpecs),
+            EmptyLogSets(),
+            bans,
+            AllOrderedIndexMap(),
+            weights);
+
+        Assert.True(ExperimentalBalanceService.HasIncompleteSpecAssignment(result));
+    }
+
+    [Fact]
+    public void AssignSpecs_player_in_all_spec_logs_gets_off_true()
+    {
+        var random = new Random(123);
+        var shuffledSpecs = ExperimentalBalanceService.GetLineupsNew(6, random);
+        var repeater = P(1);
+        var team = new[] { repeater, P(2), P(3), P(4), P(5), P(6) };
+        var weights = team.ToDictionary(
+            id => id,
+            _ => Enumerable.Repeat(100, ExperimentalSpecs.AllOrdered.Length).ToArray());
+
+        var logSets = EmptyLogSets();
+        foreach (var spec in ExperimentalSpecs.AllOrdered)
+        {
+            logSets[spec].Add(repeater);
+        }
+
+        var noBans = new Dictionary<Guid, bool[]>();
+
+        var result = ExperimentalBalanceService.AssignSpecs(
+            team,
+            shuffledSpecs,
+            ShuffledMap(shuffledSpecs),
+            logSets,
+            noBans,
+            AllOrderedIndexMap(),
+            weights);
+
+        Assert.False(ExperimentalBalanceService.HasIncompleteSpecAssignment(result));
+
+        var repeaterAssignment = result.Single(a => a.PlayerId == repeater);
+        Assert.True(repeaterAssignment.Off,
+            $"Player in all spec logs should be Off=true but got Off=false, assigned spec: {repeaterAssignment.Spec}");
+        Assert.NotEqual(ExperimentalSpecs.Empty, repeaterAssignment.Spec);
+    }
+}

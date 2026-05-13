@@ -27,7 +27,8 @@ public sealed record ExperimentalBalancePlayerSpec(
     [property: JsonPropertyName("weight")] int Weight,
     [property: JsonPropertyName("talker")] int Talker,
     [property: JsonPropertyName("win_loss")] int WinLoss,
-    [property: JsonPropertyName("net_kd_per_game")] double NetKdPerGame);
+    [property: JsonPropertyName("net_kd_per_game")] double NetKdPerGame,
+    [property: JsonPropertyName("off")] bool Off);
 
 public sealed record ExperimentalBalanceMeta(
     [property: JsonPropertyName("iterations")] int Iterations,

@@ -15,6 +15,11 @@ public interface IExperimentalBalanceService
 public sealed class ExperimentalBalanceService(
     IDbContextFactory<BalancerDbContext> dbContextFactory) : IExperimentalBalanceService
 {
+    private static readonly IReadOnlyDictionary<string, int> SpecNameToAllOrderedIndex =
+        ExperimentalSpecs.AllOrdered
+            .Select((name, index) => (name, index))
+            .ToDictionary(x => x.name, x => x.index, StringComparer.Ordinal);
+
     public async Task<ExperimentalBalanceServiceResult> BalanceAsync(
         ExperimentalBalanceRequest request,
         CancellationToken cancellationToken)
@@ -50,7 +55,8 @@ public sealed class ExperimentalBalanceService(
         var settingsTask = LoadSettingsAsync(cancellationToken);
         var playerDataTask = LoadBalancePlayerDataAsync(players, cancellationToken);
         var specLogSetsTask = BuildSpecLogSetsAsync(cancellationToken);
-        await Task.WhenAll(settingsTask, playerDataTask, specLogSetsTask);
+        var specBansTask = LoadExperimentalSpecBansAsync(players, cancellationToken);
+        await Task.WhenAll(settingsTask, playerDataTask, specLogSetsTask, specBansTask);
 
         var settings = await settingsTask;
         var maxIter = GetIntSetting(settings, "max_balance_iterations", 500_000);
@@ -71,6 +77,7 @@ public sealed class ExperimentalBalanceService(
         }
 
         var specLogSets = await specLogSetsTask;
+        var specBansByPlayer = await specBansTask;
         dataFetchStopwatch.Stop();
         steps.Add(new ExperimentalBalanceMetaStep(
             Name: "db.query.playerData",
@@ -96,8 +103,27 @@ public sealed class ExperimentalBalanceService(
             var blue = players.Take(teamSize).ToArray();
             var red = players.Skip(teamSize).Take(teamSize).ToArray();
 
-            var blueAssign = AssignSpecs(blue, shuffledSpecs, shuffledIndexMap, specLogSets, playerData.WeightsByPlayer);
-            var redAssign = AssignSpecs(red, shuffledSpecs, shuffledIndexMap, specLogSets, playerData.WeightsByPlayer);
+            var blueAssign = AssignSpecs(
+                blue,
+                shuffledSpecs,
+                shuffledIndexMap,
+                specLogSets,
+                specBansByPlayer,
+                SpecNameToAllOrderedIndex,
+                playerData.WeightsByPlayer);
+            var redAssign = AssignSpecs(
+                red,
+                shuffledSpecs,
+                shuffledIndexMap,
+                specLogSets,
+                specBansByPlayer,
+                SpecNameToAllOrderedIndex,
+                playerData.WeightsByPlayer);
+
+            if (HasIncompleteSpecAssignment(blueAssign) || HasIncompleteSpecAssignment(redAssign))
+            {
+                continue;
+            }
 
             ApplySmallTeamDiscount(teamSize, blueAssign);
             ApplySmallTeamDiscount(teamSize, redAssign);
@@ -221,7 +247,8 @@ public sealed class ExperimentalBalanceService(
                 Weight: assignment.EvalWeight,
                 Talker: 0,
                 WinLoss: winLoss,
-                NetKdPerGame: netKdPerGame);
+                NetKdPerGame: netKdPerGame,
+                Off: assignment.Off);
 
             specs.Add(playerSpec);
             totalWeight += playerSpec.Weight;
@@ -368,6 +395,92 @@ public sealed class ExperimentalBalanceService(
         }
     }
 
+    private async Task<IReadOnlyDictionary<Guid, bool[]>> LoadExperimentalSpecBansAsync(
+        IReadOnlyList<Guid> players,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await db.ExperimentalSpecBans
+            .AsNoTracking()
+            .Where(x => players.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+
+        var dict = new Dictionary<Guid, bool[]>(rows.Count);
+        foreach (var row in rows)
+        {
+            var vec = BanVectorFromRow(row);
+            if (!AnyBanFlag(vec))
+            {
+                continue;
+            }
+
+            dict[row.Uuid] = vec;
+        }
+
+        return dict;
+    }
+
+    private static bool[] BanVectorFromRow(ExperimentalSpecBan row) =>
+    [
+        row.Pyromancer,
+        row.Cryomancer,
+        row.Aquamancer,
+        row.Berserker,
+        row.Defender,
+        row.Revenant,
+        row.Avenger,
+        row.Crusader,
+        row.Protector,
+        row.Thunderlord,
+        row.Spiritguard,
+        row.Earthwarden,
+        row.Assassin,
+        row.Vindicator,
+        row.Apothecary,
+        row.Conjurer,
+        row.Sentinel,
+        row.Luminary
+    ];
+
+    private static bool AnyBanFlag(bool[] vec)
+    {
+        foreach (var b in vec)
+        {
+            if (b)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool HasIncompleteSpecAssignment(PlayerAssignment[] team)
+    {
+        foreach (var a in team)
+        {
+            if (a.Spec == ExperimentalSpecs.Empty)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsBannedFromAllOrderedIndex(
+        Guid playerId,
+        int allOrderedIndex,
+        IReadOnlyDictionary<Guid, bool[]> specBansByPlayer)
+    {
+        if (!specBansByPlayer.TryGetValue(playerId, out var banVec))
+        {
+            return false;
+        }
+
+        return (uint)allOrderedIndex < (uint)banVec.Length && banVec[allOrderedIndex];
+    }
+
     private static Dictionary<string, int> BuildShuffledIndexMap(IReadOnlyList<string> shuffledSpecs)
     {
         var map = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -455,7 +568,7 @@ public sealed class ExperimentalBalanceService(
         }
     }
 
-    private sealed class PlayerAssignment
+    internal sealed class PlayerAssignment
     {
         public Guid PlayerId { get; init; }
         public string Spec { get; set; } = ExperimentalSpecs.Empty;
@@ -464,11 +577,13 @@ public sealed class ExperimentalBalanceService(
         public int EvalWeight { get; set; }
     }
 
-    private static PlayerAssignment[] AssignSpecs(
+    internal static PlayerAssignment[] AssignSpecs(
         Guid[] teamPlayerIds,
         IReadOnlyList<string> shuffledSpecs,
         IReadOnlyDictionary<string, int> shuffledSpecsIndexMap,
         IReadOnlyDictionary<string, HashSet<Guid>> specLogSets,
+        IReadOnlyDictionary<Guid, bool[]> specBansByPlayer,
+        IReadOnlyDictionary<string, int> specNameToAllOrderedIndex,
         IReadOnlyDictionary<Guid, int[]> weightsByPlayer)
     {
         var numberOfPlayers = teamPlayerIds.Length;
@@ -525,6 +640,24 @@ public sealed class ExperimentalBalanceService(
             }
         }
 
+        for (var i = 0; i < playersOnSpecs.Length; i++)
+        {
+            var specName = shuffledSpecs[i];
+            if (!specNameToAllOrderedIndex.TryGetValue(specName, out var ordIdx))
+            {
+                continue;
+            }
+
+            var list = playersOnSpecs[i];
+            for (var j = list.Count - 1; j >= 0; j--)
+            {
+                if (IsBannedFromAllOrderedIndex(list[j], ordIdx, specBansByPlayer))
+                {
+                    list.RemoveAt(j);
+                }
+            }
+        }
+
         for (var round = 0; round < numberOfPlayers; round++)
         {
             var minIndex = 0;
@@ -550,8 +683,9 @@ public sealed class ExperimentalBalanceService(
 
                     assignments[k].Spec = shuffledSpecs[minIndex];
                     var w = weightsByPlayer[randomPlayer];
-                    var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, assignments[k].Spec);
-                    var sw = specIdx >= 0 ? w[specIdx] : 0;
+                    var sw = specNameToAllOrderedIndex.TryGetValue(assignments[k].Spec, out var specIdx)
+                        ? w[specIdx]
+                        : 0;
                     assignments[k].SpecWeight = sw;
                     assignments[k].EvalWeight = sw;
 
@@ -592,12 +726,17 @@ public sealed class ExperimentalBalanceService(
                     continue;
                 }
 
+                if (!specNameToAllOrderedIndex.TryGetValue(shuffledSpecs[i], out var ordIdx)
+                    || IsBannedFromAllOrderedIndex(a.PlayerId, ordIdx, specBansByPlayer))
+                {
+                    continue;
+                }
+
                 a.Spec = shuffledSpecs[i];
                 a.Off = true;
                 specStatus[i] = true;
                 var w = weightsByPlayer[a.PlayerId];
-                var specIdx = Array.IndexOf(ExperimentalSpecs.AllOrdered, a.Spec);
-                var sw = specIdx >= 0 ? w[specIdx] : 0;
+                var sw = specNameToAllOrderedIndex.TryGetValue(a.Spec, out var specIdx) ? w[specIdx] : 0;
                 a.SpecWeight = sw;
                 a.EvalWeight = sw;
                 break;
