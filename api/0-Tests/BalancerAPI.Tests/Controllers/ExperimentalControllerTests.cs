@@ -122,6 +122,7 @@ public class ExperimentalControllerTests
                         new(U4, "delta", "Berserker", 100, 0, 5, 2.0, false)
                     ])
             ],
+            0,
             meta);
 
         var balance = new Mock<IExperimentalBalanceService>();
@@ -212,6 +213,7 @@ public class ExperimentalControllerTests
                         new(U4, "delta", "Berserker", 100, 0, 5, 2.0, false)
                     ])
             ],
+            0,
             meta);
 
         var balance = new Mock<IExperimentalBalanceService>();

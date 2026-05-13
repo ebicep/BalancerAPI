@@ -177,7 +177,8 @@ public sealed class ExperimentalBalanceService(
                 Time: latestSeason?.Timestamp ?? DateTime.UtcNow);
 
             var balanceId = Guid.NewGuid();
-            var response = new ExperimentalBalanceResponse(balanceId, teamBalance, meta);
+            var totalOff = teamBalance.Sum(t => t.Specs.Count(s => s.Off));
+            var response = new ExperimentalBalanceResponse(balanceId, teamBalance, totalOff, meta);
 
             try
             {

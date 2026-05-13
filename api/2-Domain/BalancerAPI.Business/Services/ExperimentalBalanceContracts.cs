@@ -11,6 +11,7 @@ public sealed record ExperimentalBalanceConfirmResponse(
 public sealed record ExperimentalBalanceResponse(
     [property: JsonPropertyName("balance_id")] Guid BalanceId,
     [property: JsonPropertyName("balance")] IReadOnlyList<ExperimentalBalanceTeam> Balance,
+    [property: JsonPropertyName("total_off")] int TotalOff,
     [property: JsonPropertyName("meta")] ExperimentalBalanceMeta Meta);
 
 public sealed record ExperimentalBalanceTeam(
