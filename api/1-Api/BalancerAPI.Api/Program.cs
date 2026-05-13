@@ -3,9 +3,11 @@ using Asp.Versioning.ApiExplorer;
 using BalancerAPI.Api.Authentication;
 using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
+using BalancerAPI.Api.Health;
 using BalancerAPI.Api.Routing;
 using BalancerAPI.Api.Security;
 using BalancerAPI.Api.Swagger;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
@@ -119,7 +121,10 @@ if (!app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health").AllowAnonymous();
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+	ResponseWriter = HealthCheckJsonResponseWriter.WriteAsync
+}).AllowAnonymous();
 app.MapControllers();
 
 app.Run();

@@ -53,7 +53,14 @@ public sealed class ApiAuthIntegrationTests : IClassFixture<WebApplicationFactor
         var response = await client.GetAsync("/health");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
+        Assert.Contains("json", response.Content.Headers.ContentType?.MediaType ?? "", StringComparison.OrdinalIgnoreCase);
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var doc = await JsonDocument.ParseAsync(stream);
+        Assert.Equal("Healthy", doc.RootElement.GetProperty("status").GetString());
+        Assert.Equal("BalancerAPI", doc.RootElement.GetProperty("service").GetProperty("name").GetString());
+        Assert.True(doc.RootElement.TryGetProperty("checks", out var checks) && checks.GetArrayLength() > 0);
+        var databaseCheck = checks.EnumerateArray().Single(e => e.GetProperty("name").GetString() == "database");
+        Assert.Equal("Healthy", databaseCheck.GetProperty("status").GetString());
     }
 
     [Fact]
