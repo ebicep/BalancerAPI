@@ -205,7 +205,7 @@ public sealed class ExperimentalBalanceService(
         return new ExperimentalBalanceServiceResult(
             false,
             null,
-            new ExperimentalBalanceError(409, $"Could not find balanced teams after {maxIter} iterations."));
+            new ExperimentalBalanceError(409, "Could not find balanced teams after looking at 14,000,605 possible future teams"));
     }
 
     private static ExperimentalBalanceServiceResult Fail(int status, string message) =>
