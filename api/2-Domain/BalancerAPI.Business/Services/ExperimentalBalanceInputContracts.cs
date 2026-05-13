@@ -34,6 +34,7 @@ public sealed record ExperimentalBalanceInputBody(
 
 public sealed record ExperimentalBalanceInputPlayerLine(
     [property: JsonPropertyName("uuid")] Guid Uuid,
+    [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("kills")] int Kills,
     [property: JsonPropertyName("deaths")] int Deaths);
 

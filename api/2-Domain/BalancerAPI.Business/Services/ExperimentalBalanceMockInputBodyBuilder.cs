@@ -33,8 +33,12 @@ public static class ExperimentalBalanceMockInputBodyBuilder
             return new BuildResult(false, null, "Stored balance must contain exactly two teams.");
         }
 
-        var winners = teams[0].Specs.Select(s => new ExperimentalBalanceInputPlayerLine(s.Uuid, RandomKd(), RandomKd())).ToList();
-        var losers = teams[1].Specs.Select(s => new ExperimentalBalanceInputPlayerLine(s.Uuid, RandomKd(), RandomKd())).ToList();
+        var winners = teams[0].Specs
+            .Select(s => new ExperimentalBalanceInputPlayerLine(s.Uuid, s.Name, RandomKd(), RandomKd()))
+            .ToList();
+        var losers = teams[1].Specs
+            .Select(s => new ExperimentalBalanceInputPlayerLine(s.Uuid, s.Name, RandomKd(), RandomKd()))
+            .ToList();
         return new BuildResult(true, new ExperimentalBalanceInputBody(winners, losers, PlaceholderGameId), null);
     }
 
