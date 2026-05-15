@@ -271,13 +271,24 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         });
 
         await db.SaveChangesAsync(cancellationToken);
+
+        Dictionary<Guid, ExperimentalAdjustmentTrajectoryPair>? uninputTrajectories = null;
+        if (canApplyTrajectoryRestore)
+        {
+            uninputTrajectories = trajectoryEcho!.AdjustmentTrajectories!
+                .OrderBy(kv => kv.Key)
+                .ToDictionary(
+                    kv => kv.Key,
+                    kv => new ExperimentalAdjustmentTrajectoryPair(kv.Value.New, kv.Value.Old));
+        }
+
         await tx.CommitAsync(cancellationToken);
 
         return new ExperimentalBalanceInputServiceResult(
             true,
             200,
             null,
-            new ExperimentalBalanceInputResponse(balanceId, null));
+            new ExperimentalBalanceInputResponse(balanceId, uninputTrajectories));
     }
 
     public async Task<ExperimentalBalanceInputServiceResult> ClearInputAsync(Guid balanceId, CancellationToken cancellationToken)

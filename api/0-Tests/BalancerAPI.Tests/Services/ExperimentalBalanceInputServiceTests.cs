@@ -37,8 +37,8 @@ public class ExperimentalBalanceInputServiceTests
 
     private static ExperimentalBalanceInputBody BuildValidZeroStatsBody() =>
         new(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
     private static IReadOnlyList<ExperimentalBalanceTeam> BuildTwoTeamBalance() =>
@@ -101,13 +101,13 @@ public class ExperimentalBalanceInputServiceTests
         var body = new ExperimentalBalanceInputBody(
             Winners:
             [
-                new ExperimentalBalanceInputPlayerLine(U1, 5, 2),
-                new ExperimentalBalanceInputPlayerLine(U2, 3, 1)
+                new ExperimentalBalanceInputPlayerLine(U1, "", 5, 2),
+                new ExperimentalBalanceInputPlayerLine(U2, "", 3, 1)
             ],
             Losers:
             [
-                new ExperimentalBalanceInputPlayerLine(U3, 2, 5),
-                new ExperimentalBalanceInputPlayerLine(U4, 1, 3)
+                new ExperimentalBalanceInputPlayerLine(U3, "", 2, 5),
+                new ExperimentalBalanceInputPlayerLine(U4, "", 1, 3)
             ],
             GameId: PayloadMongoGameId);
 
@@ -194,8 +194,8 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var body = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U3, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U2, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
         var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
@@ -220,8 +220,8 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var body = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
         var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
@@ -254,8 +254,8 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var body = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
         var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
@@ -333,8 +333,8 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var mismatched = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 99, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 99, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
         var result = await sut.InputAsync(balanceId, mismatched, CancellationToken.None);
@@ -375,8 +375,8 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var body = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: otherGameId);
 
         var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
@@ -407,8 +407,8 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var body = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
         var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
@@ -440,8 +440,8 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var body = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
         var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
@@ -455,7 +455,7 @@ public class ExperimentalBalanceInputServiceTests
     {
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(CreateOptions(Guid.NewGuid().ToString())));
         var body = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0)],
             Losers: [],
             GameId: "not-a-valid-object-id");
 
@@ -491,13 +491,13 @@ public class ExperimentalBalanceInputServiceTests
         var body = new ExperimentalBalanceInputBody(
             Winners:
             [
-                new ExperimentalBalanceInputPlayerLine(U1, 5, 2),
-                new ExperimentalBalanceInputPlayerLine(U2, 3, 1)
+                new ExperimentalBalanceInputPlayerLine(U1, "", 5, 2),
+                new ExperimentalBalanceInputPlayerLine(U2, "", 3, 1)
             ],
             Losers:
             [
-                new ExperimentalBalanceInputPlayerLine(U3, 2, 5),
-                new ExperimentalBalanceInputPlayerLine(U4, 1, 3)
+                new ExperimentalBalanceInputPlayerLine(U3, "", 2, 5),
+                new ExperimentalBalanceInputPlayerLine(U4, "", 1, 3)
             ],
             GameId: PayloadMongoGameId);
 
@@ -512,6 +512,7 @@ public class ExperimentalBalanceInputServiceTests
         var uninput = await sut.UninputAsync(balanceId, null, CancellationToken.None);
         Assert.True(uninput.Success);
         Assert.Equal(200, uninput.StatusCode);
+        Assert.Null(uninput.Response?.AdjustmentTrajectories);
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -569,7 +570,16 @@ public class ExperimentalBalanceInputServiceTests
             Assert.Equal(4, mid.AdjustmentDaily.Count());
         }
 
-        Assert.True((await sut.UninputAsync(balanceId, inputResult.Response, CancellationToken.None)).Success);
+        var uninputResult = await sut.UninputAsync(balanceId, inputResult.Response, CancellationToken.None);
+        Assert.True(uninputResult.Success);
+        Assert.NotNull(uninputResult.Response?.AdjustmentTrajectories);
+        var inTraj = inputResult.Response!.AdjustmentTrajectories!;
+        foreach (var u in new[] { U1, U2, U3, U4 })
+        {
+            Assert.Equal(
+                new ExperimentalAdjustmentTrajectoryPair(inTraj[u].New, inTraj[u].Old),
+                uninputResult.Response!.AdjustmentTrajectories![u]);
+        }
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -604,13 +614,13 @@ public class ExperimentalBalanceInputServiceTests
         var body = new ExperimentalBalanceInputBody(
             Winners:
             [
-                new ExperimentalBalanceInputPlayerLine(U1, 0, 0),
-                new ExperimentalBalanceInputPlayerLine(U2, 0, 0)
+                new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0),
+                new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)
             ],
             Losers:
             [
-                new ExperimentalBalanceInputPlayerLine(U3, 0, 0),
-                new ExperimentalBalanceInputPlayerLine(U4, 0, 0)
+                new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0),
+                new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)
             ],
             GameId: PayloadMongoGameId);
 
@@ -621,6 +631,17 @@ public class ExperimentalBalanceInputServiceTests
         await using (var verify = new BalancerDbContext(options))
         {
             Assert.Equal(1, verify.AdjustmentDaily.Single(x => x.Uuid == U1).Trajectory);
+        }
+
+        var uninput = await sut.UninputAsync(balanceId, result.Response, CancellationToken.None);
+        Assert.True(uninput.Success);
+        Assert.NotNull(uninput.Response?.AdjustmentTrajectories);
+        var inTraj = result.Response!.AdjustmentTrajectories!;
+        foreach (var u in new[] { U1, U2, U3, U4 })
+        {
+            Assert.Equal(
+                new ExperimentalAdjustmentTrajectoryPair(inTraj[u].New, inTraj[u].Old),
+                uninput.Response!.AdjustmentTrajectories![u]);
         }
     }
 
@@ -834,8 +855,8 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var body = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
         Assert.True((await sut.InputAsync(balanceId, body, CancellationToken.None)).Success);
 
@@ -939,8 +960,8 @@ public class ExperimentalBalanceInputServiceTests
         var balanceId = Guid.NewGuid();
         var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
         var badGameBody = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: "not-an-object-id");
 
         await using (var db = new BalancerDbContext(options))
@@ -969,8 +990,8 @@ public class ExperimentalBalanceInputServiceTests
         var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
 
         var otherGameBody = new ExperimentalBalanceInputBody(
-            Winners: [new ExperimentalBalanceInputPlayerLine(U1, 0, 0), new ExperimentalBalanceInputPlayerLine(U2, 0, 0)],
-            Losers: [new ExperimentalBalanceInputPlayerLine(U3, 0, 0), new ExperimentalBalanceInputPlayerLine(U4, 0, 0)],
+            Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
+            Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: "bbbbbbbbbbbbbbbbbbbbbbbb");
 
         await using (var db = new BalancerDbContext(options))
