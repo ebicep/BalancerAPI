@@ -559,7 +559,15 @@ public sealed class TimeService(
 internal static class EasternTime
 {
     private static readonly TimeZoneInfo Zone = ResolveEasternTimeZone();
-    internal static DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Zone);
+
+    internal static DateTime Now
+    {
+        get
+        {
+            var easternWallClock = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Zone);
+            return TimeZoneInfo.ConvertTimeToUtc(easternWallClock, Zone);
+        }
+    }
 
     private static TimeZoneInfo ResolveEasternTimeZone()
     {

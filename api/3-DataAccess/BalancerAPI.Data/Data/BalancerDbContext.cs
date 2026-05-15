@@ -1,3 +1,4 @@
+using BalancerAPI.Data.Converters;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -6,6 +7,12 @@ namespace BalancerAPI.Data.Data;
 
 public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : DbContext(options)
 {
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<DateTime>()
+            .HaveConversion<UtcDateTimeConverter>();
+    }
+
     public DbSet<PlayerName> Names => Set<PlayerName>();
     public DbSet<BaseWeight> BaseWeights => Set<BaseWeight>();
     public DbSet<BaseWeightDaily> BaseWeightsDaily => Set<BaseWeightDaily>();
