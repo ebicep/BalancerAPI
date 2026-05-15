@@ -39,19 +39,22 @@ public sealed record ExperimentalBalanceInputPlayerLine(
     [property: JsonPropertyName("deaths")] int Deaths);
 
 /// <summary>
+/// One player's adjustment trajectory for the input or uninput response.
 /// On successful <c>input</c>, <paramref name="Old"/> / <paramref name="New"/> are trajectory before and after applying that input.
-/// On successful <c>uninput</c> when <see cref="ExperimentalBalanceInputResponse.AdjustmentTrajectories"/> is returned, each pair is the echoed <c>input</c> pair with <c>old</c> and <c>new</c> swapped.
+/// On successful <c>uninput</c> when <see cref="ExperimentalBalanceInputResponse.AdjustmentTrajectories"/> is returned, each item echoes the <c>input</c> response with <c>old</c> and <c>new</c> swapped.
 /// <paramref name="New"/> may be null when the post-state is no <c>adjustment_daily</c> row.
 /// </summary>
-public sealed record ExperimentalAdjustmentTrajectoryPair(
+public sealed record ExperimentalAdjustmentTrajectoryItem(
+    [property: JsonPropertyName("uuid")] Guid Uuid,
+    [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("old")] int? Old,
     [property: JsonPropertyName("new")] int? New);
 
 /// <summary>
 /// Returned from successful <c>input</c> (with trajectories) or <c>uninput</c>.
 /// On <c>uninput</c>, <see cref="AdjustmentTrajectories"/> is non-null only when trajectory echo restore was applied (same rules as the optional uninput body).
-/// For <c>input</c>, may be echoed as the optional body of <c>uninput</c> to restore <c>adjustment_daily</c> from each player's <see cref="ExperimentalAdjustmentTrajectoryPair.Old"/>.
+/// For <c>input</c>, may be echoed as the optional body of <c>uninput</c> to restore <c>adjustment_daily</c> from each player's <see cref="ExperimentalAdjustmentTrajectoryItem.Old"/>.
 /// </summary>
 public sealed record ExperimentalBalanceInputResponse(
     [property: JsonPropertyName("balance_id")] Guid BalanceId,
-    [property: JsonPropertyName("adjustment_trajectories")] Dictionary<Guid, ExperimentalAdjustmentTrajectoryPair>? AdjustmentTrajectories);
+    [property: JsonPropertyName("adjustment_trajectories")] IReadOnlyList<ExperimentalAdjustmentTrajectoryItem>? AdjustmentTrajectories);

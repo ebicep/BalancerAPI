@@ -118,10 +118,10 @@ public class ExperimentalBalanceInputServiceTests
         Assert.NotNull(result.Response);
         Assert.NotNull(result.Response!.AdjustmentTrajectories);
         var traj = result.Response.AdjustmentTrajectories!;
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryPair(null, 1), traj[U1]);
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryPair(null, 1), traj[U2]);
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryPair(null, -1), traj[U3]);
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryPair(null, -1), traj[U4]);
+        Assert.Equal(new ExperimentalAdjustmentTrajectoryItem(U1, "", null, 1), traj.Single(x => x.Uuid == U1));
+        Assert.Equal(new ExperimentalAdjustmentTrajectoryItem(U2, "", null, 1), traj.Single(x => x.Uuid == U2));
+        Assert.Equal(new ExperimentalAdjustmentTrajectoryItem(U3, "", null, -1), traj.Single(x => x.Uuid == U3));
+        Assert.Equal(new ExperimentalAdjustmentTrajectoryItem(U4, "", null, -1), traj.Single(x => x.Uuid == U4));
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -573,17 +573,60 @@ public class ExperimentalBalanceInputServiceTests
         var uninputResult = await sut.UninputAsync(balanceId, inputResult.Response, CancellationToken.None);
         Assert.True(uninputResult.Success);
         Assert.NotNull(uninputResult.Response?.AdjustmentTrajectories);
-        var inTraj = inputResult.Response!.AdjustmentTrajectories!;
+        var inTraj = inputResult.Response!.AdjustmentTrajectories!.ToDictionary(x => x.Uuid);
         foreach (var u in new[] { U1, U2, U3, U4 })
         {
+            var inItem = inTraj[u];
             Assert.Equal(
-                new ExperimentalAdjustmentTrajectoryPair(inTraj[u].New, inTraj[u].Old),
-                uninputResult.Response!.AdjustmentTrajectories![u]);
+                new ExperimentalAdjustmentTrajectoryItem(u, inItem.Name, inItem.New, inItem.Old),
+                uninputResult.Response!.AdjustmentTrajectories!.Single(x => x.Uuid == u));
         }
 
         await using (var verify = new BalancerDbContext(options))
         {
             Assert.Empty(verify.AdjustmentDaily);
+        }
+    }
+
+    [Fact]
+    public async Task UninputAsync_WhenTrajectoryEchoContainsDuplicateUuid_Returns400()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(BuildLog(balanceId, metaTime));
+            db.ExperimentalSpecLogs.AddRange(
+                new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = U1, Cryomancer = U2 },
+                new ExperimentalSpecLog { BalanceId = balanceId, Aquamancer = U3, Berserker = U4 });
+            foreach (var u in new[] { U1, U2, U3, U4 })
+            {
+                db.ExperimentalSpecsWl.Add(new ExperimentalSpecsWl { Uuid = u });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var inputResult = await sut.InputAsync(balanceId, BuildValidZeroStatsBody(), CancellationToken.None);
+        Assert.True(inputResult.Success);
+        var first = inputResult.Response!.AdjustmentTrajectories!.First(x => x.Uuid == U1);
+        var duplicateEcho = inputResult.Response! with
+        {
+            AdjustmentTrajectories = inputResult.Response.AdjustmentTrajectories!.Concat([first]).ToList()
+        };
+
+        var uninput = await sut.UninputAsync(balanceId, duplicateEcho, CancellationToken.None);
+        Assert.False(uninput.Success);
+        Assert.Equal(400, uninput.StatusCode);
+        Assert.Equal("adjustment_trajectories contains duplicate UUIDs.", uninput.Message);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.True(verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId).Counted);
         }
     }
 
@@ -626,7 +669,9 @@ public class ExperimentalBalanceInputServiceTests
 
         var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
         Assert.True(result.Success);
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryPair(-3, 1), result.Response!.AdjustmentTrajectories![U1]);
+        Assert.Equal(
+            new ExperimentalAdjustmentTrajectoryItem(U1, "", -3, 1),
+            result.Response!.AdjustmentTrajectories!.Single(x => x.Uuid == U1));
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -636,12 +681,13 @@ public class ExperimentalBalanceInputServiceTests
         var uninput = await sut.UninputAsync(balanceId, result.Response, CancellationToken.None);
         Assert.True(uninput.Success);
         Assert.NotNull(uninput.Response?.AdjustmentTrajectories);
-        var inTraj = result.Response!.AdjustmentTrajectories!;
+        var inTraj = result.Response!.AdjustmentTrajectories!.ToDictionary(x => x.Uuid);
         foreach (var u in new[] { U1, U2, U3, U4 })
         {
+            var inItem = inTraj[u];
             Assert.Equal(
-                new ExperimentalAdjustmentTrajectoryPair(inTraj[u].New, inTraj[u].Old),
-                uninput.Response!.AdjustmentTrajectories![u]);
+                new ExperimentalAdjustmentTrajectoryItem(u, inItem.Name, inItem.New, inItem.Old),
+                uninput.Response!.AdjustmentTrajectories!.Single(x => x.Uuid == u));
         }
     }
 

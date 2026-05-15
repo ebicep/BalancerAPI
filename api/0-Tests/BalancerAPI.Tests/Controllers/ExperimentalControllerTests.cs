@@ -297,7 +297,7 @@ public class ExperimentalControllerTests
                 true,
                 200,
                 null,
-                new ExperimentalBalanceInputResponse(TestBalanceId, new Dictionary<Guid, ExperimentalAdjustmentTrajectoryPair>())));
+                new ExperimentalBalanceInputResponse(TestBalanceId, Array.Empty<ExperimentalAdjustmentTrajectoryItem>())));
 
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, input: input.Object);
