@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 
 namespace BalancerAPI.Api.Health;
 
@@ -19,6 +20,8 @@ internal static class HealthCheckJsonResponseWriter
 		httpContext.Response.ContentType = "application/json; charset=utf-8";
 
 		var env = httpContext.RequestServices.GetRequiredService<IHostEnvironment>();
+		var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+			.CreateLogger(typeof(HealthCheckJsonResponseWriter));
 		var assembly = Assembly.GetEntryAssembly();
 		var serviceVersion = assembly?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
 			?? assembly?.GetName().Version?.ToString();
@@ -26,13 +29,16 @@ internal static class HealthCheckJsonResponseWriter
 		var checks = report.Entries.Select(pair =>
 		{
 			var entry = pair.Value;
+			if (entry.Exception is not null)
+				logger.LogError(entry.Exception, "Health check {CheckName} failed", pair.Key);
+
 			IReadOnlyList<string>? tags = entry.Tags.Any() ? entry.Tags.ToArray() : null;
 			return new HealthCheckItem(
 				pair.Key,
 				entry.Status.ToString(),
 				string.IsNullOrWhiteSpace(entry.Description) ? null : entry.Description,
 				Math.Round(entry.Duration.TotalMilliseconds, 3),
-				entry.Exception?.Message,
+				entry.Exception is not null ? "Check Failed" : null,
 				tags);
 		}).ToArray();
 
