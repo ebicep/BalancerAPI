@@ -86,6 +86,12 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             ApplyTrajectoryForOutcome(db, tracked, line.Uuid, won: false, trajectories);
         }
 
+        var rosterList = roster.ToList();
+        var statsRows = await db.ExperimentalDailyStats
+            .Where(x => rosterList.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+        var statsByUuid = statsRows.ToDictionary(x => x.Uuid);
+
         ApplyInputLines(ctx.Winners, ctx.WlByUuid, ctx.SpecByPlayer, ApplyWin);
         ApplyInputLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, ApplyLoss);
         var now = DateTime.UtcNow;
@@ -115,16 +121,12 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        var nameByUuid = ctx!.Winners.Concat(ctx.Losers).ToDictionary(x => x.Uuid, x => x.Name);
-        var trajectoryItems = trajectories
-            .OrderBy(kv => kv.Key)
-            .Select(kv => new ExperimentalAdjustmentTrajectoryItem(kv.Key, nameByUuid[kv.Key], kv.Value.Old, kv.Value.New))
-            .ToList();
+        var changeItems = BuildInputChangeItems(ctx!, trajectories, statsByUuid);
         return new ExperimentalBalanceInputServiceResult(
             true,
             200,
             null,
-            new ExperimentalBalanceInputResponse(balanceId, trajectoryItems));
+            new ExperimentalBalanceInputResponse(balanceId, changeItems));
     }
 
     public async Task<ExperimentalBalanceInputServiceResult> UninputAsync(
@@ -197,8 +199,16 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return ctxError;
         }
 
-        var shouldTryTrajectoryRestore = trajectoryEcho?.AdjustmentTrajectories is { Count: > 0 };
+        var roster = BuildRoster(ctx!);
+        var rosterList = roster.ToList();
+        var statsRows = await db.ExperimentalDailyStats
+            .Where(x => rosterList.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+        var statsByUuid = statsRows.ToDictionary(x => x.Uuid);
+
+        var shouldTryTrajectoryRestore = trajectoryEcho?.Changes is { Count: > 0 };
         var canApplyTrajectoryRestore = false;
+        IReadOnlyDictionary<Guid, ExperimentalBalanceChangeItem>? echoByUuid = null;
         if (shouldTryTrajectoryRestore)
         {
             // Only apply trajectory restoration for "latest undo" calls.
@@ -211,22 +221,23 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             canApplyTrajectoryRestore = trajectoryEcho!.BalanceId == balanceId && latestInputLog == balanceId;
             if (canApplyTrajectoryRestore)
             {
-                var roster = BuildRoster(ctx!);
                 var seenUuids = new HashSet<Guid>();
-                foreach (var item in trajectoryEcho.AdjustmentTrajectories!)
+                foreach (var item in trajectoryEcho.Changes!)
                 {
                     if (!seenUuids.Add(item.Uuid))
                     {
                         await tx.RollbackAsync(cancellationToken);
-                        return Fail(400, "adjustment_trajectories contains duplicate UUIDs.");
+                        return Fail(400, "changes contains duplicate UUIDs.");
                     }
 
                     if (!roster.Contains(item.Uuid))
                     {
                         await tx.RollbackAsync(cancellationToken);
-                        return Fail(400, "adjustment_trajectories contains a UUID not in this balance input.");
+                        return Fail(400, "changes contains a UUID not in this balance input.");
                     }
                 }
+
+                echoByUuid = trajectoryEcho.Changes.ToDictionary(x => x.Uuid);
             }
         }
 
@@ -241,7 +252,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
         if (canApplyTrajectoryRestore)
         {
-            var echoItems = trajectoryEcho!.AdjustmentTrajectories!;
+            var echoItems = trajectoryEcho!.Changes!;
             var restoreUuids = echoItems.Select(x => x.Uuid).ToList();
             var existingRows = await db.AdjustmentDaily
                 .Where(x => restoreUuids.Contains(x.Uuid))
@@ -250,7 +261,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             foreach (var item in echoItems)
             {
                 existingRows.TryGetValue(item.Uuid, out var row);
-                if (!item.Old.HasValue)
+                if (!item.OldTrajectory.HasValue)
                 {
                     if (row is not null)
                     {
@@ -261,13 +272,13 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
                 {
                     if (row is null)
                     {
-                        var entity = new AdjustmentDaily { Uuid = item.Uuid, Trajectory = item.Old.Value };
+                        var entity = new AdjustmentDaily { Uuid = item.Uuid, Trajectory = item.OldTrajectory.Value };
                         db.AdjustmentDaily.Add(entity);
                         existingRows[item.Uuid] = entity;
                     }
                     else
                     {
-                        row.Trajectory = item.Old.Value;
+                        row.Trajectory = item.OldTrajectory.Value;
                     }
                 }
             }
@@ -283,23 +294,14 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         });
 
         await db.SaveChangesAsync(cancellationToken);
-
-        IReadOnlyList<ExperimentalAdjustmentTrajectoryItem>? uninputTrajectoryItems = null;
-        if (canApplyTrajectoryRestore)
-        {
-            uninputTrajectoryItems = trajectoryEcho!.AdjustmentTrajectories!
-                .OrderBy(x => x.Uuid)
-                .Select(x => new ExperimentalAdjustmentTrajectoryItem(x.Uuid, x.Name, x.New, x.Old))
-                .ToList();
-        }
-
         await tx.CommitAsync(cancellationToken);
 
+        var changeItems = BuildUninputChangeItems(ctx!, statsByUuid, echoByUuid, canApplyTrajectoryRestore);
         return new ExperimentalBalanceInputServiceResult(
             true,
             200,
             null,
-            new ExperimentalBalanceInputResponse(balanceId, uninputTrajectoryItems));
+            new ExperimentalBalanceInputResponse(balanceId, changeItems));
     }
 
     public async Task<ExperimentalBalanceInputServiceResult> ClearInputAsync(Guid balanceId, CancellationToken cancellationToken)
@@ -492,6 +494,127 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
     private static ExperimentalBalanceInputServiceResult Fail(int status, string message) =>
         new(false, status, message, null);
+
+    private static (int Wins, int Losses, int Kills, int Deaths) GetStatsOrZero(
+        IReadOnlyDictionary<Guid, ExperimentalDailyStats> statsByUuid,
+        Guid uuid)
+    {
+        if (statsByUuid.TryGetValue(uuid, out var row))
+        {
+            return (row.Wins, row.Losses, row.Kills, row.Deaths);
+        }
+
+        return (0, 0, 0, 0);
+    }
+
+    private static IReadOnlyList<ExperimentalBalanceChangeItem> BuildInputChangeItems(
+        InputApplicationContext ctx,
+        IReadOnlyDictionary<Guid, (int? Old, int New)> trajectories,
+        IReadOnlyDictionary<Guid, ExperimentalDailyStats> statsByUuid)
+    {
+        var items = new List<ExperimentalBalanceChangeItem>();
+        foreach (var line in ctx.Winners)
+        {
+            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(statsByUuid, line.Uuid);
+            var (oldT, newT) = trajectories[line.Uuid];
+            items.Add(new ExperimentalBalanceChangeItem(
+                line.Uuid,
+                line.Name,
+                oldT,
+                newT,
+                oldWins,
+                oldWins + 1,
+                oldLosses,
+                oldLosses,
+                oldKills,
+                oldKills + line.Kills,
+                oldDeaths,
+                oldDeaths + line.Deaths));
+        }
+
+        foreach (var line in ctx.Losers)
+        {
+            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(statsByUuid, line.Uuid);
+            var (oldT, newT) = trajectories[line.Uuid];
+            items.Add(new ExperimentalBalanceChangeItem(
+                line.Uuid,
+                line.Name,
+                oldT,
+                newT,
+                oldWins,
+                oldWins,
+                oldLosses,
+                oldLosses + 1,
+                oldKills,
+                oldKills + line.Kills,
+                oldDeaths,
+                oldDeaths + line.Deaths));
+        }
+
+        return items.OrderBy(x => x.Uuid).ToList();
+    }
+
+    private static IReadOnlyList<ExperimentalBalanceChangeItem> BuildUninputChangeItems(
+        InputApplicationContext ctx,
+        IReadOnlyDictionary<Guid, ExperimentalDailyStats> statsByUuid,
+        IReadOnlyDictionary<Guid, ExperimentalBalanceChangeItem>? echoByUuid,
+        bool canApplyTrajectoryRestore)
+    {
+        var items = new List<ExperimentalBalanceChangeItem>();
+        foreach (var line in ctx.Winners)
+        {
+            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(statsByUuid, line.Uuid);
+            int? oldTrajectory = null;
+            int? newTrajectory = null;
+            if (canApplyTrajectoryRestore && echoByUuid!.TryGetValue(line.Uuid, out var echo))
+            {
+                oldTrajectory = echo.NewTrajectory;
+                newTrajectory = echo.OldTrajectory;
+            }
+
+            items.Add(new ExperimentalBalanceChangeItem(
+                line.Uuid,
+                line.Name,
+                oldTrajectory,
+                newTrajectory,
+                oldWins,
+                oldWins - 1,
+                oldLosses,
+                oldLosses,
+                oldKills,
+                oldKills - line.Kills,
+                oldDeaths,
+                oldDeaths - line.Deaths));
+        }
+
+        foreach (var line in ctx.Losers)
+        {
+            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(statsByUuid, line.Uuid);
+            int? oldTrajectory = null;
+            int? newTrajectory = null;
+            if (canApplyTrajectoryRestore && echoByUuid!.TryGetValue(line.Uuid, out var echo))
+            {
+                oldTrajectory = echo.NewTrajectory;
+                newTrajectory = echo.OldTrajectory;
+            }
+
+            items.Add(new ExperimentalBalanceChangeItem(
+                line.Uuid,
+                line.Name,
+                oldTrajectory,
+                newTrajectory,
+                oldWins,
+                oldWins,
+                oldLosses,
+                oldLosses - 1,
+                oldKills,
+                oldKills - line.Kills,
+                oldDeaths,
+                oldDeaths - line.Deaths));
+        }
+
+        return items.OrderBy(x => x.Uuid).ToList();
+    }
 
     private static HashSet<Guid> BuildRoster(InputApplicationContext ctx)
     {

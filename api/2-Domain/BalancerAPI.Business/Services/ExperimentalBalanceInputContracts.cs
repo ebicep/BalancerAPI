@@ -39,22 +39,28 @@ public sealed record ExperimentalBalanceInputPlayerLine(
     [property: JsonPropertyName("deaths")] int Deaths);
 
 /// <summary>
-/// One player's adjustment trajectory for the input or uninput response.
-/// On successful <c>input</c>, <paramref name="Old"/> / <paramref name="New"/> are trajectory before and after applying that input.
-/// On successful <c>uninput</c> when <see cref="ExperimentalBalanceInputResponse.AdjustmentTrajectories"/> is returned, each item echoes the <c>input</c> response with <c>old</c> and <c>new</c> swapped.
-/// <paramref name="New"/> may be null when the post-state is no <c>adjustment_daily</c> row.
+/// One player's before/after snapshot for the input or uninput response.
+/// On successful <c>input</c>, trajectory and daily W/L/K/D reflect state before and after applying that input.
+/// On successful <c>uninput</c>, trajectory fields are populated only when trajectory echo restore was applied; W/L/K/D always reflect reversal.
 /// </summary>
-public sealed record ExperimentalAdjustmentTrajectoryItem(
+public sealed record ExperimentalBalanceChangeItem(
     [property: JsonPropertyName("uuid")] Guid Uuid,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("old")] int? Old,
-    [property: JsonPropertyName("new")] int? New);
+    [property: JsonPropertyName("old_trajectory")] int? OldTrajectory,
+    [property: JsonPropertyName("new_trajectory")] int? NewTrajectory,
+    [property: JsonPropertyName("old_wins")] int OldWins,
+    [property: JsonPropertyName("new_wins")] int NewWins,
+    [property: JsonPropertyName("old_losses")] int OldLosses,
+    [property: JsonPropertyName("new_losses")] int NewLosses,
+    [property: JsonPropertyName("old_kills")] int OldKills,
+    [property: JsonPropertyName("new_kills")] int NewKills,
+    [property: JsonPropertyName("old_deaths")] int OldDeaths,
+    [property: JsonPropertyName("new_deaths")] int NewDeaths);
 
 /// <summary>
-/// Returned from successful <c>input</c> (with trajectories) or <c>uninput</c>.
-/// On <c>uninput</c>, <see cref="AdjustmentTrajectories"/> is non-null only when trajectory echo restore was applied (same rules as the optional uninput body).
-/// For <c>input</c>, may be echoed as the optional body of <c>uninput</c> to restore <c>adjustment_daily</c> from each player's <see cref="ExperimentalAdjustmentTrajectoryItem.Old"/>.
+/// Returned from successful <c>input</c> or <c>uninput</c> with per-player <see cref="Changes"/>.
+/// For <c>input</c>, may be echoed as the optional body of <c>uninput</c> to restore <c>adjustment_daily</c> from each player's <see cref="ExperimentalBalanceChangeItem.OldTrajectory"/>.
 /// </summary>
 public sealed record ExperimentalBalanceInputResponse(
     [property: JsonPropertyName("balance_id")] Guid BalanceId,
-    [property: JsonPropertyName("adjustment_trajectories")] IReadOnlyList<ExperimentalAdjustmentTrajectoryItem>? AdjustmentTrajectories);
+    [property: JsonPropertyName("changes")] IReadOnlyList<ExperimentalBalanceChangeItem>? Changes);

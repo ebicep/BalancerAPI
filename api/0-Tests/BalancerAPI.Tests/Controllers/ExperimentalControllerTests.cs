@@ -297,7 +297,7 @@ public class ExperimentalControllerTests
                 true,
                 200,
                 null,
-                new ExperimentalBalanceInputResponse(TestBalanceId, Array.Empty<ExperimentalAdjustmentTrajectoryItem>())));
+                new ExperimentalBalanceInputResponse(TestBalanceId, Array.Empty<ExperimentalBalanceChangeItem>())));
 
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, input: input.Object);
@@ -308,7 +308,7 @@ public class ExperimentalControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<ExperimentalBalanceInputResponse>(ok.Value);
         Assert.Equal(TestBalanceId, response.BalanceId);
-        Assert.NotNull(response.AdjustmentTrajectories);
+        Assert.NotNull(response.Changes);
     }
 
     [Fact]

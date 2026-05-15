@@ -116,12 +116,12 @@ public class ExperimentalBalanceInputServiceTests
         Assert.True(result.Success);
         Assert.Equal(200, result.StatusCode);
         Assert.NotNull(result.Response);
-        Assert.NotNull(result.Response!.AdjustmentTrajectories);
-        var traj = result.Response.AdjustmentTrajectories!;
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryItem(U1, "", null, 1), traj.Single(x => x.Uuid == U1));
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryItem(U2, "", null, 1), traj.Single(x => x.Uuid == U2));
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryItem(U3, "", null, -1), traj.Single(x => x.Uuid == U3));
-        Assert.Equal(new ExperimentalAdjustmentTrajectoryItem(U4, "", null, -1), traj.Single(x => x.Uuid == U4));
+        Assert.NotNull(result.Response!.Changes);
+        var changes = result.Response.Changes!;
+        Assert.Equal(new ExperimentalBalanceChangeItem(U1, "", null, 1, 0, 1, 0, 0, 0, 5, 0, 2), changes.Single(x => x.Uuid == U1));
+        Assert.Equal(new ExperimentalBalanceChangeItem(U2, "", null, 1, 0, 1, 0, 0, 0, 3, 0, 1), changes.Single(x => x.Uuid == U2));
+        Assert.Equal(new ExperimentalBalanceChangeItem(U3, "", null, -1, 0, 0, 0, 1, 0, 2, 0, 5), changes.Single(x => x.Uuid == U3));
+        Assert.Equal(new ExperimentalBalanceChangeItem(U4, "", null, -1, 0, 0, 0, 1, 0, 1, 0, 3), changes.Single(x => x.Uuid == U4));
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -512,7 +512,12 @@ public class ExperimentalBalanceInputServiceTests
         var uninput = await sut.UninputAsync(balanceId, null, CancellationToken.None);
         Assert.True(uninput.Success);
         Assert.Equal(200, uninput.StatusCode);
-        Assert.Null(uninput.Response?.AdjustmentTrajectories);
+        Assert.NotNull(uninput.Response?.Changes);
+        Assert.All(uninput.Response!.Changes!, c =>
+        {
+            Assert.Null(c.OldTrajectory);
+            Assert.Null(c.NewTrajectory);
+        });
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -572,14 +577,14 @@ public class ExperimentalBalanceInputServiceTests
 
         var uninputResult = await sut.UninputAsync(balanceId, inputResult.Response, CancellationToken.None);
         Assert.True(uninputResult.Success);
-        Assert.NotNull(uninputResult.Response?.AdjustmentTrajectories);
-        var inTraj = inputResult.Response!.AdjustmentTrajectories!.ToDictionary(x => x.Uuid);
+        Assert.NotNull(uninputResult.Response?.Changes);
+        var inChanges = inputResult.Response!.Changes!.ToDictionary(x => x.Uuid);
         foreach (var u in new[] { U1, U2, U3, U4 })
         {
-            var inItem = inTraj[u];
-            Assert.Equal(
-                new ExperimentalAdjustmentTrajectoryItem(u, inItem.Name, inItem.New, inItem.Old),
-                uninputResult.Response!.AdjustmentTrajectories!.Single(x => x.Uuid == u));
+            var inItem = inChanges[u];
+            var outItem = uninputResult.Response!.Changes!.Single(x => x.Uuid == u);
+            Assert.Equal(inItem.NewTrajectory, outItem.OldTrajectory);
+            Assert.Equal(inItem.OldTrajectory, outItem.NewTrajectory);
         }
 
         await using (var verify = new BalancerDbContext(options))
@@ -613,16 +618,16 @@ public class ExperimentalBalanceInputServiceTests
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var inputResult = await sut.InputAsync(balanceId, BuildValidZeroStatsBody(), CancellationToken.None);
         Assert.True(inputResult.Success);
-        var first = inputResult.Response!.AdjustmentTrajectories!.First(x => x.Uuid == U1);
+        var first = inputResult.Response!.Changes!.First(x => x.Uuid == U1);
         var duplicateEcho = inputResult.Response! with
         {
-            AdjustmentTrajectories = inputResult.Response.AdjustmentTrajectories!.Concat([first]).ToList()
+            Changes = inputResult.Response.Changes!.Concat([first]).ToList()
         };
 
         var uninput = await sut.UninputAsync(balanceId, duplicateEcho, CancellationToken.None);
         Assert.False(uninput.Success);
         Assert.Equal(400, uninput.StatusCode);
-        Assert.Equal("adjustment_trajectories contains duplicate UUIDs.", uninput.Message);
+        Assert.Equal("changes contains duplicate UUIDs.", uninput.Message);
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -669,9 +674,9 @@ public class ExperimentalBalanceInputServiceTests
 
         var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
         Assert.True(result.Success);
-        Assert.Equal(
-            new ExperimentalAdjustmentTrajectoryItem(U1, "", -3, 1),
-            result.Response!.AdjustmentTrajectories!.Single(x => x.Uuid == U1));
+        var u1Change = result.Response!.Changes!.Single(x => x.Uuid == U1);
+        Assert.Equal(-3, u1Change.OldTrajectory);
+        Assert.Equal(1, u1Change.NewTrajectory);
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -680,14 +685,14 @@ public class ExperimentalBalanceInputServiceTests
 
         var uninput = await sut.UninputAsync(balanceId, result.Response, CancellationToken.None);
         Assert.True(uninput.Success);
-        Assert.NotNull(uninput.Response?.AdjustmentTrajectories);
-        var inTraj = result.Response!.AdjustmentTrajectories!.ToDictionary(x => x.Uuid);
+        Assert.NotNull(uninput.Response?.Changes);
+        var inChanges = result.Response!.Changes!.ToDictionary(x => x.Uuid);
         foreach (var u in new[] { U1, U2, U3, U4 })
         {
-            var inItem = inTraj[u];
-            Assert.Equal(
-                new ExperimentalAdjustmentTrajectoryItem(u, inItem.Name, inItem.New, inItem.Old),
-                uninput.Response!.AdjustmentTrajectories!.Single(x => x.Uuid == u));
+            var inItem = inChanges[u];
+            var outItem = uninput.Response!.Changes!.Single(x => x.Uuid == u);
+            Assert.Equal(inItem.NewTrajectory, outItem.OldTrajectory);
+            Assert.Equal(inItem.OldTrajectory, outItem.NewTrajectory);
         }
     }
 
