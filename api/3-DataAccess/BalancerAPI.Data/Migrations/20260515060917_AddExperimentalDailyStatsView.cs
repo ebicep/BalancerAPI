@@ -1,0 +1,31 @@
+﻿using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace BalancerAPI.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddExperimentalDailyStatsView : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql("""
+                CREATE VIEW experimental_daily_stats AS
+                SELECT
+                    uuid,
+                    pyromancer_wins + cryomancer_wins + aquamancer_wins + berserker_wins + defender_wins + revenant_wins + avenger_wins + crusader_wins + protector_wins + thunderlord_wins + spiritguard_wins + earthwarden_wins + assassin_wins + vindicator_wins + apothecary_wins + conjurer_wins + sentinel_wins + luminary_wins AS wins,
+                    pyromancer_losses + cryomancer_losses + aquamancer_losses + berserker_losses + defender_losses + revenant_losses + avenger_losses + crusader_losses + protector_losses + thunderlord_losses + spiritguard_losses + earthwarden_losses + assassin_losses + vindicator_losses + apothecary_losses + conjurer_losses + sentinel_losses + luminary_losses AS losses,
+                    pyromancer_kills + cryomancer_kills + aquamancer_kills + berserker_kills + defender_kills + revenant_kills + avenger_kills + crusader_kills + protector_kills + thunderlord_kills + spiritguard_kills + earthwarden_kills + assassin_kills + vindicator_kills + apothecary_kills + conjurer_kills + sentinel_kills + luminary_kills AS kills,
+                    pyromancer_deaths + cryomancer_deaths + aquamancer_deaths + berserker_deaths + defender_deaths + revenant_deaths + avenger_deaths + crusader_deaths + protector_deaths + thunderlord_deaths + spiritguard_deaths + earthwarden_deaths + assassin_deaths + vindicator_deaths + apothecary_deaths + conjurer_deaths + sentinel_deaths + luminary_deaths AS deaths
+                FROM experimental_specs_wl_current_day;
+                """);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql("DROP VIEW IF EXISTS experimental_daily_stats;");
+        }
+    }
+}

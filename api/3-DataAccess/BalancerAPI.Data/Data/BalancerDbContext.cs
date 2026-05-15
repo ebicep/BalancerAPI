@@ -26,6 +26,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
     public DbSet<ExperimentalSpecsWlCurrentDay> ExperimentalSpecsWlCurrentDay => Set<ExperimentalSpecsWlCurrentDay>();
+    public DbSet<ExperimentalDailyStats> ExperimentalDailyStats => Set<ExperimentalDailyStats>();
     public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
     public DbSet<ExperimentalBalanceLog> ExperimentalBalanceLogs => Set<ExperimentalBalanceLog>();
     public DbSet<ExperimentalInputLog> ExperimentalInputLogs => Set<ExperimentalInputLog>();
@@ -60,6 +61,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureSettings(modelBuilder);
         ConfigureCurrentWeekView(modelBuilder);
         ConfigureCurrentDayView(modelBuilder);
+        ConfigureExperimentalDailyStatsView(modelBuilder);
         ConfigureBalancePlayerDataView(modelBuilder);
         ConfigureExperimentalBalanceLog(modelBuilder);
         ConfigureExperimentalInputLog(modelBuilder);
@@ -537,6 +539,20 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.ToView("experimental_specs_wl_current_day");
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             ConfigureWlColumns(entity);
+        });
+    }
+
+    private static void ConfigureExperimentalDailyStatsView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalDailyStats>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_daily_stats");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Wins).HasColumnName("wins");
+            entity.Property(e => e.Losses).HasColumnName("losses");
+            entity.Property(e => e.Kills).HasColumnName("kills");
+            entity.Property(e => e.Deaths).HasColumnName("deaths");
         });
     }
 
