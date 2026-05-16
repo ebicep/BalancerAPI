@@ -17,8 +17,25 @@ public class ExperimentalController(
     IExperimentalBalanceService experimentalBalanceService,
     IExperimentalBalanceConfirmService experimentalBalanceConfirmService,
     IExperimentalBalanceInputService experimentalBalanceInputService,
+    IExperimentalSpecLogsService experimentalSpecLogsService,
     BalancerDbContext dbContext) : ControllerBase
 {
+    [HttpGet("logs")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalSpecLogsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ExperimentalSpecLogsResponse>> GetLogs(CancellationToken cancellationToken)
+    {
+        var result = await experimentalSpecLogsService.GetAllAsync(cancellationToken);
+        if (!result.Success)
+        {
+            return Problem(detail: result.Message, statusCode: result.StatusCode);
+        }
+
+        return Ok(result.Data);
+    }
+
     [HttpGet("spec-weights/{uuid:guid}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]

@@ -83,6 +83,7 @@ builder.Services.AddScoped<ISpecWeightsService, SpecWeightsService>();
 builder.Services.AddScoped<IExperimentalBalanceService, ExperimentalBalanceService>();
 builder.Services.AddScoped<IExperimentalBalanceConfirmService, ExperimentalBalanceConfirmService>();
 builder.Services.AddScoped<IExperimentalBalanceInputService, ExperimentalBalanceInputService>();
+builder.Services.AddScoped<IExperimentalSpecLogsService, ExperimentalSpecLogsService>();
 builder.Services.AddScoped<ITimeService, TimeService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IAdjustmentAutoDailyService, AdjustmentAutoDailyService>();

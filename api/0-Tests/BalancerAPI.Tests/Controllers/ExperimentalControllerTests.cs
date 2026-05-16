@@ -7,6 +7,7 @@ using BalancerAPI.Domain.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Moq;
 
 namespace BalancerAPI.Tests.Controllers;
@@ -24,13 +25,15 @@ public class ExperimentalControllerTests
         IExperimentalBalanceService? balance = null,
         IExperimentalBalanceConfirmService? confirm = null,
         IExperimentalBalanceInputService? input = null,
+        IExperimentalSpecLogsService? specLogs = null,
         BalancerDbContext? dbContext = null)
     {
         var b = balance ?? Mock.Of<IExperimentalBalanceService>();
         var c = confirm ?? Mock.Of<IExperimentalBalanceConfirmService>();
         var i = input ?? Mock.Of<IExperimentalBalanceInputService>();
+        var sl = specLogs ?? Mock.Of<IExperimentalSpecLogsService>();
         var db = dbContext ?? CreateDbContext();
-        return new ExperimentalController(specWeights, b, c, i, db);
+        return new ExperimentalController(specWeights, b, c, i, sl, db);
     }
 
     [Fact]
@@ -457,6 +460,90 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task GetLogs_WhenEmpty_ReturnsZeroCountAndAllSpecKeys()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, _) = CreateControllerWithSpecLogsService(specWeights.Object);
+
+        var result = await controller.GetLogs(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(0, body.Count);
+        Assert.Equal(18, body.Log.Count);
+        Assert.All(body.Log.Values, names => Assert.Empty(names));
+        Assert.Contains("pyromancer", body.Log.Keys);
+    }
+
+    [Fact]
+    public async Task GetLogs_WhenValid_ReturnsNamesOrderedByBalanceCreatedAt()
+    {
+        var earlierBalanceId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var laterBalanceId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var earlierTime = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var laterTime = new DateTime(2026, 1, 2, 12, 0, 0, DateTimeKind.Utc);
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] });
+        db.ExperimentalBalanceLogs.AddRange(
+            new ExperimentalBalanceLog
+            {
+                BalanceId = earlierBalanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = earlierTime
+            },
+            new ExperimentalBalanceLog
+            {
+                BalanceId = laterBalanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = laterTime
+            });
+        db.ExperimentalSpecLogs.AddRange(
+            new ExperimentalSpecLog { BalanceId = laterBalanceId, Pyromancer = U2 },
+            new ExperimentalSpecLog { BalanceId = earlierBalanceId, Pyromancer = TestUuid, Cryomancer = U2 });
+        await db.SaveChangesAsync();
+
+        var result = await controller.GetLogs(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(2, body.Count);
+        Assert.Equal(["alpha", "beta"], body.Log["pyromancer"]);
+        Assert.Equal(["beta"], body.Log["cryomancer"]);
+    }
+
+    [Fact]
+    public async Task GetLogs_WhenMissingName_ReturnsInternalServerError()
+    {
+        var balanceId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var unknownUuid = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+        {
+            BalanceId = balanceId,
+            Balance = "[]",
+            Meta = "{}",
+            CreatedAt = DateTime.UtcNow
+        });
+        db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = unknownUuid });
+        await db.SaveChangesAsync();
+
+        var result = await controller.GetLogs(CancellationToken.None);
+
+        var pd = AssertProblem(
+            result.Result!,
+            StatusCodes.Status500InternalServerError,
+            $"No name found for player {unknownUuid}.");
+    }
+
+    [Fact]
     public async Task GenerateInputBalance_WhenBalanceNotTwoTeams_ReturnsBadRequest()
     {
         var teams = new List<ExperimentalBalanceTeam>
@@ -512,5 +599,24 @@ public class ExperimentalControllerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new BalancerDbContext(options);
+    }
+
+    private sealed class TestDbContextFactory(DbContextOptions<BalancerDbContext> options) : IDbContextFactory<BalancerDbContext>
+    {
+        public BalancerDbContext CreateDbContext() => new(options);
+    }
+
+    private static (ExperimentalController Controller, BalancerDbContext Db) CreateControllerWithSpecLogsService(
+        ISpecWeightsService specWeights)
+    {
+        var options = new DbContextOptionsBuilder<BalancerDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        var factory = new TestDbContextFactory(options);
+        var db = factory.CreateDbContext();
+        var specLogsService = new ExperimentalSpecLogsService(factory);
+        var controller = CreateController(specWeights, specLogs: specLogsService, dbContext: db);
+        return (controller, db);
     }
 }
