@@ -118,10 +118,14 @@ public class ExperimentalBalanceInputServiceTests
         Assert.NotNull(result.Response);
         Assert.NotNull(result.Response!.Changes);
         var changes = result.Response.Changes!;
-        Assert.Equal(new ExperimentalBalanceChangeItem(U1, "", null, 1, 0, 1, 0, 0, 0, 5, 0, 2), changes.Single(x => x.Uuid == U1));
-        Assert.Equal(new ExperimentalBalanceChangeItem(U2, "", null, 1, 0, 1, 0, 0, 0, 3, 0, 1), changes.Single(x => x.Uuid == U2));
-        Assert.Equal(new ExperimentalBalanceChangeItem(U3, "", null, -1, 0, 0, 0, 1, 0, 2, 0, 5), changes.Single(x => x.Uuid == U3));
-        Assert.Equal(new ExperimentalBalanceChangeItem(U4, "", null, -1, 0, 0, 0, 1, 0, 1, 0, 3), changes.Single(x => x.Uuid == U4));
+        Assert.Null(changes.Single(x => x.Uuid == U1).OldTrajectory);
+        Assert.Equal(1, changes.Single(x => x.Uuid == U1).NewTrajectory);
+        Assert.Null(changes.Single(x => x.Uuid == U2).OldTrajectory);
+        Assert.Equal(1, changes.Single(x => x.Uuid == U2).NewTrajectory);
+        Assert.Null(changes.Single(x => x.Uuid == U3).OldTrajectory);
+        Assert.Equal(-1, changes.Single(x => x.Uuid == U3).NewTrajectory);
+        Assert.Null(changes.Single(x => x.Uuid == U4).OldTrajectory);
+        Assert.Equal(-1, changes.Single(x => x.Uuid == U4).NewTrajectory);
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -509,15 +513,11 @@ public class ExperimentalBalanceInputServiceTests
             storedInputJson = beforeUninput.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId).Input!;
         }
 
-        var uninput = await sut.UninputAsync(balanceId, null, CancellationToken.None);
+        var uninput = await sut.UninputAsync(balanceId, body, CancellationToken.None);
         Assert.True(uninput.Success);
         Assert.Equal(200, uninput.StatusCode);
         Assert.NotNull(uninput.Response?.Changes);
-        Assert.All(uninput.Response!.Changes!, c =>
-        {
-            Assert.Null(c.OldTrajectory);
-            Assert.Null(c.NewTrajectory);
-        });
+        Assert.All(uninput.Response!.Changes!, c => Assert.NotNull(c.OldTrajectory));
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -537,13 +537,12 @@ public class ExperimentalBalanceInputServiceTests
             Assert.Equal(0, w1.PyromancerKills);
             Assert.Equal(0, w1.PyromancerDeaths);
 
-            Assert.Equal(4, verify.AdjustmentDaily.Count());
-            Assert.Equal(1, verify.AdjustmentDaily.Single(x => x.Uuid == U1).Trajectory);
+            Assert.Empty(verify.AdjustmentDaily);
         }
     }
 
     [Fact]
-    public async Task UninputAsync_WithTrajectoryEcho_RemovesAdjustmentDailyRowsWhenOldWereNull()
+    public async Task UninputAsync_AfterInput_RemovesAdjustmentDailyAndMirrorsInputTrajectoriesInResponse()
     {
         var dbName = Guid.NewGuid().ToString();
         var options = CreateOptions(dbName);
@@ -575,7 +574,7 @@ public class ExperimentalBalanceInputServiceTests
             Assert.Equal(4, mid.AdjustmentDaily.Count());
         }
 
-        var uninputResult = await sut.UninputAsync(balanceId, inputResult.Response, CancellationToken.None);
+        var uninputResult = await sut.UninputAsync(balanceId, body, CancellationToken.None);
         Assert.True(uninputResult.Success);
         Assert.NotNull(uninputResult.Response?.Changes);
         var inChanges = inputResult.Response!.Changes!.ToDictionary(x => x.Uuid);
@@ -594,7 +593,7 @@ public class ExperimentalBalanceInputServiceTests
     }
 
     [Fact]
-    public async Task UninputAsync_WhenTrajectoryEchoContainsDuplicateUuid_Returns400()
+    public async Task UninputAsync_WhenBodyDoesNotMatchStoredInput_Returns400()
     {
         var dbName = Guid.NewGuid().ToString();
         var options = CreateOptions(dbName);
@@ -616,18 +615,22 @@ public class ExperimentalBalanceInputServiceTests
         }
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
-        var inputResult = await sut.InputAsync(balanceId, BuildValidZeroStatsBody(), CancellationToken.None);
-        Assert.True(inputResult.Success);
-        var first = inputResult.Response!.Changes!.First(x => x.Uuid == U1);
-        var duplicateEcho = inputResult.Response! with
+        var countedBody = BuildValidZeroStatsBody();
+        Assert.True((await sut.InputAsync(balanceId, countedBody, CancellationToken.None)).Success);
+
+        var wrongBody = countedBody with
         {
-            Changes = inputResult.Response.Changes!.Concat([first]).ToList()
+            Winners =
+            [
+                new ExperimentalBalanceInputPlayerLine(U1, "", 1, 0),
+                new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)
+            ]
         };
 
-        var uninput = await sut.UninputAsync(balanceId, duplicateEcho, CancellationToken.None);
+        var uninput = await sut.UninputAsync(balanceId, wrongBody, CancellationToken.None);
         Assert.False(uninput.Success);
         Assert.Equal(400, uninput.StatusCode);
-        Assert.Equal("changes contains duplicate UUIDs.", uninput.Message);
+        Assert.Equal("Request body must match the stored input JSON for this balance.", uninput.Message);
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -683,11 +686,15 @@ public class ExperimentalBalanceInputServiceTests
             Assert.Equal(1, verify.AdjustmentDaily.Single(x => x.Uuid == U1).Trajectory);
         }
 
-        var uninput = await sut.UninputAsync(balanceId, result.Response, CancellationToken.None);
+        var uninput = await sut.UninputAsync(balanceId, body, CancellationToken.None);
         Assert.True(uninput.Success);
         Assert.NotNull(uninput.Response?.Changes);
         var inChanges = result.Response!.Changes!.ToDictionary(x => x.Uuid);
-        foreach (var u in new[] { U1, U2, U3, U4 })
+        var u1Out = uninput.Response!.Changes!.Single(x => x.Uuid == U1);
+        Assert.Equal(1, u1Out.OldTrajectory);
+        Assert.Null(u1Out.NewTrajectory);
+
+        foreach (var u in new[] { U2, U3, U4 })
         {
             var inItem = inChanges[u];
             var outItem = uninput.Response!.Changes!.Single(x => x.Uuid == u);
@@ -697,45 +704,7 @@ public class ExperimentalBalanceInputServiceTests
     }
 
     [Fact]
-    public async Task UninputAsync_WhenEchoBalanceIdMismatch_SkipsTrajectoryRestoreButStillUninputs()
-    {
-        var dbName = Guid.NewGuid().ToString();
-        var options = CreateOptions(dbName);
-        var balanceId = Guid.NewGuid();
-        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
-
-        await using (var db = new BalancerDbContext(options))
-        {
-            db.ExperimentalBalanceLogs.Add(BuildLog(balanceId, metaTime));
-            db.ExperimentalSpecLogs.AddRange(
-                new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = U1, Cryomancer = U2 },
-                new ExperimentalSpecLog { BalanceId = balanceId, Aquamancer = U3, Berserker = U4 });
-            foreach (var u in new[] { U1, U2, U3, U4 })
-            {
-                db.ExperimentalSpecsWl.Add(new ExperimentalSpecsWl { Uuid = u });
-            }
-
-            await db.SaveChangesAsync();
-        }
-
-        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
-        var inputResult = await sut.InputAsync(balanceId, BuildValidZeroStatsBody(), CancellationToken.None);
-        Assert.True(inputResult.Success);
-        var badEcho = inputResult.Response! with { BalanceId = Guid.NewGuid() };
-
-        var uninput = await sut.UninputAsync(balanceId, badEcho, CancellationToken.None);
-        Assert.True(uninput.Success);
-        Assert.Equal(200, uninput.StatusCode);
-
-        await using (var verify = new BalancerDbContext(options))
-        {
-            Assert.False(verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId).Counted);
-            Assert.Equal(4, verify.AdjustmentDaily.Count());
-        }
-    }
-
-    [Fact]
-    public async Task UninputAsync_WhenEchoIsNotLatestLogBalance_SkipsTrajectoryRestore()
+    public async Task UninputAsync_WhenSecondBalanceWasInputLater_UninputFirstBalance_ReversesOneStep()
     {
         var dbName = Guid.NewGuid().ToString();
         var options = CreateOptions(dbName);
@@ -768,15 +737,16 @@ public class ExperimentalBalanceInputServiceTests
         var secondInput = await sut.InputAsync(secondBalanceId, BuildValidZeroStatsBody(), CancellationToken.None);
         Assert.True(secondInput.Success);
 
-        var uninput = await sut.UninputAsync(firstBalanceId, firstInput.Response, CancellationToken.None);
+        var uninput = await sut.UninputAsync(firstBalanceId, BuildValidZeroStatsBody(), CancellationToken.None);
         Assert.True(uninput.Success);
 
         await using (var verify = new BalancerDbContext(options))
         {
-            // Would be removed if restore ran using first input's old=null values.
             Assert.Equal(4, verify.AdjustmentDaily.Count());
-            Assert.Equal(2, verify.AdjustmentDaily.Single(x => x.Uuid == U1).Trajectory);
-            Assert.Equal(-2, verify.AdjustmentDaily.Single(x => x.Uuid == U3).Trajectory);
+            Assert.Equal(1, verify.AdjustmentDaily.Single(x => x.Uuid == U1).Trajectory);
+            Assert.Equal(-1, verify.AdjustmentDaily.Single(x => x.Uuid == U3).Trajectory);
+            Assert.False(verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == firstBalanceId).Counted);
+            Assert.True(verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == secondBalanceId).Counted);
         }
     }
 
@@ -803,7 +773,7 @@ public class ExperimentalBalanceInputServiceTests
         }
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
-        var result = await sut.UninputAsync(balanceId, null, CancellationToken.None);
+        var result = await sut.UninputAsync(balanceId, BuildValidZeroStatsBody(), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(409, result.StatusCode);
@@ -824,7 +794,7 @@ public class ExperimentalBalanceInputServiceTests
         }
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
-        var result = await sut.UninputAsync(balanceId, null, CancellationToken.None);
+        var result = await sut.UninputAsync(balanceId, BuildValidZeroStatsBody(), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(400, result.StatusCode);
@@ -845,7 +815,7 @@ public class ExperimentalBalanceInputServiceTests
         }
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
-        var result = await sut.UninputAsync(balanceId, null, CancellationToken.None);
+        var result = await sut.UninputAsync(balanceId, BuildValidZeroStatsBody(), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(400, result.StatusCode);
@@ -874,10 +844,11 @@ public class ExperimentalBalanceInputServiceTests
         }
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
-        Assert.True((await sut.InputAsync(balanceId, BuildValidZeroStatsBody(), CancellationToken.None)).Success);
-        Assert.True((await sut.UninputAsync(balanceId, null, CancellationToken.None)).Success);
+        var zero = BuildValidZeroStatsBody();
+        Assert.True((await sut.InputAsync(balanceId, zero, CancellationToken.None)).Success);
+        Assert.True((await sut.UninputAsync(balanceId, zero, CancellationToken.None)).Success);
 
-        var second = await sut.UninputAsync(balanceId, null, CancellationToken.None);
+        var second = await sut.UninputAsync(balanceId, zero, CancellationToken.None);
         Assert.False(second.Success);
         Assert.Equal(409, second.StatusCode);
     }
@@ -918,7 +889,7 @@ public class ExperimentalBalanceInputServiceTests
             await tamper.SaveChangesAsync();
         }
 
-        var uninput = await sut.UninputAsync(balanceId, null, CancellationToken.None);
+        var uninput = await sut.UninputAsync(balanceId, body, CancellationToken.None);
         Assert.False(uninput.Success);
         Assert.Equal(409, uninput.StatusCode);
 

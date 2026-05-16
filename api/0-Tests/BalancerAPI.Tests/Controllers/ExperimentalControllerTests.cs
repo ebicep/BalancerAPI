@@ -329,7 +329,7 @@ public class ExperimentalControllerTests
     public async Task UninputBalance_WhenServiceSucceeds_ReturnsOkWithBalanceId()
     {
         var input = new Mock<IExperimentalBalanceInputService>();
-        input.Setup(x => x.UninputAsync(TestBalanceId, It.IsAny<ExperimentalBalanceInputResponse?>(), It.IsAny<CancellationToken>()))
+        input.Setup(x => x.UninputAsync(TestBalanceId, It.IsAny<ExperimentalBalanceInputBody>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ExperimentalBalanceInputServiceResult(
                 true,
                 200,
@@ -339,11 +339,26 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, input: input.Object);
 
-        var result = await controller.UninputBalance(TestBalanceId, null, CancellationToken.None);
+        var body = new ExperimentalBalanceInputBody([], [], "aaaaaaaaaaaaaaaaaaaaaaaa");
+        var result = await controller.UninputBalance(TestBalanceId, body, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<ExperimentalBalanceInputResponse>(ok.Value);
         Assert.Equal(TestBalanceId, response.BalanceId);
+    }
+
+    [Fact]
+    public async Task UninputBalance_WhenBodyNull_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.UninputBalance(TestBalanceId, null, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status400BadRequest,
+            "Request body is required.");
     }
 
     [Fact]

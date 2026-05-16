@@ -5,7 +5,6 @@ using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 
 namespace BalancerAPI.Api.Controllers;
@@ -173,11 +172,17 @@ public class ExperimentalController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalBalanceInputResponse>> UninputBalance(
         Guid balanceId,
-        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)]
-        ExperimentalBalanceInputResponse? trajectoryEcho,
+        [FromBody] ExperimentalBalanceInputBody? body,
         CancellationToken cancellationToken)
     {
-        var result = await experimentalBalanceInputService.UninputAsync(balanceId, trajectoryEcho, cancellationToken);
+        if (body is null)
+        {
+            return Problem(
+                detail: "Request body is required.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var result = await experimentalBalanceInputService.UninputAsync(balanceId, body, cancellationToken);
         if (result.Success)
         {
             return Ok(result.Response!);

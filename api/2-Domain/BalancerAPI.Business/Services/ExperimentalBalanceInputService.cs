@@ -74,28 +74,25 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         }
 
         var roster = BuildRoster(ctx!);
-        var tracked = await LoadAdjustmentDailyTrackedAsync(db, roster, cancellationToken);
-        var trajectories = new Dictionary<Guid, (int? Old, int New)>();
-        foreach (var line in ctx!.Winners)
-        {
-            ApplyTrajectoryForOutcome(db, tracked, line.Uuid, won: true, trajectories);
-        }
-
-        foreach (var line in ctx.Losers)
-        {
-            ApplyTrajectoryForOutcome(db, tracked, line.Uuid, won: false, trajectories);
-        }
-
         var rosterList = roster.ToList();
         await SnapshotGuard.EnsureSpecsWlDailyAsync(db, rosterList, cancellationToken);
         await SnapshotGuard.EnsureSpecsWlWeeklyAsync(db, rosterList, cancellationToken);
         await SnapshotGuard.EnsureBaseWeightDailyAsync(db, rosterList, cancellationToken);
         await SnapshotGuard.EnsureBaseWeightWeeklyAsync(db, rosterList, cancellationToken);
 
-        var statsRows = await db.ExperimentalDailyStats
-            .Where(x => rosterList.Contains(x.Uuid))
-            .ToListAsync(cancellationToken);
-        var statsByUuid = statsRows.ToDictionary(x => x.Uuid);
+        var oldDailyStats = await LoadDailyStatsFromViewAsync(db, roster, cancellationToken);
+
+        var tracked = await LoadAdjustmentDailyTrackedAsync(db, roster, cancellationToken);
+        var trajectories = new Dictionary<Guid, (int? Old, int? New)>();
+        foreach (var line in ctx!.Winners)
+        {
+            ApplyInputTrajectoryStep(db, tracked, line.Uuid, won: true, trajectories);
+        }
+
+        foreach (var line in ctx.Losers)
+        {
+            ApplyInputTrajectoryStep(db, tracked, line.Uuid, won: false, trajectories);
+        }
 
         ApplyInputLines(ctx.Winners, ctx.WlByUuid, ctx.SpecByPlayer, ApplyWin);
         ApplyInputLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, ApplyLoss);
@@ -124,9 +121,11 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         });
 
         await db.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
 
-        var changeItems = BuildInputChangeItems(ctx!, trajectories, statsByUuid);
+        var newDailyStats = await LoadDailyStatsFromViewAsync(db, roster, cancellationToken);
+        var changeItems = BuildChangeItemsFromDailySnapshots(ctx!, trajectories, oldDailyStats, newDailyStats);
+
+        await tx.CommitAsync(cancellationToken);
         return new ExperimentalBalanceInputServiceResult(
             true,
             200,
@@ -136,9 +135,15 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
     public async Task<ExperimentalBalanceInputServiceResult> UninputAsync(
         Guid balanceId,
-        ExperimentalBalanceInputResponse? trajectoryEcho,
+        ExperimentalBalanceInputBody body,
         CancellationToken cancellationToken)
     {
+        var requestedGameId = ExperimentalBalanceLogGameIds.TryNormalize(body.GameId);
+        if (requestedGameId is null)
+        {
+            return Fail(400, "game_id must be a 24-character hexadecimal MongoDB ObjectId.");
+        }
+
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
@@ -167,10 +172,13 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return Fail(400, "No stored input to reverse.");
         }
 
-        ExperimentalBalanceInputBody? body;
         try
         {
-            body = JsonSerializer.Deserialize<ExperimentalBalanceInputBody>(log.Input, JsonOptions);
+            if (!StoredInputMatchesRequest(log.Input, body))
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return Fail(400, "Request body must match the stored input JSON for this balance.");
+            }
         }
         catch (JsonException)
         {
@@ -178,23 +186,10 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return Fail(400, "Stored input JSON is invalid.");
         }
 
-        if (body is null)
+        if (log.GameId is not null && log.GameId != requestedGameId)
         {
             await tx.RollbackAsync(cancellationToken);
-            return Fail(400, "Stored input JSON is invalid.");
-        }
-
-        var storedGameId = ExperimentalBalanceLogGameIds.TryNormalize(body.GameId);
-        if (storedGameId is null)
-        {
-            await tx.RollbackAsync(cancellationToken);
-            return Fail(400, "Stored input JSON has an invalid game_id.");
-        }
-
-        if (log.GameId is not null && log.GameId != storedGameId)
-        {
-            await tx.RollbackAsync(cancellationToken);
-            return Fail(400, "Stored input game_id does not match the balance log.");
+            return Fail(400, "game_id does not match the stored game for this balance.");
         }
 
         var (ctxError, ctx) = await TryBuildInputApplicationContextAsync(db, balanceId, log.Balance, body, cancellationToken);
@@ -206,47 +201,31 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
         var roster = BuildRoster(ctx!);
         var rosterList = roster.ToList();
-        var statsRows = await db.ExperimentalDailyStats
-            .Where(x => rosterList.Contains(x.Uuid))
-            .ToListAsync(cancellationToken);
-        var statsByUuid = statsRows.ToDictionary(x => x.Uuid);
+        await SnapshotGuard.EnsureSpecsWlDailyAsync(db, rosterList, cancellationToken);
 
-        var shouldTryTrajectoryRestore = trajectoryEcho?.Changes is { Count: > 0 };
-        var canApplyTrajectoryRestore = false;
-        IReadOnlyDictionary<Guid, ExperimentalBalanceChangeItem>? echoByUuid = null;
-        if (shouldTryTrajectoryRestore)
+        var oldDailyStats = await LoadDailyStatsFromViewAsync(db, roster, cancellationToken);
+
+        var tracked = await LoadAdjustmentDailyTrackedAsync(db, roster, cancellationToken);
+        var trajectories = new Dictionary<Guid, (int? Old, int? New)>();
+        foreach (var line in ctx!.Winners)
         {
-            // Only apply trajectory restoration for "latest undo" calls.
-            var latestInputLog = await db.ExperimentalInputLogs
-                .OrderByDescending(x => x.OccurredAt)
-                .ThenByDescending(x => x.Id)
-                .Select(x => x.BalanceId)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            canApplyTrajectoryRestore = trajectoryEcho!.BalanceId == balanceId && latestInputLog == balanceId;
-            if (canApplyTrajectoryRestore)
+            if (!TryUninputTrajectoryStep(db, tracked, line.Uuid, won: true, trajectories))
             {
-                var seenUuids = new HashSet<Guid>();
-                foreach (var item in trajectoryEcho.Changes!)
-                {
-                    if (!seenUuids.Add(item.Uuid))
-                    {
-                        await tx.RollbackAsync(cancellationToken);
-                        return Fail(400, "changes contains duplicate UUIDs.");
-                    }
-
-                    if (!roster.Contains(item.Uuid))
-                    {
-                        await tx.RollbackAsync(cancellationToken);
-                        return Fail(400, "changes contains a UUID not in this balance input.");
-                    }
-                }
-
-                echoByUuid = trajectoryEcho.Changes.ToDictionary(x => x.Uuid);
+                await tx.RollbackAsync(cancellationToken);
+                return Fail(409, "Cannot uninput; adjustment trajectories are inconsistent with the stored input.");
             }
         }
 
-        if (!TryApplyReverseLines(ctx!.Winners, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseWin)
+        foreach (var line in ctx.Losers)
+        {
+            if (!TryUninputTrajectoryStep(db, tracked, line.Uuid, won: false, trajectories))
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return Fail(409, "Cannot uninput; adjustment trajectories are inconsistent with the stored input.");
+            }
+        }
+
+        if (!TryApplyReverseLines(ctx.Winners, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseWin)
             || !TryApplyReverseLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseLoss))
         {
             await tx.RollbackAsync(cancellationToken);
@@ -255,41 +234,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
         log.Counted = false;
 
-        if (canApplyTrajectoryRestore)
-        {
-            var echoItems = trajectoryEcho!.Changes!;
-            var restoreUuids = echoItems.Select(x => x.Uuid).ToList();
-            var existingRows = await db.AdjustmentDaily
-                .Where(x => restoreUuids.Contains(x.Uuid))
-                .ToDictionaryAsync(x => x.Uuid, cancellationToken);
-
-            foreach (var item in echoItems)
-            {
-                existingRows.TryGetValue(item.Uuid, out var row);
-                if (!item.OldTrajectory.HasValue)
-                {
-                    if (row is not null)
-                    {
-                        db.AdjustmentDaily.Remove(row);
-                    }
-                }
-                else
-                {
-                    if (row is null)
-                    {
-                        var entity = new AdjustmentDaily { Uuid = item.Uuid, Trajectory = item.OldTrajectory.Value };
-                        db.AdjustmentDaily.Add(entity);
-                        existingRows[item.Uuid] = entity;
-                    }
-                    else
-                    {
-                        row.Trajectory = item.OldTrajectory.Value;
-                    }
-                }
-            }
-        }
-
-        var auditGameId = log.GameId ?? storedGameId;
+        var auditGameId = log.GameId ?? requestedGameId;
         db.ExperimentalInputLogs.Add(new ExperimentalInputLog
         {
             BalanceId = balanceId,
@@ -299,9 +244,11 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         });
 
         await db.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
 
-        var changeItems = BuildUninputChangeItems(ctx!, statsByUuid, echoByUuid, canApplyTrajectoryRestore);
+        var newDailyStats = await LoadDailyStatsFromViewAsync(db, roster, cancellationToken);
+        var changeItems = BuildChangeItemsFromDailySnapshots(ctx!, trajectories, oldDailyStats, newDailyStats);
+
+        await tx.CommitAsync(cancellationToken);
         return new ExperimentalBalanceInputServiceResult(
             true,
             200,
@@ -500,27 +447,33 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
     private static ExperimentalBalanceInputServiceResult Fail(int status, string message) =>
         new(false, status, message, null);
 
+    private static async Task<Dictionary<Guid, (int Wins, int Losses, int Kills, int Deaths)>> LoadDailyStatsFromViewAsync(
+        BalancerDbContext db,
+        IReadOnlyCollection<Guid> roster,
+        CancellationToken cancellationToken)
+    {
+        var rows = await db.ExperimentalDailyStats
+            .Where(x => roster.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+        return rows.ToDictionary(x => x.Uuid, x => (x.Wins, x.Losses, x.Kills, x.Deaths));
+    }
+
     private static (int Wins, int Losses, int Kills, int Deaths) GetStatsOrZero(
-        IReadOnlyDictionary<Guid, ExperimentalDailyStats> statsByUuid,
-        Guid uuid)
-    {
-        if (statsByUuid.TryGetValue(uuid, out var row))
-        {
-            return (row.Wins, row.Losses, row.Kills, row.Deaths);
-        }
+        IReadOnlyDictionary<Guid, (int Wins, int Losses, int Kills, int Deaths)> statsByUuid,
+        Guid uuid) =>
+        statsByUuid.TryGetValue(uuid, out var row) ? row : (0, 0, 0, 0);
 
-        return (0, 0, 0, 0);
-    }
-
-    private static IReadOnlyList<ExperimentalBalanceChangeItem> BuildInputChangeItems(
+    private static IReadOnlyList<ExperimentalBalanceChangeItem> BuildChangeItemsFromDailySnapshots(
         InputApplicationContext ctx,
-        IReadOnlyDictionary<Guid, (int? Old, int New)> trajectories,
-        IReadOnlyDictionary<Guid, ExperimentalDailyStats> statsByUuid)
+        IReadOnlyDictionary<Guid, (int? Old, int? New)> trajectories,
+        IReadOnlyDictionary<Guid, (int Wins, int Losses, int Kills, int Deaths)> oldDailyStats,
+        IReadOnlyDictionary<Guid, (int Wins, int Losses, int Kills, int Deaths)> newDailyStats)
     {
         var items = new List<ExperimentalBalanceChangeItem>();
         foreach (var line in ctx.Winners)
         {
-            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(statsByUuid, line.Uuid);
+            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(oldDailyStats, line.Uuid);
+            var (newWins, newLosses, newKills, newDeaths) = GetStatsOrZero(newDailyStats, line.Uuid);
             var (oldT, newT) = trajectories[line.Uuid];
             items.Add(new ExperimentalBalanceChangeItem(
                 line.Uuid,
@@ -528,18 +481,19 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
                 oldT,
                 newT,
                 oldWins,
-                oldWins + 1,
+                newWins,
                 oldLosses,
-                oldLosses,
+                newLosses,
                 oldKills,
-                oldKills + line.Kills,
+                newKills,
                 oldDeaths,
-                oldDeaths + line.Deaths));
+                newDeaths));
         }
 
         foreach (var line in ctx.Losers)
         {
-            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(statsByUuid, line.Uuid);
+            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(oldDailyStats, line.Uuid);
+            var (newWins, newLosses, newKills, newDeaths) = GetStatsOrZero(newDailyStats, line.Uuid);
             var (oldT, newT) = trajectories[line.Uuid];
             items.Add(new ExperimentalBalanceChangeItem(
                 line.Uuid,
@@ -547,75 +501,13 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
                 oldT,
                 newT,
                 oldWins,
-                oldWins,
+                newWins,
                 oldLosses,
-                oldLosses + 1,
+                newLosses,
                 oldKills,
-                oldKills + line.Kills,
+                newKills,
                 oldDeaths,
-                oldDeaths + line.Deaths));
-        }
-
-        return items.OrderBy(x => x.Uuid).ToList();
-    }
-
-    private static IReadOnlyList<ExperimentalBalanceChangeItem> BuildUninputChangeItems(
-        InputApplicationContext ctx,
-        IReadOnlyDictionary<Guid, ExperimentalDailyStats> statsByUuid,
-        IReadOnlyDictionary<Guid, ExperimentalBalanceChangeItem>? echoByUuid,
-        bool canApplyTrajectoryRestore)
-    {
-        var items = new List<ExperimentalBalanceChangeItem>();
-        foreach (var line in ctx.Winners)
-        {
-            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(statsByUuid, line.Uuid);
-            int? oldTrajectory = null;
-            int? newTrajectory = null;
-            if (canApplyTrajectoryRestore && echoByUuid!.TryGetValue(line.Uuid, out var echo))
-            {
-                oldTrajectory = echo.NewTrajectory;
-                newTrajectory = echo.OldTrajectory;
-            }
-
-            items.Add(new ExperimentalBalanceChangeItem(
-                line.Uuid,
-                line.Name,
-                oldTrajectory,
-                newTrajectory,
-                oldWins,
-                oldWins - 1,
-                oldLosses,
-                oldLosses,
-                oldKills,
-                oldKills - line.Kills,
-                oldDeaths,
-                oldDeaths - line.Deaths));
-        }
-
-        foreach (var line in ctx.Losers)
-        {
-            var (oldWins, oldLosses, oldKills, oldDeaths) = GetStatsOrZero(statsByUuid, line.Uuid);
-            int? oldTrajectory = null;
-            int? newTrajectory = null;
-            if (canApplyTrajectoryRestore && echoByUuid!.TryGetValue(line.Uuid, out var echo))
-            {
-                oldTrajectory = echo.NewTrajectory;
-                newTrajectory = echo.OldTrajectory;
-            }
-
-            items.Add(new ExperimentalBalanceChangeItem(
-                line.Uuid,
-                line.Name,
-                oldTrajectory,
-                newTrajectory,
-                oldWins,
-                oldWins,
-                oldLosses,
-                oldLosses - 1,
-                oldKills,
-                oldKills - line.Kills,
-                oldDeaths,
-                oldDeaths - line.Deaths));
+                newDeaths));
         }
 
         return items.OrderBy(x => x.Uuid).ToList();
@@ -664,12 +556,12 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         return current is < 0 ? current.Value - 1 : -1;
     }
 
-    private static void ApplyTrajectoryForOutcome(
+    private static void ApplyInputTrajectoryStep(
         BalancerDbContext db,
         Dictionary<Guid, AdjustmentDaily?> tracked,
         Guid uuid,
         bool won,
-        Dictionary<Guid, (int? Old, int New)> trajectories)
+        Dictionary<Guid, (int? Old, int? New)> trajectories)
     {
         var row = tracked[uuid];
         int? oldT = row?.Trajectory;
@@ -686,6 +578,60 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         }
 
         trajectories[uuid] = (oldT, next);
+    }
+
+    private static bool TryUninputTrajectoryStep(
+        BalancerDbContext db,
+        Dictionary<Guid, AdjustmentDaily?> tracked,
+        Guid uuid,
+        bool won,
+        Dictionary<Guid, (int? Old, int? New)> trajectories)
+    {
+        var row = tracked[uuid];
+        if (row is null)
+        {
+            return false;
+        }
+
+        var oldT = row.Trajectory;
+        if (won)
+        {
+            if (oldT < 1)
+            {
+                return false;
+            }
+
+            if (oldT > 1)
+            {
+                var newT = oldT - 1;
+                row.Trajectory = newT;
+                trajectories[uuid] = (oldT, newT);
+                return true;
+            }
+
+            db.AdjustmentDaily.Remove(row);
+            tracked[uuid] = null;
+            trajectories[uuid] = (oldT, null);
+            return true;
+        }
+
+        if (oldT > -1)
+        {
+            return false;
+        }
+
+        if (oldT < -1)
+        {
+            var newT = oldT + 1;
+            row.Trajectory = newT;
+            trajectories[uuid] = (oldT, newT);
+            return true;
+        }
+
+        db.AdjustmentDaily.Remove(row);
+        tracked[uuid] = null;
+        trajectories[uuid] = (oldT, null);
+        return true;
     }
 
     private static bool StoredInputMatchesRequest(string storedJson, ExperimentalBalanceInputBody body)

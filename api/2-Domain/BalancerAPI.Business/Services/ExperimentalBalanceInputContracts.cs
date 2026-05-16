@@ -11,7 +11,7 @@ public interface IExperimentalBalanceInputService
 
     Task<ExperimentalBalanceInputServiceResult> UninputAsync(
         Guid balanceId,
-        ExperimentalBalanceInputResponse? trajectoryEcho,
+        ExperimentalBalanceInputBody body,
         CancellationToken cancellationToken);
 
     Task<ExperimentalBalanceInputServiceResult> ClearInputAsync(Guid balanceId, CancellationToken cancellationToken);
@@ -40,8 +40,7 @@ public sealed record ExperimentalBalanceInputPlayerLine(
 
 /// <summary>
 /// One player's before/after snapshot for the input or uninput response.
-/// On successful <c>input</c>, trajectory and daily W/L/K/D reflect state before and after applying that input.
-/// On successful <c>uninput</c>, trajectory fields are populated only when trajectory echo restore was applied; W/L/K/D always reflect reversal.
+/// On successful <c>input</c> or <c>uninput</c>, trajectory and daily W/L/K/D reflect state before and after applying that operation.
 /// </summary>
 public sealed record ExperimentalBalanceChangeItem(
     [property: JsonPropertyName("uuid")] Guid Uuid,
@@ -59,7 +58,6 @@ public sealed record ExperimentalBalanceChangeItem(
 
 /// <summary>
 /// Returned from successful <c>input</c> or <c>uninput</c> with per-player <see cref="Changes"/>.
-/// For <c>input</c>, may be echoed as the optional body of <c>uninput</c> to restore <c>adjustment_daily</c> from each player's <see cref="ExperimentalBalanceChangeItem.OldTrajectory"/>.
 /// </summary>
 public sealed record ExperimentalBalanceInputResponse(
     [property: JsonPropertyName("balance_id")] Guid BalanceId,
