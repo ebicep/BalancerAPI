@@ -36,6 +36,22 @@ public class ExperimentalController(
         return Ok(result.Data);
     }
 
+    [HttpPost("logs/truncate")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalLogsTruncate)]
+    [ProducesResponseType(typeof(ExperimentalSpecLogsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ExperimentalSpecLogsResponse>> TruncateLogs(CancellationToken cancellationToken)
+    {
+        var result = await experimentalSpecLogsService.TruncateAsync(cancellationToken);
+        if (!result.Success)
+        {
+            return Problem(detail: result.Message, statusCode: result.StatusCode);
+        }
+
+        return Ok(result.Data);
+    }
+
     [HttpGet("spec-weights/{uuid:guid}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]

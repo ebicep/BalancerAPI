@@ -544,6 +544,142 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task TruncateLogs_WhenEmpty_ReturnsZeroCountAndAllSpecKeys()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+
+        var result = await controller.TruncateLogs(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(0, body.Count);
+        Assert.Equal(18, body.Log.Count);
+        Assert.All(body.Log.Values, names => Assert.Empty(names));
+        Assert.Empty(db.ExperimentalSpecLogs);
+    }
+
+    [Fact]
+    public async Task TruncateLogs_WhenTwentyRows_RemovesEightOldest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var names = new List<PlayerName>();
+        var balanceLogs = new List<ExperimentalBalanceLog>();
+        var specLogs = new List<ExperimentalSpecLog>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            var balanceId = Guid.Parse($"10000000-0000-0000-0000-{i:D12}");
+            var uuid1 = Guid.Parse($"20000000-0000-0000-0000-{i * 2:D12}");
+            var uuid2 = Guid.Parse($"20000000-0000-0000-0001-{i * 2:D12}");
+            names.Add(new PlayerName { Uuid = uuid1, Name = $"p{i}a", PreviousNames = [] });
+            names.Add(new PlayerName { Uuid = uuid2, Name = $"p{i}b", PreviousNames = [] });
+            balanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            specLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid1 });
+            specLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Cryomancer = uuid2 });
+        }
+
+        db.Names.AddRange(names);
+        db.ExperimentalBalanceLogs.AddRange(balanceLogs);
+        db.ExperimentalSpecLogs.AddRange(specLogs);
+        await db.SaveChangesAsync();
+
+        var result = await controller.TruncateLogs(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(8, body.Count);
+        Assert.Equal(["p0a", "p1a", "p2a", "p3a"], body.Log["pyromancer"]);
+        Assert.Equal(["p0b", "p1b", "p2b", "p3b"], body.Log["cryomancer"]);
+        Assert.Equal(12, await db.ExperimentalSpecLogs.CountAsync());
+        var remainingPyro = await db.ExperimentalSpecLogs
+            .Where(x => x.Pyromancer != null)
+            .Join(db.Names, x => x.Pyromancer, n => n.Uuid, (_, n) => n.Name)
+            .OrderBy(x => x)
+            .ToListAsync();
+        Assert.Equal(["p4a", "p5a", "p6a", "p7a", "p8a", "p9a"], remainingPyro);
+    }
+
+    [Fact]
+    public async Task TruncateLogs_WhenFiveRows_RemovesTwoOldest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var balanceId = Guid.Parse($"30000000-0000-0000-0000-{i:D12}");
+            var uuid = Guid.Parse($"40000000-0000-0000-0000-{i:D12}");
+            db.Names.Add(new PlayerName { Uuid = uuid, Name = $"r{i}", PreviousNames = [] });
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid });
+        }
+
+        await db.SaveChangesAsync();
+
+        var result = await controller.TruncateLogs(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(2, body.Count);
+        Assert.Equal(["r0", "r1"], body.Log["pyromancer"]);
+        Assert.Equal(3, await db.ExperimentalSpecLogs.CountAsync());
+    }
+
+    [Fact]
+    public async Task TruncateLogs_WhenMissingNameOnRemovedRow_ReturnsInternalServerError()
+    {
+        var unknownUuid = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var balanceId = Guid.Parse($"50000000-0000-0000-0000-{i:D12}");
+            var uuid = i == 0 ? unknownUuid : Guid.Parse($"60000000-0000-0000-0000-{i:D12}");
+            if (i > 0)
+            {
+                db.Names.Add(new PlayerName { Uuid = uuid, Name = $"s{i}", PreviousNames = [] });
+            }
+
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid });
+        }
+
+        await db.SaveChangesAsync();
+
+        var result = await controller.TruncateLogs(CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status500InternalServerError,
+            $"No name found for player {unknownUuid}.");
+        Assert.Equal(5, await db.ExperimentalSpecLogs.CountAsync());
+    }
+
+    [Fact]
     public async Task GenerateInputBalance_WhenBalanceNotTwoTeams_ReturnsBadRequest()
     {
         var teams = new List<ExperimentalBalanceTeam>
