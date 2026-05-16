@@ -56,6 +56,10 @@ public sealed class AdjustmentAutoDailyService(BalancerDbContext dbContext) : IA
                 newTrajectory));
         }
 
+        var uuids = rows.Select(r => r.Adjustment.Uuid).ToList();
+        await SnapshotGuard.EnsureBaseWeightDailyAsync(dbContext, uuids, cancellationToken);
+        await SnapshotGuard.EnsureBaseWeightWeeklyAsync(dbContext, uuids, cancellationToken);
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new AdjustmentAutoDailyResponse(adjusted.Count, adjusted);

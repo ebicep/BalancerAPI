@@ -61,6 +61,8 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
             NewWeight = response.NewWeight,
             Date = recordedAt
         });
+        await SnapshotGuard.EnsureBaseWeightDailyAsync(dbContext, [uuid], cancellationToken);
+        await SnapshotGuard.EnsureBaseWeightWeeklyAsync(dbContext, [uuid], cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return ManualWeightAdjustServiceResult<ManualBaseAdjustResponse>.Ok(response);
@@ -143,6 +145,7 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
             NewSpecWeight = response.NewSpecWeight,
             Date = recordedAt
         });
+        await SnapshotGuard.EnsureSpecWeightsWeeklyAsync(dbContext, [uuid], cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return ManualWeightAdjustServiceResult<ManualSpecAdjustResponse>.Ok(response);
