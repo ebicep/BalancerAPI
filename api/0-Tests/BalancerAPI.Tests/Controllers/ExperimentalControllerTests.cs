@@ -771,6 +771,93 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task ClearLogs_WhenEmpty_ReturnsZeroCountAndAllSpecKeys()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+
+        var result = await controller.ClearLogs(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(0, body.Count);
+        Assert.Equal(18, body.Log.Count);
+        Assert.All(body.Log.Values, names => Assert.Empty(names));
+        Assert.Empty(db.ExperimentalSpecLogs);
+    }
+
+    [Fact]
+    public async Task ClearLogs_WhenFiveRows_RemovesAllFive()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var balanceId = Guid.Parse($"30000000-0000-0000-0000-{i:D12}");
+            var uuid = Guid.Parse($"40000000-0000-0000-0000-{i:D12}");
+            db.Names.Add(new PlayerName { Uuid = uuid, Name = $"r{i}", PreviousNames = [] });
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid });
+        }
+
+        await db.SaveChangesAsync();
+
+        var result = await controller.ClearLogs(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(5, body.Count);
+        Assert.Equal(["r0", "r1", "r2", "r3", "r4"], body.Log["pyromancer"]);
+        Assert.Empty(db.ExperimentalSpecLogs);
+    }
+
+    [Fact]
+    public async Task ClearLogs_WhenMissingNameOnRow_ReturnsInternalServerError()
+    {
+        var unknownUuid = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var balanceId = Guid.Parse($"50000000-0000-0000-0000-{i:D12}");
+            var uuid = i == 0 ? unknownUuid : Guid.Parse($"60000000-0000-0000-0000-{i:D12}");
+            if (i > 0)
+            {
+                db.Names.Add(new PlayerName { Uuid = uuid, Name = $"s{i}", PreviousNames = [] });
+            }
+
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid });
+        }
+
+        await db.SaveChangesAsync();
+
+        var result = await controller.ClearLogs(CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status500InternalServerError,
+            $"No name found for player {unknownUuid}.");
+        Assert.Equal(5, await db.ExperimentalSpecLogs.CountAsync());
+    }
+
+    [Fact]
     public async Task GenerateInputBalance_WhenBalanceNotTwoTeams_ReturnsBadRequest()
     {
         var teams = new List<ExperimentalBalanceTeam>

@@ -41,6 +41,31 @@ public sealed class ExperimentalSpecLogsService(IDbContextFactory<BalancerDbCont
         return buildResult;
     }
 
+    public async Task<ExperimentalSpecLogsResult> ClearAsync(CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var rows = await LoadOrderedRowsAsync(db, trackChanges: true, cancellationToken);
+        var removed = rows;
+
+        var buildResult = await BuildResponseAsync(removed, db, cancellationToken);
+        if (!buildResult.Success)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return buildResult;
+        }
+
+        if (removed.Count > 0)
+        {
+            db.ExperimentalSpecLogs.RemoveRange(removed);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        await tx.CommitAsync(cancellationToken);
+        return buildResult;
+    }
+
     private static int ComputeRemoveCount(int total)
     {
         if (total <= 0)

@@ -16,6 +16,7 @@ public static class ApiPermissions
     public const string ExperimentalConfirm = "experimental.confirm";
     public const string ExperimentalInput = "experimental.input";
     public const string ExperimentalLogsTruncate = "experimental.logs.truncate";
+    public const string ExperimentalLogsClear = "experimental.logs.clear";
 
     public const string AdjustAuto = "adjust.auto";
     public const string AdjustManual = "adjust.manual";
@@ -33,6 +34,7 @@ public static class ApiPermissions
         ExperimentalConfirm,
         ExperimentalInput,
         ExperimentalLogsTruncate,
+        ExperimentalLogsClear,
         AdjustAuto,
         AdjustManual,
         PlayersAdd
