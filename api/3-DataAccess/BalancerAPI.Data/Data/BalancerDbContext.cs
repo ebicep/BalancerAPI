@@ -34,6 +34,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
     public DbSet<ExperimentalSpecsWlCurrentDay> ExperimentalSpecsWlCurrentDay => Set<ExperimentalSpecsWlCurrentDay>();
     public DbSet<ExperimentalDailyStats> ExperimentalDailyStats => Set<ExperimentalDailyStats>();
+    public DbSet<ExperimentalWeeklyStats> ExperimentalWeeklyStats => Set<ExperimentalWeeklyStats>();
     public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
     public DbSet<ExperimentalBalanceLog> ExperimentalBalanceLogs => Set<ExperimentalBalanceLog>();
     public DbSet<ExperimentalInputLog> ExperimentalInputLogs => Set<ExperimentalInputLog>();
@@ -69,6 +70,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureCurrentWeekView(modelBuilder);
         ConfigureCurrentDayView(modelBuilder);
         ConfigureExperimentalDailyStatsView(modelBuilder);
+        ConfigureExperimentalWeeklyStatsView(modelBuilder);
         ConfigureBalancePlayerDataView(modelBuilder);
         ConfigureExperimentalBalanceLog(modelBuilder);
         ConfigureExperimentalInputLog(modelBuilder);
@@ -555,6 +557,20 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.HasNoKey();
             entity.ToView("experimental_daily_stats");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Wins).HasColumnName("wins");
+            entity.Property(e => e.Losses).HasColumnName("losses");
+            entity.Property(e => e.Kills).HasColumnName("kills");
+            entity.Property(e => e.Deaths).HasColumnName("deaths");
+        });
+    }
+
+    private static void ConfigureExperimentalWeeklyStatsView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalWeeklyStats>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_weekly_stats");
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Wins).HasColumnName("wins");
             entity.Property(e => e.Losses).HasColumnName("losses");
