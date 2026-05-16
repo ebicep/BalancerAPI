@@ -65,7 +65,7 @@ public class ExperimentalControllerTests
 
         var controller = CreateController(service.Object);
 
-        var result = await controller.GetSpecWeights(TestUuid, CancellationToken.None);
+        var result = await controller.GetSpecWeights(TestUuid.ToString(), CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<SpecWeightsResponse>(ok.Value);
@@ -81,12 +81,123 @@ public class ExperimentalControllerTests
 
         var controller = CreateController(service.Object);
 
-        var result = await controller.GetSpecWeights(TestUuid, CancellationToken.None);
+        var result = await controller.GetSpecWeights(TestUuid.ToString(), CancellationToken.None);
 
         AssertProblem(
             result.Result!,
             StatusCodes.Status404NotFound,
             "The requested resource was not found.");
+    }
+
+    [Fact]
+    public async Task GetSpecWeights_WhenNameResolves_ReturnsOkWithPayload()
+    {
+        var expected = new SpecWeightsResponse(
+            Pyromancer: 100,
+            Cryomancer: 101,
+            Aquamancer: 102,
+            Berserker: 103,
+            Defender: 104,
+            Revenant: 105,
+            Avenger: 106,
+            Crusader: 107,
+            Protector: 108,
+            Thunderlord: 109,
+            Spiritguard: 110,
+            Earthwarden: 111,
+            Assassin: 112,
+            Vindicator: 113,
+            Apothecary: 114,
+            Conjurer: 115,
+            Sentinel: 116,
+            Luminary: 117);
+
+        await using var db = CreateDbContext();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var service = new Mock<ISpecWeightsService>();
+        service.Setup(x => x.GetCombinedAsync(TestUuid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var controller = CreateController(service.Object, dbContext: db);
+
+        var result = await controller.GetSpecWeights("alpha", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<SpecWeightsResponse>(ok.Value);
+        Assert.Equal(expected, response);
+        service.Verify(x => x.GetCombinedAsync(TestUuid, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetSpecWeights_WhenNameNotFound_ReturnsBadRequest()
+    {
+        var service = new Mock<ISpecWeightsService>();
+        var controller = CreateController(service.Object);
+
+        var result = await controller.GetSpecWeights("does-not-exist", CancellationToken.None);
+
+        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
+        service.Verify(x => x.GetCombinedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetSpecWeights_WhenNameAmbiguous_ReturnsConflict()
+    {
+        await using var db = CreateDbContext();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var service = new Mock<ISpecWeightsService>();
+        var controller = CreateController(service.Object, dbContext: db);
+
+        var result = await controller.GetSpecWeights("alpha", CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status409Conflict,
+            "One or more player names are ambiguous in names table: alpha.");
+        service.Verify(x => x.GetCombinedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetSpecWeights_WhenUuidStringWithoutNamesRow_CallsServiceWithUuid()
+    {
+        var expected = new SpecWeightsResponse(
+            Pyromancer: 100,
+            Cryomancer: 101,
+            Aquamancer: 102,
+            Berserker: 103,
+            Defender: 104,
+            Revenant: 105,
+            Avenger: 106,
+            Crusader: 107,
+            Protector: 108,
+            Thunderlord: 109,
+            Spiritguard: 110,
+            Earthwarden: 111,
+            Assassin: 112,
+            Vindicator: 113,
+            Apothecary: 114,
+            Conjurer: 115,
+            Sentinel: 116,
+            Luminary: 117);
+
+        var service = new Mock<ISpecWeightsService>();
+        service.Setup(x => x.GetCombinedAsync(TestUuid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var controller = CreateController(service.Object);
+
+        var result = await controller.GetSpecWeights(TestUuid.ToString(), CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.IsType<SpecWeightsResponse>(ok.Value);
+        service.Verify(x => x.GetCombinedAsync(TestUuid, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

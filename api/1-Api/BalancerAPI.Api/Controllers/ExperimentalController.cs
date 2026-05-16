@@ -68,14 +68,24 @@ public class ExperimentalController(
         return Ok(result.Data);
     }
 
-    [HttpGet("spec-weights/{uuid:guid}")]
+    [HttpGet("spec-weights/{nameOrUuid}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]
     [ProducesResponseType(typeof(SpecWeightsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<SpecWeightsResponse>> GetSpecWeights(Guid uuid, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<SpecWeightsResponse>> GetSpecWeights(
+        string nameOrUuid,
+        CancellationToken cancellationToken)
     {
-        var result = await specWeightsService.GetCombinedAsync(uuid, cancellationToken);
+        var resolved = await ResolvePlayerUuidFromNameOrUuidAsync(nameOrUuid, cancellationToken);
+        if (!resolved.Success)
+        {
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        var result = await specWeightsService.GetCombinedAsync(resolved.Uuid!.Value, cancellationToken);
         if (result is null)
         {
             return Problem(
@@ -370,6 +380,24 @@ public class ExperimentalController(
         }
 
         return ResolvePlayersResult.Ok(finalUuids);
+    }
+
+    private async Task<ResolveNameResult> ResolvePlayerUuidFromNameOrUuidAsync(
+        string nameOrUuid,
+        CancellationToken cancellationToken)
+    {
+        var trimmed = nameOrUuid.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return ResolveNameResult.Fail(400, "nameOrUuid must not be empty.");
+        }
+
+        if (Guid.TryParse(trimmed, out var uuid))
+        {
+            return ResolveNameResult.Ok(uuid);
+        }
+
+        return await ResolvePlayerUuidFromNameAsync(trimmed, cancellationToken);
     }
 
     private async Task<ResolveNameResult> ResolvePlayerUuidFromNameAsync(
