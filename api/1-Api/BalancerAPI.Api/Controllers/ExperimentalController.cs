@@ -70,6 +70,33 @@ public class ExperimentalController(
         return Ok(result);
     }
 
+    [HttpGet("daily/{name}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalDailyStatsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalDailyStatsResponse>> GetDaily(
+        string name,
+        CancellationToken cancellationToken)
+    {
+        var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
+        if (!resolved.Success)
+        {
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        var row = await dbContext.ExperimentalDailyStats
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Uuid == resolved.Uuid, cancellationToken);
+
+        return Ok(new ExperimentalDailyStatsResponse(
+            row?.Wins ?? 0,
+            row?.Losses ?? 0,
+            row?.Kills ?? 0,
+            row?.Deaths ?? 0));
+    }
+
     [HttpPost("balance")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalBalance)]
@@ -329,6 +356,47 @@ public class ExperimentalController(
         return ResolvePlayersResult.Ok(finalUuids);
     }
 
+    private async Task<ResolveNameResult> ResolvePlayerUuidFromNameAsync(
+        string name,
+        CancellationToken cancellationToken)
+    {
+        var trimmed = name.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return ResolveNameResult.Fail(400, "name must not be empty.");
+        }
+
+        var normalized = trimmed.ToLowerInvariant();
+        var uuids = await dbContext.Names
+            .AsNoTracking()
+            .Where(x => x.Name.ToLower() == normalized)
+            .Select(x => x.Uuid)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (uuids.Count == 0)
+        {
+            return ResolveNameResult.Fail(
+                400,
+                $"No matching UUID found in names table for: {trimmed}.");
+        }
+
+        if (uuids.Count > 1)
+        {
+            return ResolveNameResult.Fail(
+                409,
+                $"One or more player names are ambiguous in names table: {trimmed}.");
+        }
+
+        return ResolveNameResult.Ok(uuids[0]);
+    }
+
+    public sealed record ExperimentalDailyStatsResponse(
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
     public sealed record ExperimentalBalanceInputRequest(
         [property: JsonPropertyName("players")] IReadOnlyList<string> Players);
 
@@ -342,6 +410,15 @@ public class ExperimentalController(
             new(true, StatusCodes.Status200OK, null, uuids);
 
         public static ResolvePlayersResult Fail(int statusCode, string message) =>
+            new(false, statusCode, message, null);
+    }
+
+    private sealed record ResolveNameResult(bool Success, int StatusCode, string? Message, Guid? Uuid)
+    {
+        public static ResolveNameResult Ok(Guid uuid) =>
+            new(true, StatusCodes.Status200OK, null, uuid);
+
+        public static ResolveNameResult Fail(int statusCode, string message) =>
             new(false, statusCode, message, null);
     }
 }

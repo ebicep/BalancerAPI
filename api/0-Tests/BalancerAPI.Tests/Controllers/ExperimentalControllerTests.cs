@@ -90,6 +90,97 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task GetDaily_WhenNameNotFound_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetDaily("does-not-exist", CancellationToken.None);
+
+        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetDaily_WhenNameEmpty_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetDaily("   ", CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "name must not be empty.");
+    }
+
+    [Fact]
+    public async Task GetDaily_WhenNameAmbiguous_ReturnsConflict()
+    {
+        await using var db = CreateDbContext();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDaily("alpha", CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status409Conflict,
+            "One or more player names are ambiguous in names table: alpha.");
+    }
+
+    [Fact]
+    public async Task GetDaily_WhenNoDailyRow_ReturnsOkWithZeros()
+    {
+        await using var db = CreateDbContext();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDaily("alpha", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailyStatsResponse>(ok.Value);
+        Assert.Equal(0, body.Wins);
+        Assert.Equal(0, body.Losses);
+        Assert.Equal(0, body.Kills);
+        Assert.Equal(0, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetDaily_WhenRowExists_ReturnsOkWithStats()
+    {
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.ExperimentalDailyStats.Add(new ExperimentalDailyStats
+        {
+            Uuid = TestUuid,
+            Wins = 3,
+            Losses = 1,
+            Kills = 10,
+            Deaths = 4
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDaily("alpha", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailyStatsResponse>(ok.Value);
+        Assert.Equal(3, body.Wins);
+        Assert.Equal(1, body.Losses);
+        Assert.Equal(10, body.Kills);
+        Assert.Equal(4, body.Deaths);
+    }
+
+    [Fact]
     public async Task Balance_WhenValid_ReturnsOkWithPayload()
     {
         var now = new DateTime(2026, 3, 15, 20, 32, 0, DateTimeKind.Utc);
@@ -735,6 +826,30 @@ public class ExperimentalControllerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new BalancerDbContext(options);
+    }
+
+    private static BalancerDbContext CreateDbContextWithDailyStatsTable()
+    {
+        var options = new DbContextOptionsBuilder<BalancerDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new TestBalancerDbContextForDailyStats(options);
+    }
+
+    private sealed class TestBalancerDbContextForDailyStats(DbContextOptions<BalancerDbContext> options)
+        : BalancerDbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Ignore<ExperimentalDailyStats>();
+            modelBuilder.Entity<ExperimentalDailyStats>(entity =>
+            {
+                entity.ToTable("experimental_daily_stats_test");
+                entity.HasKey(x => x.Uuid);
+            });
+        }
     }
 
     private sealed class TestDbContextFactory(DbContextOptions<BalancerDbContext> options) : IDbContextFactory<BalancerDbContext>
