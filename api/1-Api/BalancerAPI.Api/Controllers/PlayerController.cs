@@ -11,8 +11,25 @@ namespace BalancerAPI.Api.Controllers;
 [Route("api/v{version:apiVersion}/[controller]")]
 public class PlayerController(
     IPlayerAddService playerAddService,
+    IPlayerGetService playerGetService,
     IPlayerDeleteService playerDeleteService) : ControllerBase
 {
+    [HttpGet("{uuid:guid}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.PlayersRead)]
+    [ProducesResponseType(typeof(PlayerGetResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PlayerGetResponse>> Get(Guid uuid, CancellationToken cancellationToken)
+    {
+        var (success, statusCode, message, payload) = await playerGetService.GetAsync(uuid, cancellationToken);
+        if (!success || payload is null)
+        {
+            return Problem(detail: message, statusCode: statusCode);
+        }
+
+        return Ok(new PlayerGetResponse(payload.Name, payload.Uuid, payload.Data));
+    }
+
     [HttpPost("add")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.PlayersAdd)]
@@ -71,6 +88,11 @@ public sealed record PlayerAddResponse(
     string Name,
     Guid Uuid,
     string[] TablesAdded);
+
+public sealed record PlayerGetResponse(
+    string Name,
+    Guid Uuid,
+    IReadOnlyDictionary<string, object> Data);
 
 public sealed record PlayerDeleteResponse(
     string Name,

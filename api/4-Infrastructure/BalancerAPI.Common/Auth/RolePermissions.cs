@@ -21,13 +21,15 @@ public static class RolePermissions
                 ApiPermissions.AdjustAuto,
                 ApiPermissions.AdjustManual,
                 ApiPermissions.PlayersAdd,
+                ApiPermissions.PlayersRead,
                 ApiPermissions.PlayersDelete
             ],
             [ApiRoles.WebReadOnly] =
             [
                 ApiPermissions.TimeRead,
                 ApiPermissions.SettingsRead,
-                ApiPermissions.ExperimentalRead
+                ApiPermissions.ExperimentalRead,
+                ApiPermissions.PlayersRead
             ]
         };
 
