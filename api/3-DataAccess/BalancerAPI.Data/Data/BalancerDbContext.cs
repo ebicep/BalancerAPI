@@ -36,6 +36,8 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalDailyStats> ExperimentalDailyStats => Set<ExperimentalDailyStats>();
     public DbSet<ExperimentalSpecsWlDay> ExperimentalSpecsWlDay => Set<ExperimentalSpecsWlDay>();
     public DbSet<ExperimentalDailyStatsDay> ExperimentalDailyStatsDay => Set<ExperimentalDailyStatsDay>();
+    public DbSet<ExperimentalSpecsWlWeek> ExperimentalSpecsWlWeek => Set<ExperimentalSpecsWlWeek>();
+    public DbSet<ExperimentalWeeklyStatsWeek> ExperimentalWeeklyStatsWeek => Set<ExperimentalWeeklyStatsWeek>();
     public DbSet<ExperimentalWeeklyStats> ExperimentalWeeklyStats => Set<ExperimentalWeeklyStats>();
     public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
     public DbSet<ExperimentalBalanceLog> ExperimentalBalanceLogs => Set<ExperimentalBalanceLog>();
@@ -59,6 +61,21 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             .AsNoTracking()
             .FirstOrDefaultAsync(
                 x => x.DayStartDate == dayId && x.Uuid == playerUuid,
+                cancellationToken);
+    }
+
+    /// <summary>
+    /// Per-player W/L/K/D for a completed calendar week from <c>experimental_weekly_stats_week</c>.
+    /// </summary>
+    public virtual async Task<ExperimentalWeeklyStatsWeek?> GetExperimentalWeeklyStatsForWeekAsync(
+        int weekId,
+        Guid playerUuid,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExperimentalWeeklyStatsWeek
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.WeekStartDate == weekId && x.Uuid == playerUuid,
                 cancellationToken);
     }
 
@@ -89,6 +106,8 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureExperimentalDailyStatsView(modelBuilder);
         ConfigureExperimentalSpecsWlDayView(modelBuilder);
         ConfigureExperimentalDailyStatsDayView(modelBuilder);
+        ConfigureExperimentalSpecsWlWeekView(modelBuilder);
+        ConfigureExperimentalWeeklyStatsWeekView(modelBuilder);
         ConfigureExperimentalWeeklyStatsView(modelBuilder);
         ConfigureBalancePlayerDataView(modelBuilder);
         ConfigureExperimentalBalanceLog(modelBuilder);
@@ -603,6 +622,33 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.HasNoKey();
             entity.ToView("experimental_daily_stats_day");
             entity.Property(e => e.DayStartDate).HasColumnName("day_start_date");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Wins).HasColumnName("wins");
+            entity.Property(e => e.Losses).HasColumnName("losses");
+            entity.Property(e => e.Kills).HasColumnName("kills");
+            entity.Property(e => e.Deaths).HasColumnName("deaths");
+        });
+    }
+
+    private static void ConfigureExperimentalSpecsWlWeekView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlWeek>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_specs_wl_week");
+            entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            ConfigureWlColumns(entity);
+        });
+    }
+
+    private static void ConfigureExperimentalWeeklyStatsWeekView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalWeeklyStatsWeek>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_weekly_stats_week");
+            entity.Property(e => e.WeekStartDate).HasColumnName("week_start_date");
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Wins).HasColumnName("wins");
             entity.Property(e => e.Losses).HasColumnName("losses");
