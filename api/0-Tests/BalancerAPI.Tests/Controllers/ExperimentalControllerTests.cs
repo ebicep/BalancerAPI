@@ -934,6 +934,136 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task TruncateLogsLast_WhenEmpty_ReturnsZeroCountAndAllSpecKeys()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+
+        var result = await controller.TruncateLogsLast(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(0, body.Count);
+        Assert.Equal(18, body.Log.Count);
+        Assert.All(body.Log.Values, names => Assert.Empty(names));
+        Assert.Empty(db.ExperimentalSpecLogs);
+    }
+
+    [Fact]
+    public async Task TruncateLogsLast_WhenSixRows_RemovesTwoNewest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+        var names = new List<PlayerName>();
+        var balanceLogs = new List<ExperimentalBalanceLog>();
+        var specLogs = new List<ExperimentalSpecLog>();
+
+        for (var i = 0; i < 3; i++)
+        {
+            var balanceId = Guid.Parse($"70000000-0000-0000-0000-{i:D12}");
+            var uuid1 = Guid.Parse($"80000000-0000-0000-0000-{i * 2:D12}");
+            var uuid2 = Guid.Parse($"80000000-0000-0000-0001-{i * 2:D12}");
+            names.Add(new PlayerName { Uuid = uuid1, Name = $"t{i}a", PreviousNames = [] });
+            names.Add(new PlayerName { Uuid = uuid2, Name = $"t{i}b", PreviousNames = [] });
+            balanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            specLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid1 });
+            specLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Cryomancer = uuid2 });
+        }
+
+        db.Names.AddRange(names);
+        db.ExperimentalBalanceLogs.AddRange(balanceLogs);
+        db.ExperimentalSpecLogs.AddRange(specLogs);
+        await db.SaveChangesAsync();
+
+        var result = await controller.TruncateLogsLast(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(2, body.Count);
+        Assert.Equal(["t2a"], body.Log["pyromancer"]);
+        Assert.Equal(["t2b"], body.Log["cryomancer"]);
+        Assert.Equal(4, await db.ExperimentalSpecLogs.CountAsync());
+        var remainingPyro = await db.ExperimentalSpecLogs
+            .Where(x => x.Pyromancer != null)
+            .Join(db.Names, x => x.Pyromancer, n => n.Uuid, (_, n) => n.Name)
+            .OrderBy(x => x)
+            .ToListAsync();
+        Assert.Equal(["t0a", "t1a"], remainingPyro);
+    }
+
+    [Fact]
+    public async Task TruncateLogsLast_WhenOneRow_RemovesOne()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var balanceId = Guid.Parse("71000000-0000-0000-0000-000000000001");
+        var uuid = Guid.Parse("81000000-0000-0000-0000-000000000001");
+        db.Names.Add(new PlayerName { Uuid = uuid, Name = "solo", PreviousNames = [] });
+        db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+        {
+            BalanceId = balanceId,
+            Balance = "[]",
+            Meta = "{}",
+            CreatedAt = DateTime.UtcNow
+        });
+        db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid });
+        await db.SaveChangesAsync();
+
+        var result = await controller.TruncateLogsLast(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
+        Assert.Equal(1, body.Count);
+        Assert.Equal(["solo"], body.Log["pyromancer"]);
+        Assert.Empty(db.ExperimentalSpecLogs);
+    }
+
+    [Fact]
+    public async Task TruncateLogsLast_WhenMissingNameOnRemovedRow_ReturnsInternalServerError()
+    {
+        var unknownUuid = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var balanceId = Guid.Parse($"72000000-0000-0000-0000-{i:D12}");
+            var uuid = i == 4 ? unknownUuid : Guid.Parse($"82000000-0000-0000-0000-{i:D12}");
+            if (i < 4)
+            {
+                db.Names.Add(new PlayerName { Uuid = uuid, Name = $"u{i}", PreviousNames = [] });
+            }
+
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid });
+        }
+
+        await db.SaveChangesAsync();
+
+        var result = await controller.TruncateLogsLast(CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status500InternalServerError,
+            $"No name found for player {unknownUuid}.");
+        Assert.Equal(5, await db.ExperimentalSpecLogs.CountAsync());
+    }
+
+    [Fact]
     public async Task ClearLogs_WhenEmpty_ReturnsZeroCountAndAllSpecKeys()
     {
         var specWeights = new Mock<ISpecWeightsService>();

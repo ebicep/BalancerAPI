@@ -53,6 +53,22 @@ public class ExperimentalController(
         return Ok(result.Data);
     }
 
+    [HttpPost("logs/truncate-last")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalLogsTruncate)]
+    [ProducesResponseType(typeof(ExperimentalSpecLogsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ExperimentalSpecLogsResponse>> TruncateLogsLast(CancellationToken cancellationToken)
+    {
+        var result = await experimentalSpecLogsService.TruncateLastAsync(cancellationToken);
+        if (!result.Success)
+        {
+            return Problem(detail: result.Message, statusCode: result.StatusCode);
+        }
+
+        return Ok(result.Data);
+    }
+
     [HttpPost("logs/clear")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalLogsClear)]

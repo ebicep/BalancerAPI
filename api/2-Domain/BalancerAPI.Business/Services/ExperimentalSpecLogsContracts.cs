@@ -6,6 +6,8 @@ public interface IExperimentalSpecLogsService
 
     Task<ExperimentalSpecLogsResult> TruncateAsync(CancellationToken cancellationToken);
 
+    Task<ExperimentalSpecLogsResult> TruncateLastAsync(CancellationToken cancellationToken);
+
     Task<ExperimentalSpecLogsResult> ClearAsync(CancellationToken cancellationToken);
 }
 
