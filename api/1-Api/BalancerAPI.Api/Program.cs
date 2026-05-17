@@ -80,6 +80,7 @@ builder.Services.AddDbContextFactory<BalancerDbContext>(
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<BalancerDbContext>(name: "database");
 builder.Services.AddScoped<ISpecWeightsService, SpecWeightsService>();
+builder.Services.AddScoped<ISpecWeightLeaderboardService, SpecWeightLeaderboardService>();
 builder.Services.AddScoped<IExperimentalBalanceService, ExperimentalBalanceService>();
 builder.Services.AddScoped<IExperimentalBalanceConfirmService, ExperimentalBalanceConfirmService>();
 builder.Services.AddScoped<IExperimentalBalanceInputService, ExperimentalBalanceInputService>();

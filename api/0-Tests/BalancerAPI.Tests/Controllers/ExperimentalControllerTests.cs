@@ -22,18 +22,70 @@ public class ExperimentalControllerTests
 
     private static ExperimentalController CreateController(
         ISpecWeightsService specWeights,
+        ISpecWeightLeaderboardService? leaderboard = null,
         IExperimentalBalanceService? balance = null,
         IExperimentalBalanceConfirmService? confirm = null,
         IExperimentalBalanceInputService? input = null,
         IExperimentalSpecLogsService? specLogs = null,
         BalancerDbContext? dbContext = null)
     {
+        var lb = leaderboard ?? Mock.Of<ISpecWeightLeaderboardService>();
         var b = balance ?? Mock.Of<IExperimentalBalanceService>();
         var c = confirm ?? Mock.Of<IExperimentalBalanceConfirmService>();
         var i = input ?? Mock.Of<IExperimentalBalanceInputService>();
         var sl = specLogs ?? Mock.Of<IExperimentalSpecLogsService>();
         var db = dbContext ?? CreateDbContext();
-        return new ExperimentalController(specWeights, b, c, i, sl, db);
+        return new ExperimentalController(specWeights, lb, b, c, i, sl, db);
+    }
+
+    [Fact]
+    public async Task GetSpecWeightLeaderboard_WhenValid_ReturnsOkAndForwardsQueryParams()
+    {
+        var expected = new Dictionary<string, IReadOnlyList<SpecWeightLeaderboardEntry>>
+        {
+            ["pyromancer"] =
+            [
+                new SpecWeightLeaderboardEntry
+                {
+                    Uuid = TestUuid.ToString(),
+                    Name = "alpha",
+                    SpecWeight = 142
+                }
+            ]
+        };
+
+        var leaderboard = new Mock<ISpecWeightLeaderboardService>();
+        leaderboard.Setup(x => x.GetLeaderboardAsync(2, 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), leaderboard.Object);
+
+        var result = await controller.GetSpecWeightLeaderboard(2, 5, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<Dictionary<string, IReadOnlyList<SpecWeightLeaderboardEntry>>>(ok.Value);
+        Assert.Same(expected, response);
+        leaderboard.Verify(x => x.GetLeaderboardAsync(2, 5, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(0, 10, "page must be greater than or equal to 1.")]
+    [InlineData(1, 0, "pageSize must be between 1 and 100.")]
+    [InlineData(1, 101, "pageSize must be between 1 and 100.")]
+    public async Task GetSpecWeightLeaderboard_WhenInvalidQuery_ReturnsBadRequest(
+        int page,
+        int pageSize,
+        string expectedDetail)
+    {
+        var leaderboard = new Mock<ISpecWeightLeaderboardService>();
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), leaderboard.Object);
+
+        var result = await controller.GetSpecWeightLeaderboard(page, pageSize, CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, expectedDetail);
+        leaderboard.Verify(
+            x => x.GetLeaderboardAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -342,7 +394,7 @@ public class ExperimentalControllerTests
             new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] },
             new PlayerName { Uuid = U4, Name = "delta", PreviousNames = [] });
         await db.SaveChangesAsync();
-        var controller = CreateController(specWeights.Object, balance.Object, dbContext: db);
+        var controller = CreateController(specWeights.Object, balance: balance.Object, dbContext: db);
 
         var result = await controller.Balance(
             new ExperimentalController.ExperimentalBalanceInputRequest([TestUuid.ToString(), U2.ToString(), U3.ToString(), U4.ToString()]),
@@ -364,7 +416,7 @@ public class ExperimentalControllerTests
                 new ExperimentalBalanceError(400, "players must not be empty.")));
 
         var specWeights = new Mock<ISpecWeightsService>();
-        var controller = CreateController(specWeights.Object, balance.Object);
+        var controller = CreateController(specWeights.Object, balance: balance.Object);
 
         var result = await controller.Balance(new ExperimentalController.ExperimentalBalanceInputRequest([]), CancellationToken.None);
 
@@ -426,7 +478,7 @@ public class ExperimentalControllerTests
             .ReturnsAsync(new ExperimentalBalanceServiceResult(true, expected, null));
 
         var specWeights = new Mock<ISpecWeightsService>();
-        var controller = CreateController(specWeights.Object, balance.Object, dbContext: db);
+        var controller = CreateController(specWeights.Object, balance: balance.Object, dbContext: db);
 
         var result = await controller.Balance(
             new ExperimentalController.ExperimentalBalanceInputRequest(["alpha", "beta", "gamma", "delta"]),
@@ -448,7 +500,7 @@ public class ExperimentalControllerTests
 
         var specWeights = new Mock<ISpecWeightsService>();
         var balance = new Mock<IExperimentalBalanceService>();
-        var controller = CreateController(specWeights.Object, balance.Object, dbContext: db);
+        var controller = CreateController(specWeights.Object, balance: balance.Object, dbContext: db);
 
         var result = await controller.Balance(
             new ExperimentalController.ExperimentalBalanceInputRequest(["alpha", "does-not-exist"]),
