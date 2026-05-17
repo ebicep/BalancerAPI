@@ -20,7 +20,8 @@ public static class RolePermissions
                 ApiPermissions.ExperimentalLogsClear,
                 ApiPermissions.AdjustAuto,
                 ApiPermissions.AdjustManual,
-                ApiPermissions.PlayersAdd
+                ApiPermissions.PlayersAdd,
+                ApiPermissions.PlayersDelete
             ],
             [ApiRoles.WebReadOnly] =
             [

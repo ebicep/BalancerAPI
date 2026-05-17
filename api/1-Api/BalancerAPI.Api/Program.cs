@@ -91,6 +91,7 @@ builder.Services.AddScoped<IAdjustmentAutoDailyService, AdjustmentAutoDailyServi
 builder.Services.AddScoped<IAdjustmentAutoWeeklyService, AdjustmentAutoWeeklyService>();
 builder.Services.AddScoped<IManualWeightAdjustmentService, ManualWeightAdjustmentService>();
 builder.Services.AddScoped<IPlayerAddService, PlayerAddService>();
+builder.Services.AddScoped<IPlayerDeleteService, PlayerDeleteService>();
 builder.Services.AddScoped<INameUpdateService, NameUpdateService>();
 builder.Services.AddHttpClient<IMinecraftPlayerResolveService, MinecraftPlayerResolveService>();
 
