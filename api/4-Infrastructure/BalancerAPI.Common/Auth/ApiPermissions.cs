@@ -23,6 +23,7 @@ public static class ApiPermissions
     public const string PlayersAdd = "players.add";
     public const string PlayersRead = "players.read";
     public const string PlayersDelete = "players.delete";
+    public const string PlayersUpdateUuid = "players.update-uuid";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -41,6 +42,7 @@ public static class ApiPermissions
         AdjustManual,
         PlayersAdd,
         PlayersRead,
-        PlayersDelete
+        PlayersDelete,
+        PlayersUpdateUuid
     ];
 }

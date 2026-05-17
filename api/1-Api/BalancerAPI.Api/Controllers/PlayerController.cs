@@ -12,7 +12,8 @@ namespace BalancerAPI.Api.Controllers;
 public class PlayerController(
     IPlayerAddService playerAddService,
     IPlayerGetService playerGetService,
-    IPlayerDeleteService playerDeleteService) : ControllerBase
+    IPlayerDeleteService playerDeleteService,
+    IPlayerUuidUpdateService playerUuidUpdateService) : ControllerBase
 {
     [HttpGet("{uuid:guid}")]
     [MapToApiVersion("1.0")]
@@ -61,6 +62,47 @@ public class PlayerController(
 
     }
 
+    [HttpPost("update-uuid")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.PlayersUpdateUuid)]
+    [ProducesResponseType(typeof(PlayerUuidUpdateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PlayerUuidUpdateResponse>> UpdateUuid(
+        [FromBody] PlayerUuidUpdateRequest? body,
+        CancellationToken cancellationToken)
+    {
+        if (body is null)
+        {
+            return Problem(
+                detail: "Request body is required.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (body.OldUuid == body.NewUuid)
+        {
+            return Problem(
+                detail: "oldUuid and newUuid must be different.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var (success, statusCode, message, payload) = await playerUuidUpdateService.UpdateAsync(
+            body.OldUuid,
+            body.NewUuid,
+            cancellationToken);
+        if (!success || payload is null)
+        {
+            return Problem(detail: message, statusCode: statusCode);
+        }
+
+        return Ok(new PlayerUuidUpdateResponse(
+            payload.Name,
+            payload.OldUuid,
+            payload.NewUuid,
+            payload.TablesUpdated));
+    }
+
     [HttpDelete("{uuid:guid}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.PlayersDelete)]
@@ -99,3 +141,11 @@ public sealed record PlayerDeleteResponse(
     Guid Uuid,
     string[] TablesRemoved,
     IReadOnlyDictionary<string, object> Data);
+
+public sealed record PlayerUuidUpdateRequest(Guid OldUuid, Guid NewUuid);
+
+public sealed record PlayerUuidUpdateResponse(
+    string Name,
+    Guid OldUuid,
+    Guid NewUuid,
+    string[] TablesUpdated);

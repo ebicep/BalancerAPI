@@ -22,7 +22,8 @@ public static class RolePermissions
                 ApiPermissions.AdjustManual,
                 ApiPermissions.PlayersAdd,
                 ApiPermissions.PlayersRead,
-                ApiPermissions.PlayersDelete
+                ApiPermissions.PlayersDelete,
+                ApiPermissions.PlayersUpdateUuid
             ],
             [ApiRoles.WebReadOnly] =
             [
