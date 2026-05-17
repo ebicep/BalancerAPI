@@ -258,7 +258,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
-        var result = await controller.GetDaily("does-not-exist", CancellationToken.None);
+        var result = await controller.GetDaily("does-not-exist", null, CancellationToken.None);
 
         var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
@@ -270,7 +270,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
-        var result = await controller.GetDaily("   ", CancellationToken.None);
+        var result = await controller.GetDaily("   ", null, CancellationToken.None);
 
         AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "name must not be empty.");
     }
@@ -287,7 +287,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetDaily("alpha", CancellationToken.None);
+        var result = await controller.GetDaily("alpha", null, CancellationToken.None);
 
         AssertProblem(
             result.Result!,
@@ -305,7 +305,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetDaily("alpha", CancellationToken.None);
+        var result = await controller.GetDaily("alpha", null, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var body = Assert.IsType<ExperimentalController.ExperimentalDailyStatsResponse>(ok.Value);
@@ -333,7 +333,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetDaily("alpha", CancellationToken.None);
+        var result = await controller.GetDaily("alpha", null, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var body = Assert.IsType<ExperimentalController.ExperimentalDailyStatsResponse>(ok.Value);
@@ -341,6 +341,55 @@ public class ExperimentalControllerTests
         Assert.Equal(1, body.Losses);
         Assert.Equal(10, body.Kills);
         Assert.Equal(4, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetDaily_WhenIdGiven_UsesHistoricalStats()
+    {
+        const int dayId = 42;
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.TimeDays.Add(new TimeDay { Id = dayId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalDailyStatsDay.Add(new ExperimentalDailyStatsDay
+        {
+            DayStartDate = dayId,
+            Uuid = TestUuid,
+            Wins = 5,
+            Losses = 2,
+            Kills = 20,
+            Deaths = 8
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDaily("alpha", dayId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailyStatsResponse>(ok.Value);
+        Assert.Equal(5, body.Wins);
+        Assert.Equal(2, body.Losses);
+        Assert.Equal(20, body.Kills);
+        Assert.Equal(8, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetDaily_WhenIdUnknown_Returns404()
+    {
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDaily("alpha", 99999, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status404NotFound,
+            "No day found with id 99999.");
     }
 
     [Fact]
@@ -1219,6 +1268,18 @@ public class ExperimentalControllerTests
     private sealed class TestBalancerDbContextForDailyStats(DbContextOptions<BalancerDbContext> options)
         : BalancerDbContext(options)
     {
+        public override async Task<ExperimentalDailyStatsDay?> GetExperimentalDailyStatsForDayAsync(
+            int dayId,
+            Guid playerUuid,
+            CancellationToken cancellationToken = default)
+        {
+            return await ExperimentalDailyStatsDay
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.DayStartDate == dayId && x.Uuid == playerUuid,
+                    cancellationToken);
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -1228,6 +1289,13 @@ public class ExperimentalControllerTests
             {
                 entity.ToTable("experimental_daily_stats_test");
                 entity.HasKey(x => x.Uuid);
+            });
+
+            modelBuilder.Ignore<ExperimentalDailyStatsDay>();
+            modelBuilder.Entity<ExperimentalDailyStatsDay>(entity =>
+            {
+                entity.ToTable("experimental_daily_stats_day_test");
+                entity.HasKey(x => new { x.DayStartDate, x.Uuid });
             });
         }
     }

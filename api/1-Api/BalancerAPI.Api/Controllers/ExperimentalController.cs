@@ -146,15 +146,41 @@ public class ExperimentalController(
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]
     [ProducesResponseType(typeof(ExperimentalDailyStatsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalDailyStatsResponse>> GetDaily(
         string name,
+        [FromQuery] int? id,
         CancellationToken cancellationToken)
     {
         var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
         if (!resolved.Success)
         {
             return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        if (id is not null)
+        {
+            var dayExists = await dbContext.TimeDays
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!dayExists)
+            {
+                return Problem(
+                    detail: $"No day found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.GetExperimentalDailyStatsForDayAsync(
+                id.Value,
+                resolved.Uuid!.Value,
+                cancellationToken);
+
+            return Ok(new ExperimentalDailyStatsResponse(
+                historical?.Wins ?? 0,
+                historical?.Losses ?? 0,
+                historical?.Kills ?? 0,
+                historical?.Deaths ?? 0));
         }
 
         var row = await dbContext.ExperimentalDailyStats
