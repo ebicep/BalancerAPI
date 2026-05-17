@@ -174,7 +174,7 @@ public sealed class ExperimentalBalanceService(
                 DurationMs: requestStopwatch.Elapsed.TotalMilliseconds,
                 Steps: steps,
                 Season: latestSeason?.Id ?? 0,
-                Time: latestSeason?.Timestamp ?? DateTime.UtcNow);
+                Time: DateTime.UtcNow);
 
             var balanceId = Guid.NewGuid();
             var totalOff = teamBalance.Sum(t => t.Specs.Count(s => s.Off));
