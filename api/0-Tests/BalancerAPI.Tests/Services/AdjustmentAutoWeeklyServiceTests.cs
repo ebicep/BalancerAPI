@@ -61,8 +61,8 @@ public class AdjustmentAutoWeeklyServiceTests
 
         Assert.Equal(1, result.Count);
         var adjusted = Assert.Single(result.Adjusted);
-        Assert.Equal(U1, adjusted.Key);
-        var spec = Assert.Single(adjusted.Value.Specs);
+        Assert.Equal(U1, adjusted.Uuid);
+        var spec = Assert.Single(adjusted.Specs);
         Assert.Equal("Pyromancer", spec.Spec);
         Assert.Equal(95, spec.PreviousWeight);
         Assert.Equal(97, spec.CurrentWeight);

@@ -23,7 +23,7 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
             return new AdjustmentAutoWeeklyResponse(0, []);
         }
 
-        var adjusted = new Dictionary<Guid, AdjustmentAutoWeeklyPlayerBlock>();
+        var adjusted = new List<AdjustmentAutoWeeklyPlayerBlock>();
         var weeklyLogs = new List<AdjustmentWeeklyLog>();
         var recordedAt = DateTime.UtcNow;
         var weekKey = await dbContext.TimeWeeks
@@ -81,10 +81,11 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
                 continue;
             }
 
-            adjusted[wl.Uuid] = new AdjustmentAutoWeeklyPlayerBlock(
+            adjusted.Add(new AdjustmentAutoWeeklyPlayerBlock(
+                wl.Uuid,
                 displayName,
                 baseWeight.Weight,
-                specChanges);
+                specChanges));
         }
 
         if (adjusted.Count == 0)

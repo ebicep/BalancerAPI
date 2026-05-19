@@ -9,9 +9,10 @@ public interface IAdjustmentAutoWeeklyService
 
 public sealed record AdjustmentAutoWeeklyResponse(
     [property: JsonPropertyName("count")] int Count,
-    [property: JsonPropertyName("adjusted")] Dictionary<Guid, AdjustmentAutoWeeklyPlayerBlock> Adjusted);
+    [property: JsonPropertyName("adjusted")] IReadOnlyList<AdjustmentAutoWeeklyPlayerBlock> Adjusted);
 
 public sealed record AdjustmentAutoWeeklyPlayerBlock(
+    [property: JsonPropertyName("uuid")] Guid Uuid,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("baseWeight")] int BaseWeight,
     [property: JsonPropertyName("specs")] List<AdjustmentAutoWeeklySpecChange> Specs);
