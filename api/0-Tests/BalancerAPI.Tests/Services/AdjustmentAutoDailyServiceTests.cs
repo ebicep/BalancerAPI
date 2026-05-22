@@ -28,6 +28,22 @@ public class AdjustmentAutoDailyServiceTests
     }
 
     [Fact]
+    public void DatesWithinTolerance_AllowsSubMillisecondSkew_RejectsOutsideWindow()
+    {
+        var baseline = new DateTime(2026, 5, 18, 22, 0, 0, DateTimeKind.Utc);
+        var tolerance = AdjustmentAutoDailyService.UndoBatchDateTolerance;
+
+        Assert.True(AdjustmentAutoDailyService.DatesWithinTolerance(
+            baseline.AddTicks(5),
+            baseline,
+            tolerance));
+        Assert.False(AdjustmentAutoDailyService.DatesWithinTolerance(
+            baseline.AddSeconds(2),
+            baseline,
+            tolerance));
+    }
+
+    [Fact]
     public async Task ApplyAutoDailyAsync_WhenTrajectoryInBand_NoChange_OmitsFromResponse()
     {
         await using var db = CreateDbContext();
@@ -40,6 +56,7 @@ public class AdjustmentAutoDailyServiceTests
 
         Assert.Equal(0, result.Count);
         Assert.Empty(result.Adjusted);
+        Assert.Null(result.Date);
         Assert.Equal(2, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
         Assert.Equal(100, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
     }
@@ -72,6 +89,8 @@ public class AdjustmentAutoDailyServiceTests
         Assert.Equal(U1, log.Uuid);
         Assert.Equal(100, log.PreviousWeight);
         Assert.Equal(101, log.NewWeight);
+        Assert.NotNull(result.Date);
+        Assert.Equal(result.Date, log.Date);
         Assert.True(log.Date >= before && log.Date <= after);
     }
 
@@ -158,6 +177,7 @@ public class AdjustmentAutoDailyServiceTests
 
         Assert.Equal(0, result.Count);
         Assert.Empty(result.Adjusted);
+        Assert.Null(result.Date);
         Assert.Empty(await db.AdjustmentDailyLogs.ToListAsync());
     }
 

@@ -23,6 +23,32 @@ public class AdjustController(
         return Ok(result);
     }
 
+    [HttpPost("undo-auto-daily")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.AdjustAuto)]
+    [ProducesResponseType(typeof(AdjustmentAutoDailyResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AdjustmentAutoDailyResponse>> UndoAutoDaily(
+        [FromBody] AdjustmentAutoDailyResponse? body,
+        CancellationToken cancellationToken)
+    {
+        if (body is null)
+        {
+            return Problem(
+                detail: "Request body is required.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var result = await adjustmentAutoDailyService.UndoAutoDailyAsync(body, cancellationToken);
+        if (result.Success && result.Response is not null)
+        {
+            return Ok(result.Response);
+        }
+
+        return Problem(detail: result.Message, statusCode: result.StatusCode);
+    }
+
     [HttpPatch("base/{player}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.AdjustManual)]
