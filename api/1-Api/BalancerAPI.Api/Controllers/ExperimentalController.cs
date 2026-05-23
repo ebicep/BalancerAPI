@@ -293,6 +293,51 @@ public class ExperimentalController(
             row?.Deaths ?? 0));
     }
 
+    [HttpGet("weekly-experimental-all/{name}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalWeeklyAllSpecsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalWeeklyAllSpecsResponse>> GetWeeklyExperimentalAll(
+        string name,
+        [FromQuery] int? id,
+        CancellationToken cancellationToken)
+    {
+        var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
+        if (!resolved.Success)
+        {
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        if (id is not null)
+        {
+            var weekExists = await dbContext.TimeWeeks
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!weekExists)
+            {
+                return Problem(
+                    detail: $"No week found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.GetExperimentalSpecsWlForWeekAsync(
+                id.Value,
+                resolved.Uuid!.Value,
+                cancellationToken);
+
+            return Ok(MapExperimentalWeeklyAllSpecs(historical));
+        }
+
+        var row = await dbContext.ExperimentalSpecsWlCurrentWeek
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Uuid == resolved.Uuid, cancellationToken);
+
+        return Ok(MapExperimentalWeeklyAllSpecs(row));
+    }
+
     [HttpPost("balance")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalBalance)]
@@ -607,7 +652,34 @@ public class ExperimentalController(
 
     private static ExperimentalDailyAllSpecsResponse MapExperimentalDailyAllSpecs(object? row)
     {
-        var specs = new List<ExperimentalDailySpecStatsEntry>(ExperimentalSpecs.AllOrdered.Length);
+        var mapped = MapExperimentalAllSpecs(row);
+        return new ExperimentalDailyAllSpecsResponse(
+            mapped.Specs.Select(s => new ExperimentalDailySpecStatsEntry(s.Spec, s.Wins, s.Losses, s.Kills, s.Deaths)).ToList(),
+            new ExperimentalDailySpecStatsEntry(
+                mapped.Total.Spec,
+                mapped.Total.Wins,
+                mapped.Total.Losses,
+                mapped.Total.Kills,
+                mapped.Total.Deaths));
+    }
+
+    private static ExperimentalWeeklyAllSpecsResponse MapExperimentalWeeklyAllSpecs(object? row)
+    {
+        var mapped = MapExperimentalAllSpecs(row);
+        return new ExperimentalWeeklyAllSpecsResponse(
+            mapped.Specs.Select(s => new ExperimentalWeeklySpecStatsEntry(s.Spec, s.Wins, s.Losses, s.Kills, s.Deaths)).ToList(),
+            new ExperimentalWeeklySpecStatsEntry(
+                mapped.Total.Spec,
+                mapped.Total.Wins,
+                mapped.Total.Losses,
+                mapped.Total.Kills,
+                mapped.Total.Deaths));
+    }
+
+    private static (List<ExperimentalSpecStatsEntryData> Specs, ExperimentalSpecStatsEntryData Total) MapExperimentalAllSpecs(
+        object? row)
+    {
+        var specs = new List<ExperimentalSpecStatsEntryData>(ExperimentalSpecs.AllOrdered.Length);
         var totalWins = 0;
         var totalLosses = 0;
         var totalKills = 0;
@@ -619,17 +691,22 @@ public class ExperimentalController(
             var losses = GetWlStat(row, spec, "Losses");
             var kills = GetWlStat(row, spec, "Kills");
             var deaths = GetWlStat(row, spec, "Deaths");
-            specs.Add(new ExperimentalDailySpecStatsEntry(spec, wins, losses, kills, deaths));
+            specs.Add(new ExperimentalSpecStatsEntryData(spec, wins, losses, kills, deaths));
             totalWins += wins;
             totalLosses += losses;
             totalKills += kills;
             totalDeaths += deaths;
         }
 
-        return new ExperimentalDailyAllSpecsResponse(
-            specs,
-            new ExperimentalDailySpecStatsEntry("Total", totalWins, totalLosses, totalKills, totalDeaths));
+        return (specs, new ExperimentalSpecStatsEntryData("Total", totalWins, totalLosses, totalKills, totalDeaths));
     }
+
+    private sealed record ExperimentalSpecStatsEntryData(
+        string Spec,
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
 
     private static int GetWlStat(object? row, string spec, string statSuffix)
     {
@@ -654,6 +731,17 @@ public class ExperimentalController(
     public sealed record ExperimentalDailyAllSpecsResponse(
         IReadOnlyList<ExperimentalDailySpecStatsEntry> Specs,
         ExperimentalDailySpecStatsEntry Total);
+
+    public sealed record ExperimentalWeeklySpecStatsEntry(
+        string Spec,
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
+    public sealed record ExperimentalWeeklyAllSpecsResponse(
+        IReadOnlyList<ExperimentalWeeklySpecStatsEntry> Specs,
+        ExperimentalWeeklySpecStatsEntry Total);
 
     public sealed record ExperimentalDailyStatsResponse(
         int Wins,
