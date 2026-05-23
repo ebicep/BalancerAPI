@@ -393,6 +393,146 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task GetWeekly_WhenNameNotFound_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetWeekly("does-not-exist", null, CancellationToken.None);
+
+        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetWeekly_WhenNameEmpty_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetWeekly("   ", null, CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "name must not be empty.");
+    }
+
+    [Fact]
+    public async Task GetWeekly_WhenNameAmbiguous_ReturnsConflict()
+    {
+        await using var db = CreateDbContext();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetWeekly("alpha", null, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status409Conflict,
+            "One or more player names are ambiguous in names table: alpha.");
+    }
+
+    [Fact]
+    public async Task GetWeekly_WhenNoWeeklyRow_ReturnsOkWithZeros()
+    {
+        await using var db = CreateDbContextWithWeeklyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetWeekly("alpha", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklyStatsResponse>(ok.Value);
+        Assert.Equal(0, body.Wins);
+        Assert.Equal(0, body.Losses);
+        Assert.Equal(0, body.Kills);
+        Assert.Equal(0, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetWeekly_WhenRowExists_ReturnsOkWithStats()
+    {
+        await using var db = CreateDbContextWithWeeklyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.ExperimentalWeeklyStats.Add(new ExperimentalWeeklyStats
+        {
+            Uuid = TestUuid,
+            Wins = 3,
+            Losses = 1,
+            Kills = 10,
+            Deaths = 4
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetWeekly("alpha", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklyStatsResponse>(ok.Value);
+        Assert.Equal(3, body.Wins);
+        Assert.Equal(1, body.Losses);
+        Assert.Equal(10, body.Kills);
+        Assert.Equal(4, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetWeekly_WhenIdGiven_UsesHistoricalStats()
+    {
+        const int weekId = 42;
+        await using var db = CreateDbContextWithWeeklyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.TimeWeeks.Add(new TimeWeek { Id = weekId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalWeeklyStatsWeek.Add(new ExperimentalWeeklyStatsWeek
+        {
+            WeekStartDate = weekId,
+            Uuid = TestUuid,
+            Wins = 5,
+            Losses = 2,
+            Kills = 20,
+            Deaths = 8
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetWeekly("alpha", weekId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklyStatsResponse>(ok.Value);
+        Assert.Equal(5, body.Wins);
+        Assert.Equal(2, body.Losses);
+        Assert.Equal(20, body.Kills);
+        Assert.Equal(8, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetWeekly_WhenIdUnknown_Returns404()
+    {
+        await using var db = CreateDbContextWithWeeklyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetWeekly("alpha", 99999, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status404NotFound,
+            "No week found with id 99999.");
+    }
+
+    [Fact]
     public async Task Balance_WhenValid_ReturnsOkWithPayload()
     {
         var now = new DateTime(2026, 3, 15, 20, 32, 0, DateTimeKind.Utc);
@@ -1265,6 +1405,14 @@ public class ExperimentalControllerTests
         return new TestBalancerDbContextForDailyStats(options);
     }
 
+    private static BalancerDbContext CreateDbContextWithWeeklyStatsTable()
+    {
+        var options = new DbContextOptionsBuilder<BalancerDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new TestBalancerDbContextForWeeklyStats(options);
+    }
+
     private sealed class TestBalancerDbContextForDailyStats(DbContextOptions<BalancerDbContext> options)
         : BalancerDbContext(options)
     {
@@ -1296,6 +1444,41 @@ public class ExperimentalControllerTests
             {
                 entity.ToTable("experimental_daily_stats_day_test");
                 entity.HasKey(x => new { x.DayStartDate, x.Uuid });
+            });
+        }
+    }
+
+    private sealed class TestBalancerDbContextForWeeklyStats(DbContextOptions<BalancerDbContext> options)
+        : BalancerDbContext(options)
+    {
+        public override async Task<ExperimentalWeeklyStatsWeek?> GetExperimentalWeeklyStatsForWeekAsync(
+            int weekId,
+            Guid playerUuid,
+            CancellationToken cancellationToken = default)
+        {
+            return await ExperimentalWeeklyStatsWeek
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.WeekStartDate == weekId && x.Uuid == playerUuid,
+                    cancellationToken);
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Ignore<ExperimentalWeeklyStats>();
+            modelBuilder.Entity<ExperimentalWeeklyStats>(entity =>
+            {
+                entity.ToTable("experimental_weekly_stats_test");
+                entity.HasKey(x => x.Uuid);
+            });
+
+            modelBuilder.Ignore<ExperimentalWeeklyStatsWeek>();
+            modelBuilder.Entity<ExperimentalWeeklyStatsWeek>(entity =>
+            {
+                entity.ToTable("experimental_weekly_stats_week_test");
+                entity.HasKey(x => new { x.WeekStartDate, x.Uuid });
             });
         }
     }

@@ -194,6 +194,59 @@ public class ExperimentalController(
             row?.Deaths ?? 0));
     }
 
+    [HttpGet("weekly/{name}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalWeeklyStatsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalWeeklyStatsResponse>> GetWeekly(
+        string name,
+        [FromQuery] int? id,
+        CancellationToken cancellationToken)
+    {
+        var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
+        if (!resolved.Success)
+        {
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        if (id is not null)
+        {
+            var weekExists = await dbContext.TimeWeeks
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!weekExists)
+            {
+                return Problem(
+                    detail: $"No week found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.GetExperimentalWeeklyStatsForWeekAsync(
+                id.Value,
+                resolved.Uuid!.Value,
+                cancellationToken);
+
+            return Ok(new ExperimentalWeeklyStatsResponse(
+                historical?.Wins ?? 0,
+                historical?.Losses ?? 0,
+                historical?.Kills ?? 0,
+                historical?.Deaths ?? 0));
+        }
+
+        var row = await dbContext.ExperimentalWeeklyStats
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Uuid == resolved.Uuid, cancellationToken);
+
+        return Ok(new ExperimentalWeeklyStatsResponse(
+            row?.Wins ?? 0,
+            row?.Losses ?? 0,
+            row?.Kills ?? 0,
+            row?.Deaths ?? 0));
+    }
+
     [HttpPost("balance")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalBalance)]
@@ -507,6 +560,12 @@ public class ExperimentalController(
     }
 
     public sealed record ExperimentalDailyStatsResponse(
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
+    public sealed record ExperimentalWeeklyStatsResponse(
         int Wins,
         int Losses,
         int Kills,
