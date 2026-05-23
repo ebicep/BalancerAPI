@@ -90,6 +90,7 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IAdjustmentAutoDailyService, AdjustmentAutoDailyService>();
 builder.Services.AddScoped<IAdjustmentAutoWeeklyService, AdjustmentAutoWeeklyService>();
 builder.Services.AddScoped<IManualWeightAdjustmentService, ManualWeightAdjustmentService>();
+builder.Services.AddScoped<ITrajectoryService, TrajectoryService>();
 builder.Services.AddScoped<IPlayerAddService, PlayerAddService>();
 builder.Services.AddScoped<IPlayerDeleteService, PlayerDeleteService>();
 builder.Services.AddScoped<IPlayerUuidUpdateService, PlayerUuidUpdateService>();
