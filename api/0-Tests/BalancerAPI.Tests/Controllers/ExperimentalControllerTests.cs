@@ -393,6 +393,165 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task GetDailyExperimentalAll_WhenNameNotFound_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetDailyExperimentalAll("does-not-exist", null, CancellationToken.None);
+
+        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetDailyExperimentalAll_WhenNameEmpty_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetDailyExperimentalAll("   ", null, CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "name must not be empty.");
+    }
+
+    [Fact]
+    public async Task GetDailyExperimentalAll_WhenNameAmbiguous_ReturnsConflict()
+    {
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDailyExperimentalAll("alpha", null, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status409Conflict,
+            "One or more player names are ambiguous in names table: alpha.");
+    }
+
+    [Fact]
+    public async Task GetDailyExperimentalAll_WhenNoRow_ReturnsOkWithZeros()
+    {
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDailyExperimentalAll("alpha", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailyAllSpecsResponse>(ok.Value);
+        Assert.Equal(18, body.Specs.Count);
+        Assert.All(body.Specs, entry =>
+        {
+            Assert.Equal(0, entry.Wins);
+            Assert.Equal(0, entry.Losses);
+            Assert.Equal(0, entry.Kills);
+            Assert.Equal(0, entry.Deaths);
+        });
+        Assert.Equal("Total", body.Total.Spec);
+        Assert.Equal(0, body.Total.Wins);
+        Assert.Equal(0, body.Total.Losses);
+        Assert.Equal(0, body.Total.Kills);
+        Assert.Equal(0, body.Total.Deaths);
+    }
+
+    [Fact]
+    public async Task GetDailyExperimentalAll_WhenCurrentRowExists_ReturnsOkWithStats()
+    {
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.ExperimentalSpecsWlCurrentDay.Add(new ExperimentalSpecsWlCurrentDay
+        {
+            Uuid = TestUuid,
+            PyromancerWins = 3,
+            PyromancerLosses = 1,
+            PyromancerKills = 10,
+            PyromancerDeaths = 4
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDailyExperimentalAll("alpha", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailyAllSpecsResponse>(ok.Value);
+        var pyro = Assert.Single(body.Specs, x => x.Spec == "Pyromancer");
+        Assert.Equal(3, pyro.Wins);
+        Assert.Equal(1, pyro.Losses);
+        Assert.Equal(10, pyro.Kills);
+        Assert.Equal(4, pyro.Deaths);
+        Assert.Equal(3, body.Total.Wins);
+        Assert.Equal(1, body.Total.Losses);
+        Assert.Equal(10, body.Total.Kills);
+        Assert.Equal(4, body.Total.Deaths);
+    }
+
+    [Fact]
+    public async Task GetDailyExperimentalAll_WhenIdGiven_UsesHistoricalStats()
+    {
+        const int dayId = 42;
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.TimeDays.Add(new TimeDay { Id = dayId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalSpecsWlDay.Add(new ExperimentalSpecsWlDay
+        {
+            DayStartDate = dayId,
+            Uuid = TestUuid,
+            PyromancerWins = 5,
+            PyromancerLosses = 2,
+            PyromancerKills = 20,
+            PyromancerDeaths = 8
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDailyExperimentalAll("alpha", dayId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailyAllSpecsResponse>(ok.Value);
+        var pyro = Assert.Single(body.Specs, x => x.Spec == "Pyromancer");
+        Assert.Equal(5, pyro.Wins);
+        Assert.Equal(2, pyro.Losses);
+        Assert.Equal(20, pyro.Kills);
+        Assert.Equal(8, pyro.Deaths);
+        Assert.Equal(5, body.Total.Wins);
+        Assert.Equal(2, body.Total.Losses);
+        Assert.Equal(20, body.Total.Kills);
+        Assert.Equal(8, body.Total.Deaths);
+    }
+
+    [Fact]
+    public async Task GetDailyExperimentalAll_WhenIdUnknown_Returns404()
+    {
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDailyExperimentalAll("alpha", 99999, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status404NotFound,
+            "No day found with id 99999.");
+    }
+
+    [Fact]
     public async Task GetWeekly_WhenNameNotFound_ReturnsBadRequest()
     {
         var specWeights = new Mock<ISpecWeightsService>();
@@ -1428,6 +1587,18 @@ public class ExperimentalControllerTests
                     cancellationToken);
         }
 
+        public override async Task<ExperimentalSpecsWlDay?> GetExperimentalSpecsWlForDayAsync(
+            int dayId,
+            Guid playerUuid,
+            CancellationToken cancellationToken = default)
+        {
+            return await ExperimentalSpecsWlDay
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.DayStartDate == dayId && x.Uuid == playerUuid,
+                    cancellationToken);
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -1443,6 +1614,20 @@ public class ExperimentalControllerTests
             modelBuilder.Entity<ExperimentalDailyStatsDay>(entity =>
             {
                 entity.ToTable("experimental_daily_stats_day_test");
+                entity.HasKey(x => new { x.DayStartDate, x.Uuid });
+            });
+
+            modelBuilder.Ignore<ExperimentalSpecsWlCurrentDay>();
+            modelBuilder.Entity<ExperimentalSpecsWlCurrentDay>(entity =>
+            {
+                entity.ToTable("experimental_specs_wl_current_day_test");
+                entity.HasKey(x => x.Uuid);
+            });
+
+            modelBuilder.Ignore<ExperimentalSpecsWlDay>();
+            modelBuilder.Entity<ExperimentalSpecsWlDay>(entity =>
+            {
+                entity.ToTable("experimental_specs_wl_day_test");
                 entity.HasKey(x => new { x.DayStartDate, x.Uuid });
             });
         }

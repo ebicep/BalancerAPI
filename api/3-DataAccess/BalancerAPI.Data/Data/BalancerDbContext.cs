@@ -65,6 +65,21 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     }
 
     /// <summary>
+    /// Per-spec W/L/K/D for a completed calendar day from <c>experimental_specs_wl_day</c>.
+    /// </summary>
+    public virtual async Task<ExperimentalSpecsWlDay?> GetExperimentalSpecsWlForDayAsync(
+        int dayId,
+        Guid playerUuid,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExperimentalSpecsWlDay
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.DayStartDate == dayId && x.Uuid == playerUuid,
+                cancellationToken);
+    }
+
+    /// <summary>
     /// Per-player W/L/K/D for a completed calendar week from <c>experimental_weekly_stats_week</c>.
     /// </summary>
     public virtual async Task<ExperimentalWeeklyStatsWeek?> GetExperimentalWeeklyStatsForWeekAsync(

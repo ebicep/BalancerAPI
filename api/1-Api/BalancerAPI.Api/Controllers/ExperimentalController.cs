@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json.Serialization;
 using Asp.Versioning;
 using BalancerAPI.Common.Auth;
@@ -192,6 +193,51 @@ public class ExperimentalController(
             row?.Losses ?? 0,
             row?.Kills ?? 0,
             row?.Deaths ?? 0));
+    }
+
+    [HttpGet("daily-experimental-all/{name}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalDailyAllSpecsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalDailyAllSpecsResponse>> GetDailyExperimentalAll(
+        string name,
+        [FromQuery] int? id,
+        CancellationToken cancellationToken)
+    {
+        var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
+        if (!resolved.Success)
+        {
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        if (id is not null)
+        {
+            var dayExists = await dbContext.TimeDays
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!dayExists)
+            {
+                return Problem(
+                    detail: $"No day found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.GetExperimentalSpecsWlForDayAsync(
+                id.Value,
+                resolved.Uuid!.Value,
+                cancellationToken);
+
+            return Ok(MapExperimentalDailyAllSpecs(historical));
+        }
+
+        var row = await dbContext.ExperimentalSpecsWlCurrentDay
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Uuid == resolved.Uuid, cancellationToken);
+
+        return Ok(MapExperimentalDailyAllSpecs(row));
     }
 
     [HttpGet("weekly/{name}")]
@@ -558,6 +604,56 @@ public class ExperimentalController(
 
         return ResolveNameResult.Ok(uuids[0]);
     }
+
+    private static ExperimentalDailyAllSpecsResponse MapExperimentalDailyAllSpecs(object? row)
+    {
+        var specs = new List<ExperimentalDailySpecStatsEntry>(ExperimentalSpecs.AllOrdered.Length);
+        var totalWins = 0;
+        var totalLosses = 0;
+        var totalKills = 0;
+        var totalDeaths = 0;
+
+        foreach (var spec in ExperimentalSpecs.AllOrdered)
+        {
+            var wins = GetWlStat(row, spec, "Wins");
+            var losses = GetWlStat(row, spec, "Losses");
+            var kills = GetWlStat(row, spec, "Kills");
+            var deaths = GetWlStat(row, spec, "Deaths");
+            specs.Add(new ExperimentalDailySpecStatsEntry(spec, wins, losses, kills, deaths));
+            totalWins += wins;
+            totalLosses += losses;
+            totalKills += kills;
+            totalDeaths += deaths;
+        }
+
+        return new ExperimentalDailyAllSpecsResponse(
+            specs,
+            new ExperimentalDailySpecStatsEntry("Total", totalWins, totalLosses, totalKills, totalDeaths));
+    }
+
+    private static int GetWlStat(object? row, string spec, string statSuffix)
+    {
+        if (row is null)
+        {
+            return 0;
+        }
+
+        var property = row.GetType().GetProperty(
+            $"{spec}{statSuffix}",
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        return property?.GetValue(row) is int value ? value : 0;
+    }
+
+    public sealed record ExperimentalDailySpecStatsEntry(
+        string Spec,
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
+    public sealed record ExperimentalDailyAllSpecsResponse(
+        IReadOnlyList<ExperimentalDailySpecStatsEntry> Specs,
+        ExperimentalDailySpecStatsEntry Total);
 
     public sealed record ExperimentalDailyStatsResponse(
         int Wins,
