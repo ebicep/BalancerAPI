@@ -86,6 +86,24 @@ public class TimeController(ITimeService timeService) : ControllerBase
                 statusCode: StatusCodes.Status404NotFound);
     }
 
+    [HttpGet]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeRead)]
+    [ProducesResponseType(typeof(CurrentTimeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CurrentTimeResponse>> GetCurrent(CancellationToken cancellationToken)
+    {
+        var current = await timeService.GetCurrentTimeAsync(cancellationToken);
+        if (current is null)
+        {
+            return Problem(
+                detail: "The requested resource was not found.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        return Ok(current);
+    }
+
     [HttpGet("season")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.TimeRead)]

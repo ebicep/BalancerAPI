@@ -13,6 +13,8 @@ public sealed record NewSeasonResponse(int Season, DateTime Timestamp);
 
 public sealed record LatestSeasonResponse(int Season, DateTime Timestamp);
 
+public sealed record CurrentTimeResponse(int Day, int Week, int Season);
+
 public sealed class TimeService(
     BalancerDbContext dbContext,
     IDbContextFactory<BalancerDbContext> dbContextFactory,
@@ -553,6 +555,20 @@ public sealed class TimeService(
             .FirstOrDefaultAsync(cancellationToken);
 
         return latest is null ? null : (latest.Id, latest.Timestamp);
+    }
+
+    public async Task<CurrentTimeResponse?> GetCurrentTimeAsync(CancellationToken cancellationToken)
+    {
+        var dayId = await dbContext.TimeDays.MaxAsync(x => (int?)x.Id, cancellationToken);
+        var weekId = await dbContext.TimeWeeks.MaxAsync(x => (int?)x.Id, cancellationToken);
+        var seasonId = await dbContext.TimeSeasons.MaxAsync(x => (int?)x.Id, cancellationToken);
+
+        if (dayId is null || weekId is null || seasonId is null)
+        {
+            return null;
+        }
+
+        return new CurrentTimeResponse(dayId.Value, weekId.Value, seasonId.Value);
     }
 }
 

@@ -279,6 +279,59 @@ public class TimeServiceSnapshotTests
     }
 
     [Fact]
+    public async Task GetCurrentTimeAsync_ReturnsMaxIdsFromAllTables()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var timestamp = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            seed.TimeDays.AddRange(
+                new TimeDay { Id = 2, Timestamp = timestamp },
+                new TimeDay { Id = 5, Timestamp = timestamp.AddDays(1) });
+            seed.TimeWeeks.Add(new TimeWeek { Id = 3, Timestamp = timestamp });
+            seed.TimeSeasons.Add(new TimeSeason { Id = 7, Timestamp = timestamp });
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+
+            var result = await service.GetCurrentTimeAsync(CancellationToken.None);
+
+            Assert.NotNull(result);
+            Assert.Equal(5, result.Day);
+            Assert.Equal(3, result.Week);
+            Assert.Equal(7, result.Season);
+        }
+    }
+
+    [Fact]
+    public async Task GetCurrentTimeAsync_WhenAnyTableEmpty_ReturnsNull()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var timestamp = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            seed.TimeSeasons.Add(new TimeSeason { Id = 1, Timestamp = timestamp });
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+
+            var result = await service.GetCurrentTimeAsync(CancellationToken.None);
+
+            Assert.Null(result);
+        }
+    }
+
+    [Fact]
     public async Task UndoMethods_WhenIdDoesNotExist_ReturnFalseAndDoNotChangeData()
     {
         var options = CreateOptions(Guid.NewGuid().ToString());

@@ -61,6 +61,41 @@ public class TimeControllerTests
     }
 
     [Fact]
+    public async Task GetCurrent_WhenAllPresent_ReturnsOkWithIds()
+    {
+        var service = new Mock<ITimeService>();
+        service.Setup(x => x.GetCurrentTimeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CurrentTimeResponse(12, 4, 2));
+
+        var controller = new TimeController(service.Object);
+
+        var result = await controller.GetCurrent(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<CurrentTimeResponse>(ok.Value);
+        Assert.Equal(12, response.Day);
+        Assert.Equal(4, response.Week);
+        Assert.Equal(2, response.Season);
+    }
+
+    [Fact]
+    public async Task GetCurrent_WhenAnyMissing_ReturnsNotFound()
+    {
+        var service = new Mock<ITimeService>();
+        service.Setup(x => x.GetCurrentTimeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CurrentTimeResponse?)null);
+
+        var controller = new TimeController(service.Object);
+
+        var result = await controller.GetCurrent(CancellationToken.None);
+
+        var obj = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status404NotFound, obj.StatusCode);
+        var pd = Assert.IsType<ProblemDetails>(obj.Value);
+        Assert.Equal("The requested resource was not found.", pd.Detail);
+    }
+
+    [Fact]
     public async Task GetSeason_WhenMissing_ReturnsNotFound()
     {
         var service = new Mock<ITimeService>();
