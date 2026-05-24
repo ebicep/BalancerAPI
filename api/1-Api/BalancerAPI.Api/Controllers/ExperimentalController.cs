@@ -20,6 +20,7 @@ public class ExperimentalController(
     IExperimentalBalanceConfirmService experimentalBalanceConfirmService,
     IExperimentalBalanceInputService experimentalBalanceInputService,
     IExperimentalSpecLogsService experimentalSpecLogsService,
+    IExperimentalSpecBanService experimentalSpecBanService,
     BalancerDbContext dbContext) : ControllerBase
 {
     [HttpGet("logs")]
@@ -140,6 +141,92 @@ public class ExperimentalController(
         }
 
         return Ok(result);
+    }
+
+    [HttpGet("spec-bans/{nameOrUuid}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalSpecBansResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalSpecBansResponse>> GetSpecBans(
+        string nameOrUuid,
+        CancellationToken cancellationToken)
+    {
+        var resolved = await ResolvePlayerUuidFromNameOrUuidAsync(nameOrUuid, cancellationToken);
+        if (!resolved.Success)
+        {
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        var result = await experimentalSpecBanService.GetBansAsync(resolved.Uuid!.Value, cancellationToken);
+        if (!result.Success)
+        {
+            return Problem(detail: result.Message, statusCode: result.StatusCode);
+        }
+
+        return Ok(result.Data);
+    }
+
+    [HttpPost("spec-bans/ban/{nameOrUuid}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalSpecBansWrite)]
+    [ProducesResponseType(typeof(ExperimentalSpecBansResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalSpecBansResponse>> BanSpec(
+        string nameOrUuid,
+        [FromBody] ExperimentalSpecBanRequest? request,
+        CancellationToken cancellationToken)
+    {
+        return await SetSpecBanAsync(nameOrUuid, request, banned: true, cancellationToken);
+    }
+
+    [HttpPost("spec-bans/unban/{nameOrUuid}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalSpecBansWrite)]
+    [ProducesResponseType(typeof(ExperimentalSpecBansResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalSpecBansResponse>> UnbanSpec(
+        string nameOrUuid,
+        [FromBody] ExperimentalSpecBanRequest? request,
+        CancellationToken cancellationToken)
+    {
+        return await SetSpecBanAsync(nameOrUuid, request, banned: false, cancellationToken);
+    }
+
+    private async Task<ActionResult<ExperimentalSpecBansResponse>> SetSpecBanAsync(
+        string nameOrUuid,
+        ExperimentalSpecBanRequest? request,
+        bool banned,
+        CancellationToken cancellationToken)
+    {
+        var canonicalSpec = ManualWeightAdjustmentService.TryNormalizeSpec(request?.Spec);
+        if (canonicalSpec is null)
+        {
+            return Problem(
+                detail: "Unknown or missing spec.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var resolved = await ResolvePlayerUuidFromNameOrUuidAsync(nameOrUuid, cancellationToken);
+        if (!resolved.Success)
+        {
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        var result = await experimentalSpecBanService.SetBanAsync(
+            resolved.Uuid!.Value,
+            canonicalSpec,
+            banned,
+            cancellationToken);
+        if (!result.Success)
+        {
+            return Problem(detail: result.Message, statusCode: result.StatusCode);
+        }
+
+        return Ok(result.Data);
     }
 
     [HttpGet("daily/{name}")]

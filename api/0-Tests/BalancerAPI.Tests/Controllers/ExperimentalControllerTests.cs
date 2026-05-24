@@ -27,6 +27,7 @@ public class ExperimentalControllerTests
         IExperimentalBalanceConfirmService? confirm = null,
         IExperimentalBalanceInputService? input = null,
         IExperimentalSpecLogsService? specLogs = null,
+        IExperimentalSpecBanService? specBans = null,
         BalancerDbContext? dbContext = null)
     {
         var lb = leaderboard ?? Mock.Of<ISpecWeightLeaderboardService>();
@@ -34,8 +35,9 @@ public class ExperimentalControllerTests
         var c = confirm ?? Mock.Of<IExperimentalBalanceConfirmService>();
         var i = input ?? Mock.Of<IExperimentalBalanceInputService>();
         var sl = specLogs ?? Mock.Of<IExperimentalSpecLogsService>();
+        var sb = specBans ?? Mock.Of<IExperimentalSpecBanService>();
         var db = dbContext ?? CreateDbContext();
-        return new ExperimentalController(specWeights, lb, b, c, i, sl, db);
+        return new ExperimentalController(specWeights, lb, b, c, i, sl, sb, db);
     }
 
     [Fact]
@@ -250,6 +252,101 @@ public class ExperimentalControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.IsType<SpecWeightsResponse>(ok.Value);
         service.Verify(x => x.GetCombinedAsync(TestUuid, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetSpecBans_WhenFound_ReturnsOkWithBans()
+    {
+        var expected = new ExperimentalSpecBansResponse(["Pyromancer", "Cryomancer"]);
+        var specBans = new Mock<IExperimentalSpecBanService>();
+        specBans.Setup(x => x.GetBansAsync(TestUuid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalSpecBanServiceResult(true, 200, null, expected));
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specBans: specBans.Object);
+
+        var result = await controller.GetSpecBans(TestUuid.ToString(), CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ExperimentalSpecBansResponse>(ok.Value);
+        Assert.Equal(expected.Bans, response.Bans);
+    }
+
+    [Fact]
+    public async Task BanSpec_WhenInvalidSpec_ReturnsBadRequest()
+    {
+        var specBans = new Mock<IExperimentalSpecBanService>();
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specBans: specBans.Object);
+
+        var result = await controller.BanSpec(
+            TestUuid.ToString(),
+            new ExperimentalSpecBanRequest("nope"),
+            CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Unknown or missing spec.");
+        specBans.Verify(
+            x => x.SetBanAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task BanSpec_WhenValid_CallsServiceAndReturnsOk()
+    {
+        var expected = new ExperimentalSpecBansResponse(["Pyromancer"]);
+        var specBans = new Mock<IExperimentalSpecBanService>();
+        specBans.Setup(x => x.SetBanAsync(TestUuid, "Pyromancer", true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalSpecBanServiceResult(true, 200, null, expected));
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specBans: specBans.Object);
+
+        var result = await controller.BanSpec(
+            TestUuid.ToString(),
+            new ExperimentalSpecBanRequest("pyromancer"),
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ExperimentalSpecBansResponse>(ok.Value);
+        Assert.Equal(expected.Bans, response.Bans);
+        specBans.Verify(x => x.SetBanAsync(TestUuid, "Pyromancer", true, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UnbanSpec_WhenValid_CallsServiceWithBannedFalse()
+    {
+        var expected = new ExperimentalSpecBansResponse([]);
+        var specBans = new Mock<IExperimentalSpecBanService>();
+        specBans.Setup(x => x.SetBanAsync(TestUuid, "Pyromancer", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalSpecBanServiceResult(true, 200, null, expected));
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specBans: specBans.Object);
+
+        var result = await controller.UnbanSpec(
+            TestUuid.ToString(),
+            new ExperimentalSpecBanRequest("Pyromancer"),
+            CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        specBans.Verify(x => x.SetBanAsync(TestUuid, "Pyromancer", false, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetSpecBans_WhenNameResolves_ReturnsOk()
+    {
+        await using var db = CreateDbContext();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var expected = new ExperimentalSpecBansResponse(["Berserker"]);
+        var specBans = new Mock<IExperimentalSpecBanService>();
+        specBans.Setup(x => x.GetBansAsync(TestUuid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalSpecBanServiceResult(true, 200, null, expected));
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specBans: specBans.Object, dbContext: db);
+
+        var result = await controller.GetSpecBans("alpha", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ExperimentalSpecBansResponse>(ok.Value);
+        Assert.Equal(expected.Bans, response.Bans);
     }
 
     [Fact]

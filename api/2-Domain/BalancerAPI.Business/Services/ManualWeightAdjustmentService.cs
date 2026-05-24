@@ -192,7 +192,7 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
         };
     }
 
-    internal static string? TryNormalizeSpec(string? spec)
+    public static string? TryNormalizeSpec(string? spec)
     {
         if (string.IsNullOrWhiteSpace(spec))
         {
