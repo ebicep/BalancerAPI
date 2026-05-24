@@ -90,6 +90,75 @@ public class PlayerKeyResolverTests
         }
     }
 
+    [Fact]
+    public async Task ResolveManyAsync_WhenEmpty_Returns400()
+    {
+        var (resolver, db) = CreateResolver();
+        await using (db)
+        {
+            var result = await resolver.ResolveManyAsync([], CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(400, result.StatusCode);
+            Assert.Contains("empty", result.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public async Task ResolveManyAsync_MixedKeys_PreservesOrder()
+    {
+        var (resolver, db) = CreateResolver();
+        await using (db)
+        {
+            db.Names.Add(new PlayerName { Uuid = U1, Name = "Amy" });
+            await db.SaveChangesAsync();
+
+            var result = await resolver.ResolveManyAsync(
+                [U2.ToString(), "Amy"],
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.NotNull(result.Uuids);
+            Assert.Equal(2, result.Uuids.Count);
+            Assert.Equal(U2, result.Uuids[0]);
+            Assert.Equal(U1, result.Uuids[1]);
+        }
+    }
+
+    [Fact]
+    public async Task ResolveManyAsync_WhenOneMissing_Returns404()
+    {
+        var (resolver, db) = CreateResolver();
+        await using (db)
+        {
+            db.Names.Add(new PlayerName { Uuid = U1, Name = "Amy" });
+            await db.SaveChangesAsync();
+
+            var result = await resolver.ResolveManyAsync(["Amy", "nobody"], CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(404, result.StatusCode);
+            Assert.Contains("nobody", result.Message);
+        }
+    }
+
+    [Fact]
+    public async Task ResolveManyAsync_WhenOneAmbiguous_Returns409()
+    {
+        var (resolver, db) = CreateResolver();
+        await using (db)
+        {
+            db.Names.Add(new PlayerName { Uuid = U1, Name = "Amy" });
+            db.Names.Add(new PlayerName { Uuid = U2, Name = "Amy" });
+            await db.SaveChangesAsync();
+
+            var result = await resolver.ResolveManyAsync(["Amy"], CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(409, result.StatusCode);
+        }
+    }
+
     private static (PlayerKeyResolver Resolver, BalancerDbContext Db) CreateResolver()
     {
         var options = new DbContextOptionsBuilder<BalancerDbContext>()

@@ -18,7 +18,7 @@ public class ManualWeightAdjustmentServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 100, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchBaseAsync(U1.ToString(), new ManualAdjustBaseRequest(5), CancellationToken.None);
 
         Assert.True(result.Success);
@@ -44,7 +44,7 @@ public class ManualWeightAdjustmentServiceTests
         db.AdjustmentDaily.Add(new AdjustmentDaily { Uuid = U1, Trajectory = 5 });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchBaseAsync(U1.ToString(), new ManualAdjustBaseRequest(5), CancellationToken.None);
 
         Assert.True(result.Success);
@@ -66,7 +66,7 @@ public class ManualWeightAdjustmentServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 50, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchBaseAsync("testplayer", new ManualAdjustBaseRequest(-10), CancellationToken.None);
 
         Assert.True(result.Success);
@@ -84,7 +84,7 @@ public class ManualWeightAdjustmentServiceTests
     public async Task PatchBaseAsync_WhenBaseRowMissing_Returns404()
     {
         await using var db = CreateDbContext();
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchBaseAsync(U1.ToString(), new ManualAdjustBaseRequest(1), CancellationToken.None);
 
         Assert.False(result.Success);
@@ -99,7 +99,7 @@ public class ManualWeightAdjustmentServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 1, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchBaseAsync("nobody", new ManualAdjustBaseRequest(1), CancellationToken.None);
 
         Assert.False(result.Success);
@@ -115,7 +115,7 @@ public class ManualWeightAdjustmentServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 1, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchBaseAsync("dup", new ManualAdjustBaseRequest(1), CancellationToken.None);
 
         Assert.False(result.Success);
@@ -135,7 +135,7 @@ public class ManualWeightAdjustmentServiceTests
         });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchSpecAsync(
             U1.ToString(),
             new ManualAdjustSpecRequest(3, "pyromancer"),
@@ -167,7 +167,7 @@ public class ManualWeightAdjustmentServiceTests
         db.ExperimentalSpecWeights.Add(new ExperimentalSpecWeight { Uuid = U1, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchSpecAsync(
             U1.ToString(),
             new ManualAdjustSpecRequest(1, "NotASpec"),
@@ -184,7 +184,7 @@ public class ManualWeightAdjustmentServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 100, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchSpecAsync(
             U1.ToString(),
             new ManualAdjustSpecRequest(1, "Pyromancer"),
@@ -207,7 +207,7 @@ public class ManualWeightAdjustmentServiceTests
         });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchSpecAsync(
             U1.ToString(),
             new ManualAdjustSpecRequest(2, "Pyromancer"),
@@ -233,7 +233,7 @@ public class ManualWeightAdjustmentServiceTests
         });
         await db.SaveChangesAsync();
 
-        var sut = new ManualWeightAdjustmentService(db);
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
         var result = await sut.PatchSpecAsync(
             U1.ToString(),
             new ManualAdjustSpecRequest(-2, "Pyromancer"),

@@ -28,6 +28,7 @@ public class ExperimentalControllerTests
         IExperimentalBalanceInputService? input = null,
         IExperimentalSpecLogsService? specLogs = null,
         IExperimentalSpecBanService? specBans = null,
+        IPlayerKeyResolver? playerKeyResolver = null,
         BalancerDbContext? dbContext = null)
     {
         var lb = leaderboard ?? Mock.Of<ISpecWeightLeaderboardService>();
@@ -37,7 +38,8 @@ public class ExperimentalControllerTests
         var sl = specLogs ?? Mock.Of<IExperimentalSpecLogsService>();
         var sb = specBans ?? Mock.Of<IExperimentalSpecBanService>();
         var db = dbContext ?? CreateDbContext();
-        return new ExperimentalController(specWeights, lb, b, c, i, sl, sb, db);
+        var resolver = playerKeyResolver ?? new PlayerKeyResolver(db);
+        return new ExperimentalController(specWeights, lb, b, c, i, sl, sb, resolver, db);
     }
 
     [Fact]
@@ -185,14 +187,14 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetSpecWeights_WhenNameNotFound_ReturnsBadRequest()
+    public async Task GetSpecWeights_WhenNameNotFound_ReturnsNotFound()
     {
         var service = new Mock<ISpecWeightsService>();
         var controller = CreateController(service.Object);
 
         var result = await controller.GetSpecWeights("does-not-exist", CancellationToken.None);
 
-        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
         service.Verify(x => x.GetCombinedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -214,7 +216,7 @@ public class ExperimentalControllerTests
         AssertProblem(
             result.Result!,
             StatusCodes.Status409Conflict,
-            "One or more player names are ambiguous in names table: alpha.");
+            "Player name is ambiguous in names table: alpha.");
         service.Verify(x => x.GetCombinedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -350,14 +352,14 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetDaily_WhenNameNotFound_ReturnsBadRequest()
+    public async Task GetDaily_WhenNameNotFound_ReturnsNotFound()
     {
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
         var result = await controller.GetDaily("does-not-exist", null, CancellationToken.None);
 
-        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
     }
 
@@ -369,7 +371,7 @@ public class ExperimentalControllerTests
 
         var result = await controller.GetDaily("   ", null, CancellationToken.None);
 
-        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "name must not be empty.");
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player identifier is required.");
     }
 
     [Fact]
@@ -389,7 +391,7 @@ public class ExperimentalControllerTests
         AssertProblem(
             result.Result!,
             StatusCodes.Status409Conflict,
-            "One or more player names are ambiguous in names table: alpha.");
+            "Player name is ambiguous in names table: alpha.");
     }
 
     [Fact]
@@ -490,14 +492,14 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetDailyExperimentalAll_WhenNameNotFound_ReturnsBadRequest()
+    public async Task GetDailyExperimentalAll_WhenNameNotFound_ReturnsNotFound()
     {
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
         var result = await controller.GetDailyExperimentalAll("does-not-exist", null, CancellationToken.None);
 
-        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
     }
 
@@ -509,7 +511,7 @@ public class ExperimentalControllerTests
 
         var result = await controller.GetDailyExperimentalAll("   ", null, CancellationToken.None);
 
-        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "name must not be empty.");
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player identifier is required.");
     }
 
     [Fact]
@@ -529,7 +531,7 @@ public class ExperimentalControllerTests
         AssertProblem(
             result.Result!,
             StatusCodes.Status409Conflict,
-            "One or more player names are ambiguous in names table: alpha.");
+            "Player name is ambiguous in names table: alpha.");
     }
 
     [Fact]
@@ -649,14 +651,14 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetWeekly_WhenNameNotFound_ReturnsBadRequest()
+    public async Task GetWeekly_WhenNameNotFound_ReturnsNotFound()
     {
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
         var result = await controller.GetWeekly("does-not-exist", null, CancellationToken.None);
 
-        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
     }
 
@@ -668,7 +670,7 @@ public class ExperimentalControllerTests
 
         var result = await controller.GetWeekly("   ", null, CancellationToken.None);
 
-        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "name must not be empty.");
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player identifier is required.");
     }
 
     [Fact]
@@ -688,7 +690,7 @@ public class ExperimentalControllerTests
         AssertProblem(
             result.Result!,
             StatusCodes.Status409Conflict,
-            "One or more player names are ambiguous in names table: alpha.");
+            "Player name is ambiguous in names table: alpha.");
     }
 
     [Fact]
@@ -789,14 +791,14 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetWeeklyExperimentalAll_WhenNameNotFound_ReturnsBadRequest()
+    public async Task GetWeeklyExperimentalAll_WhenNameNotFound_ReturnsNotFound()
     {
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
         var result = await controller.GetWeeklyExperimentalAll("does-not-exist", null, CancellationToken.None);
 
-        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
     }
 
@@ -808,7 +810,7 @@ public class ExperimentalControllerTests
 
         var result = await controller.GetWeeklyExperimentalAll("   ", null, CancellationToken.None);
 
-        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "name must not be empty.");
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player identifier is required.");
     }
 
     [Fact]
@@ -828,7 +830,7 @@ public class ExperimentalControllerTests
         AssertProblem(
             result.Result!,
             StatusCodes.Status409Conflict,
-            "One or more player names are ambiguous in names table: alpha.");
+            "Player name is ambiguous in names table: alpha.");
     }
 
     [Fact]
@@ -1096,7 +1098,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task Balance_WhenNameCannotBeResolved_ReturnsBadRequest()
+    public async Task Balance_WhenNameCannotBeResolved_ReturnsNotFound()
     {
         await using var db = CreateDbContext();
         db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
@@ -1110,7 +1112,7 @@ public class ExperimentalControllerTests
             new ExperimentalController.ExperimentalBalanceInputRequest(["alpha", "does-not-exist"]),
             CancellationToken.None);
 
-        var pd = AssertProblem(result.Result!, StatusCodes.Status400BadRequest);
+        var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
         balance.Verify(x => x.BalanceAsync(It.IsAny<ExperimentalBalanceRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }

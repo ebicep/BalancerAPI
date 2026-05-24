@@ -4,22 +4,24 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BalancerAPI.Business.Services;
 
-public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) : IManualWeightAdjustmentService
+public sealed class ManualWeightAdjustmentService(
+    BalancerDbContext dbContext,
+    IPlayerKeyResolver playerKeyResolver) : IManualWeightAdjustmentService
 {
     public async Task<ManualWeightAdjustServiceResult<ManualBaseAdjustResponse>> PatchBaseAsync(
         string playerKey,
         ManualAdjustBaseRequest body,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerKeyAsync(playerKey, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(playerKey, cancellationToken);
+        if (!resolved.Success || resolved.Uuid is null)
         {
             return ManualWeightAdjustServiceResult<ManualBaseAdjustResponse>.Fail(
                 resolved.StatusCode,
                 resolved.Message!);
         }
 
-        var uuid = resolved.Uuid!.Value;
+        var uuid = resolved.Uuid.Value;
         var displayName = resolved.DisplayName ?? string.Empty;
         var row = await (
             from bw in dbContext.BaseWeights
@@ -81,15 +83,15 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
                 "Unknown or missing spec.");
         }
 
-        var resolved = await ResolvePlayerKeyAsync(playerKey, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(playerKey, cancellationToken);
+        if (!resolved.Success || resolved.Uuid is null)
         {
             return ManualWeightAdjustServiceResult<ManualSpecAdjustResponse>.Fail(
                 resolved.StatusCode,
                 resolved.Message!);
         }
 
-        var uuid = resolved.Uuid!.Value;
+        var uuid = resolved.Uuid.Value;
         var displayName = resolved.DisplayName ?? string.Empty;
         var row = await (
             from sw in dbContext.ExperimentalSpecWeights
@@ -149,47 +151,6 @@ public sealed class ManualWeightAdjustmentService(BalancerDbContext dbContext) :
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return ManualWeightAdjustServiceResult<ManualSpecAdjustResponse>.Ok(response);
-    }
-
-    private async Task<(bool Success, int StatusCode, string? Message, Guid? Uuid, string? DisplayName)> ResolvePlayerKeyAsync(
-        string playerKey,
-        CancellationToken cancellationToken)
-    {
-        var trimmed = playerKey.Trim();
-        if (trimmed.Length == 0)
-        {
-            return (false, 400, "Player identifier is required.", null, null);
-        }
-
-        if (Guid.TryParse(trimmed, out var uuid))
-        {
-            var namesByUuid = await dbContext.Names.AsNoTracking()
-                .Where(x => x.Uuid == uuid)
-                .Select(x => x.Name)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-            if (namesByUuid.Count > 1)
-            {
-                return (false, 409, $"Player UUID has multiple names in names table: {uuid}.", null, null);
-            }
-
-            var displayName = namesByUuid.Count == 1 ? namesByUuid[0] : string.Empty;
-            return (true, 200, null, uuid, displayName);
-        }
-
-        var normalizedName = trimmed.ToLowerInvariant();
-        var rows = await dbContext.Names.AsNoTracking()
-            .Where(x => x.Name.ToLower() == normalizedName)
-            .Select(x => new { x.Uuid, x.Name })
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        return rows.Count switch
-        {
-            > 1 => (false, 409, $"Player name is ambiguous in names table: {trimmed}.", null, null),
-            0 => (false, 404, $"No matching UUID found in names table for: {trimmed}.", null, null),
-            _ => (true, 200, null, rows[0].Uuid, rows[0].Name)
-        };
     }
 
     public static string? TryNormalizeSpec(string? spec)

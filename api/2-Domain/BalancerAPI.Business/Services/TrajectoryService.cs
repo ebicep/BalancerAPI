@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BalancerAPI.Business.Services;
 
-public sealed class TrajectoryService(BalancerDbContext dbContext) : ITrajectoryService
+public sealed class TrajectoryService(
+    BalancerDbContext dbContext,
+    IPlayerKeyResolver playerKeyResolver) : ITrajectoryService
 {
     public async Task<IReadOnlyList<PlayerTrajectoryEntry>> ListAsync(CancellationToken cancellationToken)
     {
@@ -39,15 +41,15 @@ public sealed class TrajectoryService(BalancerDbContext dbContext) : ITrajectory
         SetTrajectoryRequest body,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerKeyAsync(playerKey, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(playerKey, cancellationToken);
+        if (!resolved.Success || resolved.Uuid is null)
         {
             return TrajectoryServiceResult<PlayerTrajectoryEntry>.Fail(
                 resolved.StatusCode,
                 resolved.Message!);
         }
 
-        var uuid = resolved.Uuid!.Value;
+        var uuid = resolved.Uuid.Value;
         var displayName = resolved.DisplayName ?? string.Empty;
         var hasBaseWeight = await dbContext.BaseWeights.AsNoTracking()
             .AnyAsync(x => x.Uuid == uuid, cancellationToken);
@@ -75,46 +77,5 @@ public sealed class TrajectoryService(BalancerDbContext dbContext) : ITrajectory
 
         return TrajectoryServiceResult<PlayerTrajectoryEntry>.Ok(
             new PlayerTrajectoryEntry(uuid, displayName, adjustmentDaily.Trajectory));
-    }
-
-    private async Task<(bool Success, int StatusCode, string? Message, Guid? Uuid, string? DisplayName)> ResolvePlayerKeyAsync(
-        string playerKey,
-        CancellationToken cancellationToken)
-    {
-        var trimmed = playerKey.Trim();
-        if (trimmed.Length == 0)
-        {
-            return (false, 400, "Player identifier is required.", null, null);
-        }
-
-        if (Guid.TryParse(trimmed, out var uuid))
-        {
-            var namesByUuid = await dbContext.Names.AsNoTracking()
-                .Where(x => x.Uuid == uuid)
-                .Select(x => x.Name)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-            if (namesByUuid.Count > 1)
-            {
-                return (false, 409, $"Player UUID has multiple names in names table: {uuid}.", null, null);
-            }
-
-            var displayName = namesByUuid.Count == 1 ? namesByUuid[0] : string.Empty;
-            return (true, 200, null, uuid, displayName);
-        }
-
-        var normalizedName = trimmed.ToLowerInvariant();
-        var rows = await dbContext.Names.AsNoTracking()
-            .Where(x => x.Name.ToLower() == normalizedName)
-            .Select(x => new { x.Uuid, x.Name })
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        return rows.Count switch
-        {
-            > 1 => (false, 409, $"Player name is ambiguous in names table: {trimmed}.", null, null),
-            0 => (false, 404, $"No matching UUID found in names table for: {trimmed}.", null, null),
-            _ => (true, 200, null, rows[0].Uuid, rows[0].Name)
-        };
     }
 }

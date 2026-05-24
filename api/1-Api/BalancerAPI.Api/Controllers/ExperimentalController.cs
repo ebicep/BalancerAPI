@@ -21,6 +21,7 @@ public class ExperimentalController(
     IExperimentalBalanceInputService experimentalBalanceInputService,
     IExperimentalSpecLogsService experimentalSpecLogsService,
     IExperimentalSpecBanService experimentalSpecBanService,
+    IPlayerKeyResolver playerKeyResolver,
     BalancerDbContext dbContext) : ControllerBase
 {
     [HttpGet("logs")]
@@ -126,10 +127,11 @@ public class ExperimentalController(
         string nameOrUuid,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerUuidFromNameOrUuidAsync(nameOrUuid, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(nameOrUuid, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
         {
-            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+            return problem;
         }
 
         var result = await specWeightsService.GetCombinedAsync(resolved.Uuid!.Value, cancellationToken);
@@ -148,15 +150,17 @@ public class ExperimentalController(
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]
     [ProducesResponseType(typeof(ExperimentalSpecBansResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalSpecBansResponse>> GetSpecBans(
         string nameOrUuid,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerUuidFromNameOrUuidAsync(nameOrUuid, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(nameOrUuid, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
         {
-            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+            return problem;
         }
 
         var result = await experimentalSpecBanService.GetBansAsync(resolved.Uuid!.Value, cancellationToken);
@@ -173,6 +177,7 @@ public class ExperimentalController(
     [Authorize(Policy = ApiPermissions.ExperimentalSpecBansWrite)]
     [ProducesResponseType(typeof(ExperimentalSpecBansResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalSpecBansResponse>> BanSpec(
         string nameOrUuid,
@@ -187,6 +192,7 @@ public class ExperimentalController(
     [Authorize(Policy = ApiPermissions.ExperimentalSpecBansWrite)]
     [ProducesResponseType(typeof(ExperimentalSpecBansResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ExperimentalSpecBansResponse>> UnbanSpec(
         string nameOrUuid,
@@ -210,10 +216,11 @@ public class ExperimentalController(
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var resolved = await ResolvePlayerUuidFromNameOrUuidAsync(nameOrUuid, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(nameOrUuid, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
         {
-            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+            return problem;
         }
 
         var result = await experimentalSpecBanService.SetBanAsync(
@@ -241,10 +248,11 @@ public class ExperimentalController(
         [FromQuery] int? id,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(name, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
         {
-            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+            return problem;
         }
 
         if (id is not null)
@@ -294,10 +302,11 @@ public class ExperimentalController(
         [FromQuery] int? id,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(name, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
         {
-            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+            return problem;
         }
 
         if (id is not null)
@@ -339,10 +348,11 @@ public class ExperimentalController(
         [FromQuery] int? id,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(name, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
         {
-            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+            return problem;
         }
 
         if (id is not null)
@@ -392,10 +402,11 @@ public class ExperimentalController(
         [FromQuery] int? id,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerUuidFromNameAsync(name, cancellationToken);
-        if (!resolved.Success)
+        var resolved = await playerKeyResolver.ResolveAsync(name, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
         {
-            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+            return problem;
         }
 
         if (id is not null)
@@ -436,14 +447,15 @@ public class ExperimentalController(
         [FromBody] ExperimentalBalanceInputRequest request,
         CancellationToken cancellationToken)
     {
-        var resolved = await ResolvePlayerUuidsAsync(request, cancellationToken);
-        if (!resolved.Success)
+        var players = request.Players ?? [];
+        var resolved = await playerKeyResolver.ResolveManyAsync(players, cancellationToken);
+        if (!resolved.Success || resolved.Uuids is null)
         {
             return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
         }
 
         var result = await experimentalBalanceService.BalanceAsync(
-            new ExperimentalBalanceRequest(resolved.PlayerUuids!),
+            new ExperimentalBalanceRequest(resolved.Uuids),
             cancellationToken);
         if (result.Success && result.Data is not null)
         {
@@ -599,143 +611,10 @@ public class ExperimentalController(
         return Problem(detail: result.Message, statusCode: result.StatusCode);
     }
 
-    private async Task<ResolvePlayersResult> ResolvePlayerUuidsAsync(
-        ExperimentalBalanceInputRequest request,
-        CancellationToken cancellationToken)
-    {
-        var players = request.Players ?? [];
-        if (players.Count == 0)
-        {
-            return ResolvePlayersResult.Fail(400, "players must not be empty.");
-        }
-
-        var uuids = new List<Guid>(players.Count);
-        var namesToResolve = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var player in players)
-        {
-            if (Guid.TryParse(player, out var uuid))
-            {
-                uuids.Add(uuid);
-            }
-            else
-            {
-                namesToResolve.Add(player.Trim());
-            }
-        }
-
-        if (namesToResolve.Count == 0)
-        {
-            return ResolvePlayersResult.Ok(uuids);
-        }
-
-        var normalizedNames = namesToResolve
-            .Select(x => x.ToLowerInvariant())
-            .ToHashSet(StringComparer.Ordinal);
-
-        var rows = await dbContext.Names
-            .AsNoTracking()
-            .Where(x => normalizedNames.Contains(x.Name.ToLower()))
-            .Select(x => new { x.Name, x.Uuid })
-            .ToListAsync(cancellationToken);
-
-        var uuidsByName = rows
-            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Select(r => r.Uuid).Distinct().ToList(), StringComparer.OrdinalIgnoreCase);
-
-        var ambiguous = uuidsByName
-            .Where(x => x.Value.Count > 1)
-            .Select(x => x.Key)
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (ambiguous.Count > 0)
-        {
-            return ResolvePlayersResult.Fail(
-                409,
-                $"One or more player names are ambiguous in names table: {string.Join(", ", ambiguous)}.");
-        }
-
-        var missing = new List<string>();
-        var finalUuids = new List<Guid>(players.Count);
-        foreach (var player in players)
-        {
-            var trimmed = player.Trim();
-            if (Guid.TryParse(trimmed, out var uuid))
-            {
-                finalUuids.Add(uuid);
-                continue;
-            }
-
-            if (!uuidsByName.TryGetValue(trimmed, out var matches) || matches.Count == 0)
-            {
-                missing.Add(trimmed);
-                continue;
-            }
-
-            finalUuids.Add(matches[0]);
-        }
-
-        if (missing.Count > 0)
-        {
-            return ResolvePlayersResult.Fail(
-                400,
-                $"No matching UUID found in names table for: {string.Join(", ", missing.Distinct(StringComparer.OrdinalIgnoreCase))}.");
-        }
-
-        return ResolvePlayersResult.Ok(finalUuids);
-    }
-
-    private async Task<ResolveNameResult> ResolvePlayerUuidFromNameOrUuidAsync(
-        string nameOrUuid,
-        CancellationToken cancellationToken)
-    {
-        var trimmed = nameOrUuid.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return ResolveNameResult.Fail(400, "nameOrUuid must not be empty.");
-        }
-
-        if (Guid.TryParse(trimmed, out var uuid))
-        {
-            return ResolveNameResult.Ok(uuid);
-        }
-
-        return await ResolvePlayerUuidFromNameAsync(trimmed, cancellationToken);
-    }
-
-    private async Task<ResolveNameResult> ResolvePlayerUuidFromNameAsync(
-        string name,
-        CancellationToken cancellationToken)
-    {
-        var trimmed = name.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return ResolveNameResult.Fail(400, "name must not be empty.");
-        }
-
-        var normalized = trimmed.ToLowerInvariant();
-        var uuids = await dbContext.Names
-            .AsNoTracking()
-            .Where(x => x.Name.ToLower() == normalized)
-            .Select(x => x.Uuid)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        if (uuids.Count == 0)
-        {
-            return ResolveNameResult.Fail(
-                400,
-                $"No matching UUID found in names table for: {trimmed}.");
-        }
-
-        if (uuids.Count > 1)
-        {
-            return ResolveNameResult.Fail(
-                409,
-                $"One or more player names are ambiguous in names table: {trimmed}.");
-        }
-
-        return ResolveNameResult.Ok(uuids[0]);
-    }
+    private ActionResult? ProblemFrom(PlayerKeyResolveResult resolved) =>
+        resolved is { Success: true, Uuid: not null }
+            ? null
+            : Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
 
     private static ExperimentalDailyAllSpecsResponse MapExperimentalDailyAllSpecs(object? row)
     {
@@ -844,26 +723,4 @@ public class ExperimentalController(
 
     public sealed record ExperimentalBalanceInputRequest(
         [property: JsonPropertyName("players")] IReadOnlyList<string> Players);
-
-    private sealed record ResolvePlayersResult(
-        bool Success,
-        int StatusCode,
-        string? Message,
-        IReadOnlyList<Guid>? PlayerUuids)
-    {
-        public static ResolvePlayersResult Ok(IReadOnlyList<Guid> uuids) =>
-            new(true, StatusCodes.Status200OK, null, uuids);
-
-        public static ResolvePlayersResult Fail(int statusCode, string message) =>
-            new(false, statusCode, message, null);
-    }
-
-    private sealed record ResolveNameResult(bool Success, int StatusCode, string? Message, Guid? Uuid)
-    {
-        public static ResolveNameResult Ok(Guid uuid) =>
-            new(true, StatusCodes.Status200OK, null, uuid);
-
-        public static ResolveNameResult Fail(int statusCode, string message) =>
-            new(false, statusCode, message, null);
-    }
 }

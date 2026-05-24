@@ -26,7 +26,7 @@ public class TrajectoryServiceTests
             new AdjustmentDaily { Uuid = U3, Trajectory = 3 });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var list = await sut.ListAsync(CancellationToken.None);
 
         Assert.Equal(3, list.Count);
@@ -47,7 +47,7 @@ public class TrajectoryServiceTests
         db.AdjustmentDaily.Add(new AdjustmentDaily { Uuid = U1, Trajectory = 2 });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var list = await sut.ListAsync(CancellationToken.None);
 
         Assert.Single(list);
@@ -63,7 +63,7 @@ public class TrajectoryServiceTests
         db.AdjustmentDaily.Add(new AdjustmentDaily { Uuid = U2, Trajectory = 1 });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var list = await sut.ListAsync(CancellationToken.None);
 
         Assert.Single(list);
@@ -77,7 +77,7 @@ public class TrajectoryServiceTests
         db.AdjustmentDaily.Add(new AdjustmentDaily { Uuid = U1, Trajectory = -2 });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var list = await sut.ListAsync(CancellationToken.None);
 
         Assert.Single(list);
@@ -91,7 +91,7 @@ public class TrajectoryServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 100, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var result = await sut.SetAsync(U1.ToString(), new SetTrajectoryRequest(4), CancellationToken.None);
 
         Assert.True(result.Success);
@@ -109,7 +109,7 @@ public class TrajectoryServiceTests
         db.AdjustmentDaily.Add(new AdjustmentDaily { Uuid = U1, Trajectory = 2 });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var result = await sut.SetAsync(U1.ToString(), new SetTrajectoryRequest(-1), CancellationToken.None);
 
         Assert.True(result.Success);
@@ -125,7 +125,7 @@ public class TrajectoryServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 50, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var result = await sut.SetAsync("testplayer", new SetTrajectoryRequest(1), CancellationToken.None);
 
         Assert.True(result.Success);
@@ -137,7 +137,7 @@ public class TrajectoryServiceTests
     public async Task SetAsync_WhenBaseRowMissing_Returns404()
     {
         await using var db = CreateDbContext();
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var result = await sut.SetAsync(U1.ToString(), new SetTrajectoryRequest(1), CancellationToken.None);
 
         Assert.False(result.Success);
@@ -152,7 +152,7 @@ public class TrajectoryServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 1, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var result = await sut.SetAsync("nobody", new SetTrajectoryRequest(1), CancellationToken.None);
 
         Assert.False(result.Success);
@@ -168,7 +168,7 @@ public class TrajectoryServiceTests
         db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 1, LastUpdated = FixedLastUpdated });
         await db.SaveChangesAsync();
 
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var result = await sut.SetAsync("dup", new SetTrajectoryRequest(1), CancellationToken.None);
 
         Assert.False(result.Success);
@@ -179,7 +179,7 @@ public class TrajectoryServiceTests
     public async Task SetAsync_WhenPlayerKeyEmpty_Returns400()
     {
         await using var db = CreateDbContext();
-        var sut = new TrajectoryService(db);
+        var sut = new TrajectoryService(db, new PlayerKeyResolver(db));
         var result = await sut.SetAsync("   ", new SetTrajectoryRequest(1), CancellationToken.None);
 
         Assert.False(result.Success);
