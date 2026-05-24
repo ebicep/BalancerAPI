@@ -13,16 +13,25 @@ public class PlayerController(
     IPlayerAddService playerAddService,
     IPlayerGetService playerGetService,
     IPlayerDeleteService playerDeleteService,
-    IPlayerUuidUpdateService playerUuidUpdateService) : ControllerBase
+    IPlayerUuidUpdateService playerUuidUpdateService,
+    IPlayerKeyResolver playerKeyResolver) : ControllerBase
 {
-    [HttpGet("{uuid:guid}")]
+    [HttpGet("{nameOrUuid}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.PlayersRead)]
     [ProducesResponseType(typeof(PlayerGetResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<PlayerGetResponse>> Get(Guid uuid, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PlayerGetResponse>> Get(string nameOrUuid, CancellationToken cancellationToken)
     {
-        var (success, statusCode, message, payload) = await playerGetService.GetAsync(uuid, cancellationToken);
+        var resolved = await playerKeyResolver.ResolveAsync(nameOrUuid, cancellationToken);
+        if (!resolved.Success || resolved.Uuid is null)
+        {
+            return Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
+        }
+
+        var (success, statusCode, message, payload) = await playerGetService.GetAsync(resolved.Uuid.Value, cancellationToken);
         if (!success || payload is null)
         {
             return Problem(detail: message, statusCode: statusCode);

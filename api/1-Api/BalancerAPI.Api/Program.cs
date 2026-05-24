@@ -96,6 +96,7 @@ builder.Services.AddScoped<IPlayerAddService, PlayerAddService>();
 builder.Services.AddScoped<IPlayerDeleteService, PlayerDeleteService>();
 builder.Services.AddScoped<IPlayerUuidUpdateService, PlayerUuidUpdateService>();
 builder.Services.AddScoped<IPlayerGetService, PlayerGetService>();
+builder.Services.AddScoped<IPlayerKeyResolver, PlayerKeyResolver>();
 builder.Services.AddScoped<INameUpdateService, NameUpdateService>();
 builder.Services.AddHttpClient<IMinecraftPlayerResolveService, MinecraftPlayerResolveService>();
 
