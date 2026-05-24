@@ -15,6 +15,13 @@ public sealed record LatestSeasonResponse(int Season, DateTime Timestamp);
 
 public sealed record CurrentTimeResponse(int Day, int Week, int Season);
 
+public sealed record TimePeriodEntry(int Id, DateTime Timestamp);
+
+public sealed record TimeHistoryResponse(
+    IReadOnlyList<TimePeriodEntry> Days,
+    IReadOnlyList<TimePeriodEntry> Weeks,
+    IReadOnlyList<TimePeriodEntry> Seasons);
+
 public sealed class TimeService(
     BalancerDbContext dbContext,
     IDbContextFactory<BalancerDbContext> dbContextFactory,
@@ -569,6 +576,29 @@ public sealed class TimeService(
         }
 
         return new CurrentTimeResponse(dayId.Value, weekId.Value, seasonId.Value);
+    }
+
+    public async Task<TimeHistoryResponse> GetTimeHistoryAsync(CancellationToken cancellationToken)
+    {
+        var days = await dbContext.TimeDays
+            .OrderByDescending(x => x.Id)
+            .Take(5)
+            .Select(x => new TimePeriodEntry(x.Id, x.Timestamp))
+            .ToListAsync(cancellationToken);
+
+        var weeks = await dbContext.TimeWeeks
+            .OrderByDescending(x => x.Id)
+            .Take(5)
+            .Select(x => new TimePeriodEntry(x.Id, x.Timestamp))
+            .ToListAsync(cancellationToken);
+
+        var seasons = await dbContext.TimeSeasons
+            .OrderByDescending(x => x.Id)
+            .Take(5)
+            .Select(x => new TimePeriodEntry(x.Id, x.Timestamp))
+            .ToListAsync(cancellationToken);
+
+        return new TimeHistoryResponse(days, weeks, seasons);
     }
 }
 

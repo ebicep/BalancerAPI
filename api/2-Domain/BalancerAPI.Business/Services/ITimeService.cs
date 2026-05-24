@@ -14,4 +14,6 @@ public interface ITimeService
     Task<(int Season, DateTime Timestamp)?> GetLatestSeasonAsync(CancellationToken cancellationToken);
 
     Task<CurrentTimeResponse?> GetCurrentTimeAsync(CancellationToken cancellationToken);
+
+    Task<TimeHistoryResponse> GetTimeHistoryAsync(CancellationToken cancellationToken);
 }

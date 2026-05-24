@@ -122,4 +122,11 @@ public class TimeController(ITimeService timeService) : ControllerBase
         var (season, timestamp) = latest.Value;
         return Ok(new LatestSeasonResponse(season, timestamp));
     }
+
+    [HttpGet("history")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.TimeRead)]
+    [ProducesResponseType(typeof(TimeHistoryResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<TimeHistoryResponse>> GetHistory(CancellationToken cancellationToken)
+        => Ok(await timeService.GetTimeHistoryAsync(cancellationToken));
 }

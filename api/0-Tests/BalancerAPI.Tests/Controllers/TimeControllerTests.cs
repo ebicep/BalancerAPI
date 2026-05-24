@@ -129,4 +129,30 @@ public class TimeControllerTests
         Assert.Equal(9, response.Season);
         Assert.Equal(timestamp, response.Timestamp);
     }
+
+    [Fact]
+    public async Task GetHistory_ReturnsOkWithHistoryPayload()
+    {
+        var timestamp = new DateTime(2026, 5, 24, 12, 0, 0, DateTimeKind.Utc);
+        var history = new TimeHistoryResponse(
+            [new TimePeriodEntry(10, timestamp)],
+            [new TimePeriodEntry(3, timestamp.AddDays(-7))],
+            []);
+
+        var service = new Mock<ITimeService>();
+        service.Setup(x => x.GetTimeHistoryAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(history);
+
+        var controller = new TimeController(service.Object);
+
+        var result = await controller.GetHistory(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<TimeHistoryResponse>(ok.Value);
+        Assert.Single(response.Days);
+        Assert.Equal(10, response.Days[0].Id);
+        Assert.Single(response.Weeks);
+        Assert.Equal(3, response.Weeks[0].Id);
+        Assert.Empty(response.Seasons);
+    }
 }

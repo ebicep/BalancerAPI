@@ -408,4 +408,78 @@ public class TimeServiceSnapshotTests
             Assert.Equal(2, await db.TimeWeeks.CountAsync());
         }
     }
+
+    [Fact]
+    public async Task GetTimeHistoryAsync_WithManyDays_ReturnsFiveNewestDescending()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var timestamp = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            for (var id = 1; id <= 7; id++)
+            {
+                seed.TimeDays.Add(new TimeDay { Id = id, Timestamp = timestamp.AddDays(id) });
+            }
+
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+
+            var result = await service.GetTimeHistoryAsync(CancellationToken.None);
+
+            Assert.Equal(5, result.Days.Count);
+            Assert.Equal([7, 6, 5, 4, 3], result.Days.Select(x => x.Id).ToArray());
+            Assert.Empty(result.Weeks);
+            Assert.Empty(result.Seasons);
+        }
+    }
+
+    [Fact]
+    public async Task GetTimeHistoryAsync_WithTwoDays_ReturnsBoth()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var timestamp = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            seed.TimeDays.AddRange(
+                new TimeDay { Id = 1, Timestamp = timestamp },
+                new TimeDay { Id = 2, Timestamp = timestamp.AddDays(1) });
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+
+            var result = await service.GetTimeHistoryAsync(CancellationToken.None);
+
+            Assert.Equal(2, result.Days.Count);
+            Assert.Equal([2, 1], result.Days.Select(x => x.Id).ToArray());
+        }
+    }
+
+    [Fact]
+    public async Task GetTimeHistoryAsync_WhenEmpty_ReturnsThreeEmptyLists()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+
+            var result = await service.GetTimeHistoryAsync(CancellationToken.None);
+
+            Assert.Empty(result.Days);
+            Assert.Empty(result.Weeks);
+            Assert.Empty(result.Seasons);
+        }
+    }
 }
