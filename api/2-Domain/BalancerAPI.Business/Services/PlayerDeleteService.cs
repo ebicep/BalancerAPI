@@ -57,6 +57,7 @@ public sealed class PlayerDeleteService(IDbContextFactory<BalancerDbContext> dbC
                 cancellationToken);
             await DeleteByUuidAsync(dbContext.AdjustmentDaily, "adjustment_daily", uuid, removedTables, data, cancellationToken);
             await DeleteByUuidAsync(dbContext.ExperimentalSpecBans, "experimental_spec_bans", uuid, removedTables, data, cancellationToken);
+            await DeleteByUuidAsync(dbContext.ExperimentalSpecRequests, "experimental_spec_requests", uuid, removedTables, data, cancellationToken);
             await DeleteByUuidAsync(
                 dbContext.ExperimentalSpecWeights,
                 "experimental_spec_weights",

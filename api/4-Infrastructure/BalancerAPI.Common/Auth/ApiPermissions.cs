@@ -18,6 +18,7 @@ public static class ApiPermissions
     public const string ExperimentalLogsTruncate = "experimental.logs.truncate";
     public const string ExperimentalLogsClear = "experimental.logs.clear";
     public const string ExperimentalSpecBansWrite = "experimental.spec-bans.write";
+    public const string ExperimentalRequestSpecWrite = "experimental.request-spec.write";
 
     public const string AdjustAuto = "adjust.auto";
     public const string AdjustManual = "adjust.manual";
@@ -40,6 +41,7 @@ public static class ApiPermissions
         ExperimentalLogsTruncate,
         ExperimentalLogsClear,
         ExperimentalSpecBansWrite,
+        ExperimentalRequestSpecWrite,
         AdjustAuto,
         AdjustManual,
         PlayersAdd,

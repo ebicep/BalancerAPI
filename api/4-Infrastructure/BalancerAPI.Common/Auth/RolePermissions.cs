@@ -19,6 +19,7 @@ public static class RolePermissions
                 ApiPermissions.ExperimentalLogsTruncate,
                 ApiPermissions.ExperimentalLogsClear,
                 ApiPermissions.ExperimentalSpecBansWrite,
+                ApiPermissions.ExperimentalRequestSpecWrite,
                 ApiPermissions.AdjustAuto,
                 ApiPermissions.AdjustManual,
                 ApiPermissions.PlayersAdd,

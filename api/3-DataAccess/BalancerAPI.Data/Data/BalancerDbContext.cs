@@ -21,6 +21,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<BaseWeightCurrentWeek> BaseWeightsCurrentWeek => Set<BaseWeightCurrentWeek>();
     public DbSet<ExperimentalSpecLog> ExperimentalSpecLogs => Set<ExperimentalSpecLog>();
     public DbSet<ExperimentalSpecBan> ExperimentalSpecBans => Set<ExperimentalSpecBan>();
+    public DbSet<ExperimentalSpecRequest> ExperimentalSpecRequests => Set<ExperimentalSpecRequest>();
     public DbSet<ExperimentalSpecWeight> ExperimentalSpecWeights => Set<ExperimentalSpecWeight>();
     public DbSet<ExperimentalSpecWeightWeekly> ExperimentalSpecWeightsWeekly => Set<ExperimentalSpecWeightWeekly>();
     public DbSet<ExperimentalSpecWeightCurrentWeek> ExperimentalSpecWeightsCurrentWeek => Set<ExperimentalSpecWeightCurrentWeek>();
@@ -121,6 +122,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureBaseWeightsCurrentWeekView(modelBuilder);
         ConfigureExperimentalSpecLogs(modelBuilder);
         ConfigureExperimentalSpecBans(modelBuilder);
+        ConfigureExperimentalSpecRequests(modelBuilder);
         ConfigureExperimentalSpecWeights(modelBuilder);
         ConfigureExperimentalSpecWeightsWeekly(modelBuilder);
         ConfigureExperimentalSpecWeightsCurrentWeekView(modelBuilder);
@@ -425,6 +427,19 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.Property(e => e.Conjurer).HasColumnName("conjurer").HasDefaultValue(false);
             entity.Property(e => e.Sentinel).HasColumnName("sentinel").HasDefaultValue(false);
             entity.Property(e => e.Luminary).HasColumnName("luminary").HasDefaultValue(false);
+        });
+    }
+
+    private static void ConfigureExperimentalSpecRequests(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecRequest>(entity =>
+        {
+            entity.ToTable("experimental_spec_requests");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Spec).HasColumnName("spec").IsRequired();
+            entity.Property(e => e.GameCooldown).HasColumnName("game_cooldown");
+            entity.Property(e => e.CreatedTime).HasColumnName("created_time");
         });
     }
 

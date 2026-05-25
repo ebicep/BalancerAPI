@@ -28,6 +28,7 @@ public class ExperimentalControllerTests
         IExperimentalBalanceInputService? input = null,
         IExperimentalSpecLogsService? specLogs = null,
         IExperimentalSpecBanService? specBans = null,
+        IExperimentalSpecRequestService? specRequests = null,
         IPlayerKeyResolver? playerKeyResolver = null,
         BalancerDbContext? dbContext = null)
     {
@@ -37,9 +38,10 @@ public class ExperimentalControllerTests
         var i = input ?? Mock.Of<IExperimentalBalanceInputService>();
         var sl = specLogs ?? Mock.Of<IExperimentalSpecLogsService>();
         var sb = specBans ?? Mock.Of<IExperimentalSpecBanService>();
+        var sr = specRequests ?? Mock.Of<IExperimentalSpecRequestService>();
         var db = dbContext ?? CreateDbContext();
         var resolver = playerKeyResolver ?? new PlayerKeyResolver(db);
-        return new ExperimentalController(specWeights, lb, b, c, i, sl, sb, resolver, db);
+        return new ExperimentalController(specWeights, lb, b, c, i, sl, sb, sr, resolver, db);
     }
 
     [Fact]
@@ -328,6 +330,66 @@ public class ExperimentalControllerTests
 
         Assert.IsType<OkObjectResult>(result.Result);
         specBans.Verify(x => x.SetBanAsync(TestUuid, "Pyromancer", false, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RequestSpec_WhenInvalidSpec_ReturnsBadRequest()
+    {
+        var specRequests = new Mock<IExperimentalSpecRequestService>();
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specRequests: specRequests.Object);
+
+        var result = await controller.RequestSpec(
+            TestUuid.ToString(),
+            new ExperimentalSpecRequestBody("nope"),
+            CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Unknown or missing spec.");
+        specRequests.Verify(
+            x => x.UpsertAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task RequestSpec_WhenBanned_ReturnsBadRequestFromService()
+    {
+        var specRequests = new Mock<IExperimentalSpecRequestService>();
+        specRequests.Setup(x => x.UpsertAsync(TestUuid, "Pyromancer", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalSpecRequestServiceResult(
+                false,
+                400,
+                "Player is banned from Pyromancer.",
+                null));
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specRequests: specRequests.Object);
+
+        var result = await controller.RequestSpec(
+            TestUuid.ToString(),
+            new ExperimentalSpecRequestBody("Pyromancer"),
+            CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player is banned from Pyromancer.");
+    }
+
+    [Fact]
+    public async Task RequestSpec_WhenValid_ReturnsOk()
+    {
+        var expected = new ExperimentalSpecRequestResponse(TestUuid, "Pyromancer", 5, DateTime.UtcNow);
+        var specRequests = new Mock<IExperimentalSpecRequestService>();
+        specRequests.Setup(x => x.UpsertAsync(TestUuid, "Pyromancer", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalSpecRequestServiceResult(true, 200, null, expected));
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specRequests: specRequests.Object);
+
+        var result = await controller.RequestSpec(
+            TestUuid.ToString(),
+            new ExperimentalSpecRequestBody("pyromancer"),
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ExperimentalSpecRequestResponse>(ok.Value);
+        Assert.Equal("Pyromancer", response.Spec);
+        Assert.Equal(5, response.GameCooldown);
+        specRequests.Verify(x => x.UpsertAsync(TestUuid, "Pyromancer", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -972,8 +1034,8 @@ public class ExperimentalControllerTests
                     12,
                     8.0,
                     [
-                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false),
-                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false)
+                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false, false),
+                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false, false)
                     ]),
                 new ExperimentalBalanceTeam(
                     200,
@@ -981,8 +1043,8 @@ public class ExperimentalControllerTests
                     8,
                     4.0,
                     [
-                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false),
-                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0, false)
+                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false, false),
+                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0, false, false)
                     ])
             ],
             0,
@@ -1063,8 +1125,8 @@ public class ExperimentalControllerTests
                     12,
                     8.0,
                     [
-                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false),
-                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false)
+                        new(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false, false),
+                        new(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false, false)
                     ]),
                 new ExperimentalBalanceTeam(
                     200,
@@ -1072,8 +1134,8 @@ public class ExperimentalControllerTests
                     8,
                     4.0,
                     [
-                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false),
-                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0, false)
+                        new(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false, false),
+                        new(U4, "delta", "Berserker", 100, 0, 5, 2.0, false, false)
                     ])
             ],
             0,
@@ -1256,8 +1318,8 @@ public class ExperimentalControllerTests
                 12,
                 8.0,
                 [
-                    new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false),
-                    new ExperimentalBalancePlayerSpec(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false)
+                    new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false, false),
+                    new ExperimentalBalancePlayerSpec(U2, "beta", "Cryomancer", 100, 0, 5, 4.0, false, false)
                 ]),
             new(
                 200,
@@ -1265,8 +1327,8 @@ public class ExperimentalControllerTests
                 8,
                 4.0,
                 [
-                    new ExperimentalBalancePlayerSpec(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false),
-                    new ExperimentalBalancePlayerSpec(U4, "delta", "Berserker", 100, 0, 5, 2.0, false)
+                    new ExperimentalBalancePlayerSpec(U3, "gamma", "Aquamancer", 100, 0, 3, 2.0, false, false),
+                    new ExperimentalBalancePlayerSpec(U4, "delta", "Berserker", 100, 0, 5, 2.0, false, false)
                 ])
         };
         await using var db = CreateDbContext();
@@ -1766,7 +1828,7 @@ public class ExperimentalControllerTests
                 0,
                 12,
                 8.0,
-                [new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false)])
+                [new ExperimentalBalancePlayerSpec(TestUuid, "alpha", "Pyromancer", 100, 0, 7, 4.0, false, false)])
         };
         await using var db = CreateDbContext();
         db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog

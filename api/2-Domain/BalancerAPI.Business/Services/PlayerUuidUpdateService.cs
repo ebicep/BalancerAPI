@@ -124,6 +124,14 @@ public sealed class PlayerUuidUpdateService(
                 cancellationToken);
             await UpdateUuidOnSetAsync(
                 dbContext,
+                dbContext.ExperimentalSpecRequests,
+                "experimental_spec_requests",
+                oldUuid,
+                newUuid,
+                tablesUpdated,
+                cancellationToken);
+            await UpdateUuidOnSetAsync(
+                dbContext,
                 dbContext.ExperimentalSpecWeights,
                 "experimental_spec_weights",
                 oldUuid,

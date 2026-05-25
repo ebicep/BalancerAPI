@@ -21,6 +21,7 @@ public class ExperimentalController(
     IExperimentalBalanceInputService experimentalBalanceInputService,
     IExperimentalSpecLogsService experimentalSpecLogsService,
     IExperimentalSpecBanService experimentalSpecBanService,
+    IExperimentalSpecRequestService experimentalSpecRequestService,
     IPlayerKeyResolver playerKeyResolver,
     BalancerDbContext dbContext) : ControllerBase
 {
@@ -227,6 +228,45 @@ public class ExperimentalController(
             resolved.Uuid!.Value,
             canonicalSpec,
             banned,
+            cancellationToken);
+        if (!result.Success)
+        {
+            return Problem(detail: result.Message, statusCode: result.StatusCode);
+        }
+
+        return Ok(result.Data);
+    }
+
+    [HttpPost("request-spec/{nameOrUuid}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRequestSpecWrite)]
+    [ProducesResponseType(typeof(ExperimentalSpecRequestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalSpecRequestResponse>> RequestSpec(
+        string nameOrUuid,
+        [FromBody] ExperimentalSpecRequestBody? request,
+        CancellationToken cancellationToken)
+    {
+        var canonicalSpec = ManualWeightAdjustmentService.TryNormalizeSpec(request?.Spec);
+        if (canonicalSpec is null)
+        {
+            return Problem(
+                detail: "Unknown or missing spec.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var resolved = await playerKeyResolver.ResolveAsync(nameOrUuid, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
+        {
+            return problem;
+        }
+
+        var result = await experimentalSpecRequestService.UpsertAsync(
+            resolved.Uuid!.Value,
+            canonicalSpec,
             cancellationToken);
         if (!result.Success)
         {

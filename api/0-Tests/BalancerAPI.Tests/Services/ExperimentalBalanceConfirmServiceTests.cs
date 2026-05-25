@@ -35,13 +35,13 @@ public class ExperimentalBalanceConfirmServiceTests
         {
             new ExperimentalBalanceTeam(0, 0, 0, 0,
             [
-                new ExperimentalBalancePlayerSpec(u1, "a", "Pyromancer", 0, 0, 0, 0, false),
-                new ExperimentalBalancePlayerSpec(u2, "b", "Cryomancer", 0, 0, 0, 0, false)
+                new ExperimentalBalancePlayerSpec(u1, "a", "Pyromancer", 0, 0, 0, 0, false, false),
+                new ExperimentalBalancePlayerSpec(u2, "b", "Cryomancer", 0, 0, 0, 0, false, false)
             ]),
             new ExperimentalBalanceTeam(0, 0, 0, 0,
             [
-                new ExperimentalBalancePlayerSpec(u3, "c", "Aquamancer", 0, 0, 0, 0, false),
-                new ExperimentalBalancePlayerSpec(u4, "d", "Berserker", 0, 0, 0, 0, false)
+                new ExperimentalBalancePlayerSpec(u3, "c", "Aquamancer", 0, 0, 0, 0, false, false),
+                new ExperimentalBalancePlayerSpec(u4, "d", "Berserker", 0, 0, 0, 0, false, false)
             ])
         };
 
@@ -96,7 +96,7 @@ public class ExperimentalBalanceConfirmServiceTests
         {
             new ExperimentalBalanceTeam(0, 0, 0, 0,
             [
-                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "a", "Pyromancer", 0, 0, 0, 0, false)
+                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "a", "Pyromancer", 0, 0, 0, 0, false, false)
             ])
         };
 
@@ -132,8 +132,8 @@ public class ExperimentalBalanceConfirmServiceTests
         {
             new ExperimentalBalanceTeam(0, 0, 0, 0,
             [
-                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "a", "Pyromancer", 0, 0, 0, 0, false),
-                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "b", "Pyromancer", 0, 0, 0, 0, false)
+                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "a", "Pyromancer", 0, 0, 0, 0, false, false),
+                new ExperimentalBalancePlayerSpec(Guid.NewGuid(), "b", "Pyromancer", 0, 0, 0, 0, false, false)
             ])
         };
 
@@ -281,6 +281,119 @@ public class ExperimentalBalanceConfirmServiceTests
             Assert.Single(verify.ExperimentalSpecLogs.Where(x => x.BalanceId == balanceId));
             var log = verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId);
             Assert.True(log.Posted);
+        }
+    }
+
+    [Fact]
+    public async Task ConfirmAsync_WhenSpecRequestFulfilled_DeletesRequestRow()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var playerUuid = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+        var teams = new[]
+        {
+            new ExperimentalBalanceTeam(0, 0, 0, 0,
+            [
+                new ExperimentalBalancePlayerSpec(
+                    playerUuid,
+                    "alpha",
+                    "Pyromancer",
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    true)
+            ])
+        };
+
+        var metaTime = new DateTime(2026, 5, 24, 12, 0, 0, DateTimeKind.Utc);
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalSpecRequests.Add(new ExperimentalSpecRequest
+            {
+                Uuid = playerUuid,
+                Spec = "Pyromancer",
+                GameCooldown = 0,
+                CreatedTime = metaTime
+            });
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = JsonSerializer.Serialize(teams),
+                Meta = JsonSerializer.Serialize(new ExperimentalBalanceMeta(1, 1, [], 1, metaTime)),
+                CreatedAt = metaTime,
+                Posted = false
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceConfirmService(new TestDbContextFactory(options));
+        var result = await sut.ConfirmAsync(balanceId, CancellationToken.None);
+
+        Assert.True(result.Success);
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.Empty(verify.ExperimentalSpecRequests);
+        }
+    }
+
+    [Fact]
+    public async Task ConfirmAsync_WhenSpecRequestNotFulfilled_DecrementsCooldown()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var playerUuid = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+        var teams = new[]
+        {
+            new ExperimentalBalanceTeam(0, 0, 0, 0,
+            [
+                new ExperimentalBalancePlayerSpec(
+                    playerUuid,
+                    "alpha",
+                    "Cryomancer",
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    false)
+            ])
+        };
+
+        var metaTime = new DateTime(2026, 5, 24, 12, 0, 0, DateTimeKind.Utc);
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalSpecRequests.Add(new ExperimentalSpecRequest
+            {
+                Uuid = playerUuid,
+                Spec = "Pyromancer",
+                GameCooldown = 2,
+                CreatedTime = metaTime
+            });
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = JsonSerializer.Serialize(teams),
+                Meta = JsonSerializer.Serialize(new ExperimentalBalanceMeta(1, 1, [], 1, metaTime)),
+                CreatedAt = metaTime,
+                Posted = false
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceConfirmService(new TestDbContextFactory(options));
+        var result = await sut.ConfirmAsync(balanceId, CancellationToken.None);
+
+        Assert.True(result.Success);
+        await using (var verify = new BalancerDbContext(options))
+        {
+            var row = verify.ExperimentalSpecRequests.Single(x => x.Uuid == playerUuid);
+            Assert.Equal(1, row.GameCooldown);
         }
     }
 

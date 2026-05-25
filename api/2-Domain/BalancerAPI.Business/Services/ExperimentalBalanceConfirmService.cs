@@ -92,6 +92,8 @@ public sealed class ExperimentalBalanceConfirmService(IDbContextFactory<Balancer
             db.ExperimentalSpecLogs.Add(row);
         }
 
+        await ExperimentalSpecRequestOutcomeApplier.ApplyFromBalanceTeamsAsync(db, teams, cancellationToken);
+
         log.Posted = true;
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);

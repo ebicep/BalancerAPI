@@ -144,6 +144,50 @@ public class ExperimentalSpecBanServiceTests
     }
 
     [Fact]
+    public async Task SetBanAsync_WhenBanMatchingSpecRequest_RemovesRequestRow()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.ExperimentalSpecRequests.Add(new ExperimentalSpecRequest
+            {
+                Uuid = TestUuid,
+                Spec = "Pyromancer",
+                GameCooldown = 0,
+                CreatedTime = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+
+            var result = await service.SetBanAsync(TestUuid, "Pyromancer", banned: true, CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Empty(await db.ExperimentalSpecRequests.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task SetBanAsync_WhenBanDifferentSpec_KeepsRequestRow()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.ExperimentalSpecRequests.Add(new ExperimentalSpecRequest
+            {
+                Uuid = TestUuid,
+                Spec = "Cryomancer",
+                GameCooldown = 0,
+                CreatedTime = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+
+            await service.SetBanAsync(TestUuid, "Pyromancer", banned: true, CancellationToken.None);
+
+            var row = await db.ExperimentalSpecRequests.SingleAsync(x => x.Uuid == TestUuid);
+            Assert.Equal("Cryomancer", row.Spec);
+        }
+    }
+
+    [Fact]
     public async Task SetBanAsync_WhenBanAddsToExisting_ReturnsAllBannedSpecs()
     {
         var (service, db) = CreateService();

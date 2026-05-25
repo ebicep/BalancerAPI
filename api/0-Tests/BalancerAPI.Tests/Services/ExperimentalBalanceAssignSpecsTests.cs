@@ -141,4 +141,88 @@ public class ExperimentalBalanceAssignSpecsTests
             $"Player in all spec logs should be Off=true but got Off=false, assigned spec: {repeaterAssignment.Spec}");
         Assert.NotEqual(ExperimentalSpecs.Empty, repeaterAssignment.Spec);
     }
+
+    [Fact]
+    public void AssignSpecs_preassigns_requested_spec_when_eligible()
+    {
+        var random = new Random(7);
+        var shuffledSpecs = ExperimentalBalanceService.GetLineupsNew(6, random);
+        var requestedSpec = shuffledSpecs[0];
+        var requester = P(1);
+        var team = new[] { requester, P(2), P(3), P(4), P(5), P(6) };
+        var weights = team.ToDictionary(
+            id => id,
+            _ => Enumerable.Repeat(100, ExperimentalSpecs.AllOrdered.Length).ToArray());
+
+        var preassigns = new List<ExperimentalBalanceService.SpecRequestPreassign>
+        {
+            new(requester, requestedSpec)
+        };
+
+        var result = ExperimentalBalanceService.AssignSpecs(
+            team,
+            shuffledSpecs,
+            ShuffledMap(shuffledSpecs),
+            EmptyLogSets(),
+            new Dictionary<Guid, bool[]>(),
+            AllOrderedIndexMap(),
+            weights,
+            preassigns);
+
+        var assignment = result.Single(a => a.PlayerId == requester);
+        Assert.Equal(requestedSpec, assignment.Spec);
+        Assert.False(assignment.Off);
+    }
+
+    [Fact]
+    public void AssignSpecs_preassign_skipped_when_spec_in_log()
+    {
+        var random = new Random(7);
+        var shuffledSpecs = ExperimentalBalanceService.GetLineupsNew(6, random);
+        var requestedSpec = shuffledSpecs[0];
+        var requester = P(1);
+        var team = new[] { requester, P(2), P(3), P(4), P(5), P(6) };
+        var weights = team.ToDictionary(
+            id => id,
+            _ => Enumerable.Repeat(100, ExperimentalSpecs.AllOrdered.Length).ToArray());
+
+        var logSets = EmptyLogSets();
+        logSets[requestedSpec].Add(requester);
+
+        var preassigns = new List<ExperimentalBalanceService.SpecRequestPreassign>
+        {
+            new(requester, requestedSpec)
+        };
+
+        var result = ExperimentalBalanceService.AssignSpecs(
+            team,
+            shuffledSpecs,
+            ShuffledMap(shuffledSpecs),
+            logSets,
+            new Dictionary<Guid, bool[]>(),
+            AllOrderedIndexMap(),
+            weights,
+            preassigns);
+
+        var assignment = result.Single(a => a.PlayerId == requester);
+        Assert.NotEqual(requestedSpec, assignment.Spec);
+    }
+
+    [Fact]
+    public void ShuffleInPlaceRespectingPins_keeps_pinned_players_at_same_index()
+    {
+        var p1 = P(1);
+        var p2 = P(2);
+        var p3 = P(3);
+        var p4 = P(4);
+        var players = new List<Guid> { p1, p2, p3, p4 };
+        var pinned = new HashSet<Guid> { p2 };
+
+        for (var i = 0; i < 200; i++)
+        {
+            var copy = new List<Guid>(players);
+            ExperimentalBalanceService.ShuffleInPlaceRespectingPins(copy, pinned, new Random(i));
+            Assert.Equal(p2, copy[1]);
+        }
+    }
 }
