@@ -92,7 +92,16 @@ public sealed class ExperimentalBalanceConfirmService(IDbContextFactory<Balancer
             db.ExperimentalSpecLogs.Add(row);
         }
 
-        await ExperimentalSpecRequestOutcomeApplier.ApplyFromBalanceTeamsAsync(db, teams, cancellationToken);
+        var requestSpecsEnabled = await db.Settings
+            .AsNoTracking()
+            .Where(x => x.Key == "request_specs")
+            .Select(x => (decimal?)x.Value)
+            .FirstOrDefaultAsync(cancellationToken) is not 0m;
+
+        if (requestSpecsEnabled)
+        {
+            await ExperimentalSpecRequestOutcomeApplier.ApplyFromBalanceTeamsAsync(db, teams, cancellationToken);
+        }
 
         log.Posted = true;
         await db.SaveChangesAsync(cancellationToken);

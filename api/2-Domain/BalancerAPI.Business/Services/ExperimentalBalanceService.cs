@@ -56,10 +56,17 @@ public sealed class ExperimentalBalanceService(
         var playerDataTask = LoadBalancePlayerDataAsync(players, cancellationToken);
         var specLogSetsTask = BuildSpecLogSetsAsync(cancellationToken);
         var specBansTask = LoadExperimentalSpecBansAsync(players, cancellationToken);
-        var specRequestsTask = LoadExperimentalSpecRequestsAsync(players, cancellationToken);
-        await Task.WhenAll(settingsTask, playerDataTask, specLogSetsTask, specBansTask, specRequestsTask);
 
         var settings = await settingsTask;
+        var requestSpecsEnabled = GetIntSetting(settings, "request_specs", 1) != 0;
+
+        var specRequestsTask = requestSpecsEnabled
+            ? LoadExperimentalSpecRequestsAsync(players, cancellationToken)
+            : Task.FromResult<IReadOnlyDictionary<Guid, ExperimentalSpecRequest>>(
+                new Dictionary<Guid, ExperimentalSpecRequest>());
+
+        await Task.WhenAll(playerDataTask, specLogSetsTask, specBansTask, specRequestsTask);
+
         var maxIter = GetIntSetting(settings, "max_balance_iterations", 500_000);
         var shuffleEvery = GetIntSetting(settings, "shuffle_specs_every_iterations", 50_000);
         var maxWeightDiff = GetIntSetting(settings, "max_weight_diff", 20);
