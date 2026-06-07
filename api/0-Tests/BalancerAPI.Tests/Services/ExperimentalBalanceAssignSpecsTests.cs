@@ -209,6 +209,50 @@ public class ExperimentalBalanceAssignSpecsTests
     }
 
     [Fact]
+    public void AssignSpecs_when_multiple_players_request_same_spec_only_one_gets_that_spec()
+    {
+        var random = new Random(7);
+        var shuffledSpecs = ExperimentalBalanceService.GetLineupsNew(6, random);
+        var requestedSpec = shuffledSpecs[0];
+        var requester1 = P(1);
+        var requester2 = P(2);
+        var requester3 = P(3);
+        var team = new[] { requester1, requester2, requester3, P(4), P(5), P(6) };
+        var weights = team.ToDictionary(
+            id => id,
+            _ => Enumerable.Repeat(100, ExperimentalSpecs.AllOrdered.Length).ToArray());
+
+        var preassigns = new List<ExperimentalBalanceService.SpecRequestPreassign>
+        {
+            new(requester1, requestedSpec),
+            new(requester2, requestedSpec),
+            new(requester3, requestedSpec)
+        };
+
+        var result = ExperimentalBalanceService.AssignSpecs(
+            team,
+            shuffledSpecs,
+            ShuffledMap(shuffledSpecs),
+            EmptyLogSets(),
+            new Dictionary<Guid, bool[]>(),
+            AllOrderedIndexMap(),
+            weights,
+            preassigns);
+
+        Assert.False(ExperimentalBalanceService.HasIncompleteSpecAssignment(result));
+
+        var specs = result.Select(a => a.Spec).ToList();
+        Assert.Equal(specs.Count, specs.Distinct(StringComparer.Ordinal).Count());
+
+        var requestersWithSpec = result
+            .Where(a => a.Spec == requestedSpec)
+            .Select(a => a.PlayerId)
+            .ToList();
+        Assert.Single(requestersWithSpec);
+        Assert.Equal(requester1, requestersWithSpec[0]);
+    }
+
+    [Fact]
     public void ShuffleInPlaceRespectingPins_keeps_pinned_players_at_same_index()
     {
         var p1 = P(1);

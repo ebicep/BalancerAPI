@@ -763,6 +763,11 @@ public sealed class ExperimentalBalanceService(
                     continue;
                 }
 
+                if (specStatus[slotIndex])
+                {
+                    continue;
+                }
+
                 if (specLogSets.TryGetValue(preassign.Spec, out var logSet)
                     && logSet.Contains(preassign.PlayerId))
                 {
