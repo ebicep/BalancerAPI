@@ -253,6 +253,47 @@ public class ExperimentalBalanceAssignSpecsTests
     }
 
     [Fact]
+    public void AssignSpecs_different_spec_requester_honored_after_same_spec_slot_taken_skips()
+    {
+        var random = new Random(7);
+        var shuffledSpecs = ExperimentalBalanceService.GetLineupsNew(6, random);
+        var contestedSpec = shuffledSpecs[0];
+        var differentSpec = shuffledSpecs[1];
+        var sameSpecRequesters = new[] { P(1), P(2), P(3), P(4), P(5) };
+        var differentSpecRequester = P(6);
+        var team = new[] { sameSpecRequesters[0], sameSpecRequesters[1], sameSpecRequesters[2],
+            sameSpecRequesters[3], sameSpecRequesters[4], differentSpecRequester };
+        var weights = team.ToDictionary(
+            id => id,
+            _ => Enumerable.Repeat(100, ExperimentalSpecs.AllOrdered.Length).ToArray());
+
+        var preassigns = new List<ExperimentalBalanceService.SpecRequestPreassign>();
+        foreach (var requester in sameSpecRequesters)
+        {
+            preassigns.Add(new ExperimentalBalanceService.SpecRequestPreassign(requester, contestedSpec));
+        }
+
+        preassigns.Add(new ExperimentalBalanceService.SpecRequestPreassign(differentSpecRequester, differentSpec));
+
+        var result = ExperimentalBalanceService.AssignSpecs(
+            team,
+            shuffledSpecs,
+            ShuffledMap(shuffledSpecs),
+            EmptyLogSets(),
+            new Dictionary<Guid, bool[]>(),
+            AllOrderedIndexMap(),
+            weights,
+            preassigns,
+            requestSpecsLimit: 4);
+
+        Assert.False(ExperimentalBalanceService.HasIncompleteSpecAssignment(result));
+
+        var differentSpecAssignment = result.Single(a => a.PlayerId == differentSpecRequester);
+        Assert.Equal(differentSpec, differentSpecAssignment.Spec);
+        Assert.False(differentSpecAssignment.Off);
+    }
+
+    [Fact]
     public void ShuffleInPlaceRespectingPins_keeps_pinned_players_at_same_index()
     {
         var p1 = P(1);

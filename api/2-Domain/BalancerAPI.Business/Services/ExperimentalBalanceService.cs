@@ -74,6 +74,7 @@ public sealed class ExperimentalBalanceService(
         var maxWlDiff = GetIntSetting(settings, "max_wl_diff", 50);
         var maxKdDiff = GetIntSetting(settings, "max_kd_diff", 10);
         var maxSpecTypeDiff = GetIntSetting(settings, "max_spec_type_diff", 2);
+        var requestSpecsLimit = GetIntSetting(settings, "request_specs_limit", 4);
 
         var playerData = await playerDataTask;
         if (playerData.Missing.Count > 0)
@@ -134,7 +135,8 @@ public sealed class ExperimentalBalanceService(
                 specBansByPlayer,
                 SpecNameToAllOrderedIndex,
                 playerData.WeightsByPlayer,
-                preassignQueue);
+                preassignQueue,
+                requestSpecsLimit);
             var redAssign = AssignSpecs(
                 red,
                 shuffledSpecs,
@@ -143,7 +145,8 @@ public sealed class ExperimentalBalanceService(
                 specBansByPlayer,
                 SpecNameToAllOrderedIndex,
                 playerData.WeightsByPlayer,
-                preassignQueue);
+                preassignQueue,
+                requestSpecsLimit);
 
             if (HasIncompleteSpecAssignment(blueAssign) || HasIncompleteSpecAssignment(redAssign))
             {
@@ -453,7 +456,6 @@ public sealed class ExperimentalBalanceService(
         return requestsByPlayer.Values
             .Where(r => r.GameCooldown <= 0 && rosterSet.Contains(r.Uuid))
             .OrderBy(r => r.CreatedTime)
-            .Take(4)
             .Select(r => new SpecRequestPreassign(r.Uuid, r.Spec))
             .ToList();
     }
@@ -673,7 +675,8 @@ public sealed class ExperimentalBalanceService(
         IReadOnlyDictionary<Guid, bool[]> specBansByPlayer,
         IReadOnlyDictionary<string, int> specNameToAllOrderedIndex,
         IReadOnlyDictionary<Guid, int[]> weightsByPlayer,
-        IReadOnlyList<SpecRequestPreassign>? specRequestPreassigns = null)
+        IReadOnlyList<SpecRequestPreassign>? specRequestPreassigns = null,
+        int requestSpecsLimit = 4)
     {
         var teamPlayerSet = teamPlayerIds.ToHashSet();
         var numberOfPlayers = teamPlayerIds.Length;
@@ -750,8 +753,14 @@ public sealed class ExperimentalBalanceService(
 
         if (specRequestPreassigns is { Count: > 0 })
         {
+            var requestsApplied = 0;
             foreach (var preassign in specRequestPreassigns)
             {
+                if (requestsApplied >= requestSpecsLimit)
+                {
+                    break;
+                }
+
                 if (!teamPlayerSet.Contains(preassign.PlayerId))
                 {
                     continue;
@@ -817,6 +826,7 @@ public sealed class ExperimentalBalanceService(
                     }
 
                     specStatus[slotIndex] = true;
+                    requestsApplied++;
                     break;
                 }
             }
