@@ -45,10 +45,10 @@ public static class ExperimentalSpecs
             [7] = (2, 0, 1, ["Avenger", tankPicks[0], tankPicks[1], mainHealer]),
             [8] = (2, 2, 1, ["Avenger", "Defender", mainHealer]),
             [9] = (2, 2, 2, ["Avenger", "Defender", mainHealer]),
-            [10] = (3, 2, 2, ["Avenger", "Defender", mainHealer]),
-            [11] = (3, 3, 2, ["Avenger", "Defender", mainHealer]),
-            [12] = (3, 3, 2, ["Avenger", "Defender", "Earthwarden", mainHealer]),
-            [13] = (4, 3, 3, ["Avenger", "Defender", mainHealer]),
+            [10] = (3, 2, 2, ["Avenger", "Defender", "Aquamancer"]),
+            [11] = (3, 3, 2, ["Avenger", "Defender", "Aquamancer"]),
+            [12] = (3, 3, 2, ["Avenger", "Defender", "Earthwarden", "Aquamancer"]),
+            [13] = (4, 3, 3, ["Avenger", "Defender", "Aquamancer"]),
             [14] = (4, 4, 2, ["Avenger", "Defender", "Aquamancer", "Luminary"])
         };
     }
