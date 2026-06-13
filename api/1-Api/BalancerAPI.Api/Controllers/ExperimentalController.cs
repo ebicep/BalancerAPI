@@ -330,6 +330,54 @@ public class ExperimentalController(
             row?.Deaths ?? 0));
     }
 
+    [HttpGet("daily-all")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalDailyAllStatsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ExperimentalDailyAllStatsResponse>> GetDailyAll(
+        [FromQuery] int? id,
+        CancellationToken cancellationToken)
+    {
+        if (id is not null)
+        {
+            var dayExists = await dbContext.TimeDays
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!dayExists)
+            {
+                return Problem(
+                    detail: $"No day found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.ExperimentalDailyStatsDay
+                .AsNoTracking()
+                .Where(x => x.DayStartDate == id.Value)
+                .Join(
+                    dbContext.Names,
+                    s => s.Uuid,
+                    n => n.Uuid,
+                    (s, n) => new ExperimentalDailyAllStatsEntry(n.Name, s.Wins, s.Losses, s.Kills, s.Deaths))
+                .OrderByDescending(x => x.Wins - x.Losses)
+                .ToListAsync(cancellationToken);
+
+            return Ok(new ExperimentalDailyAllStatsResponse(historical));
+        }
+
+        var rows = await dbContext.ExperimentalDailyStats
+            .AsNoTracking()
+            .Join(
+                dbContext.Names,
+                s => s.Uuid,
+                n => n.Uuid,
+                (s, n) => new ExperimentalDailyAllStatsEntry(n.Name, s.Wins, s.Losses, s.Kills, s.Deaths))
+            .OrderByDescending(x => x.Wins - x.Losses)
+            .ToListAsync(cancellationToken);
+
+        return Ok(new ExperimentalDailyAllStatsResponse(rows));
+    }
+
     [HttpGet("daily-experimental-specs/{name}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]
@@ -428,6 +476,54 @@ public class ExperimentalController(
             row?.Losses ?? 0,
             row?.Kills ?? 0,
             row?.Deaths ?? 0));
+    }
+
+    [HttpGet("weekly-all")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalWeeklyAllStatsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ExperimentalWeeklyAllStatsResponse>> GetWeeklyAll(
+        [FromQuery] int? id,
+        CancellationToken cancellationToken)
+    {
+        if (id is not null)
+        {
+            var weekExists = await dbContext.TimeWeeks
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!weekExists)
+            {
+                return Problem(
+                    detail: $"No week found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.ExperimentalWeeklyStatsWeek
+                .AsNoTracking()
+                .Where(x => x.WeekStartDate == id.Value)
+                .Join(
+                    dbContext.Names,
+                    s => s.Uuid,
+                    n => n.Uuid,
+                    (s, n) => new ExperimentalWeeklyAllStatsEntry(n.Name, s.Wins, s.Losses, s.Kills, s.Deaths))
+                .OrderByDescending(x => x.Wins - x.Losses)
+                .ToListAsync(cancellationToken);
+
+            return Ok(new ExperimentalWeeklyAllStatsResponse(historical));
+        }
+
+        var rows = await dbContext.ExperimentalWeeklyStats
+            .AsNoTracking()
+            .Join(
+                dbContext.Names,
+                s => s.Uuid,
+                n => n.Uuid,
+                (s, n) => new ExperimentalWeeklyAllStatsEntry(n.Name, s.Wins, s.Losses, s.Kills, s.Deaths))
+            .OrderByDescending(x => x.Wins - x.Losses)
+            .ToListAsync(cancellationToken);
+
+        return Ok(new ExperimentalWeeklyAllStatsResponse(rows));
     }
 
     [HttpGet("weekly-experimental-specs/{name}")]
@@ -760,6 +856,26 @@ public class ExperimentalController(
         int Losses,
         int Kills,
         int Deaths);
+
+    public sealed record ExperimentalDailyAllStatsEntry(
+        string Name,
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
+    public sealed record ExperimentalDailyAllStatsResponse(
+        IReadOnlyList<ExperimentalDailyAllStatsEntry> Players);
+
+    public sealed record ExperimentalWeeklyAllStatsEntry(
+        string Name,
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
+    public sealed record ExperimentalWeeklyAllStatsResponse(
+        IReadOnlyList<ExperimentalWeeklyAllStatsEntry> Players);
 
     public sealed record ExperimentalBalanceInputRequest(
         [property: JsonPropertyName("players")] IReadOnlyList<string> Players);
