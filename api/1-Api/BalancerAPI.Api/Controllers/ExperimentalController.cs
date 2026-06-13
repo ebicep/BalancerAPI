@@ -358,8 +358,9 @@ public class ExperimentalController(
                     dbContext.Names,
                     s => s.Uuid,
                     n => n.Uuid,
-                    (s, n) => new ExperimentalDailyAllStatsEntry(n.Name, s.Wins, s.Losses, s.Kills, s.Deaths))
+                    (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
                 .OrderByDescending(x => x.Wins - x.Losses)
+                .Select(x => new ExperimentalDailyAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
                 .ToListAsync(cancellationToken);
 
             return Ok(new ExperimentalDailyAllStatsResponse(historical));
@@ -371,8 +372,9 @@ public class ExperimentalController(
                 dbContext.Names,
                 s => s.Uuid,
                 n => n.Uuid,
-                (s, n) => new ExperimentalDailyAllStatsEntry(n.Name, s.Wins, s.Losses, s.Kills, s.Deaths))
+                (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
             .OrderByDescending(x => x.Wins - x.Losses)
+            .Select(x => new ExperimentalDailyAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
             .ToListAsync(cancellationToken);
 
         return Ok(new ExperimentalDailyAllStatsResponse(rows));
@@ -506,8 +508,9 @@ public class ExperimentalController(
                     dbContext.Names,
                     s => s.Uuid,
                     n => n.Uuid,
-                    (s, n) => new ExperimentalWeeklyAllStatsEntry(n.Name, s.Wins, s.Losses, s.Kills, s.Deaths))
+                    (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
                 .OrderByDescending(x => x.Wins - x.Losses)
+                .Select(x => new ExperimentalWeeklyAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
                 .ToListAsync(cancellationToken);
 
             return Ok(new ExperimentalWeeklyAllStatsResponse(historical));
@@ -519,8 +522,9 @@ public class ExperimentalController(
                 dbContext.Names,
                 s => s.Uuid,
                 n => n.Uuid,
-                (s, n) => new ExperimentalWeeklyAllStatsEntry(n.Name, s.Wins, s.Losses, s.Kills, s.Deaths))
+                (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
             .OrderByDescending(x => x.Wins - x.Losses)
+            .Select(x => new ExperimentalWeeklyAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
             .ToListAsync(cancellationToken);
 
         return Ok(new ExperimentalWeeklyAllStatsResponse(rows));
