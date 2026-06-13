@@ -359,6 +359,7 @@ public class ExperimentalController(
                     s => s.Uuid,
                     n => n.Uuid,
                     (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
+                .Where(x => x.Wins + x.Losses > 0)
                 .OrderByDescending(x => x.Wins - x.Losses)
                 .Select(x => new ExperimentalDailyAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
                 .ToListAsync(cancellationToken);
@@ -373,6 +374,7 @@ public class ExperimentalController(
                 s => s.Uuid,
                 n => n.Uuid,
                 (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
+            .Where(x => x.Wins + x.Losses > 0)
             .OrderByDescending(x => x.Wins - x.Losses)
             .Select(x => new ExperimentalDailyAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
             .ToListAsync(cancellationToken);
@@ -509,6 +511,7 @@ public class ExperimentalController(
                     s => s.Uuid,
                     n => n.Uuid,
                     (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
+                .Where(x => x.Wins + x.Losses > 0)
                 .OrderByDescending(x => x.Wins - x.Losses)
                 .Select(x => new ExperimentalWeeklyAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
                 .ToListAsync(cancellationToken);
@@ -523,6 +526,7 @@ public class ExperimentalController(
                 s => s.Uuid,
                 n => n.Uuid,
                 (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
+            .Where(x => x.Wins + x.Losses > 0)
             .OrderByDescending(x => x.Wins - x.Losses)
             .Select(x => new ExperimentalWeeklyAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
             .ToListAsync(cancellationToken);

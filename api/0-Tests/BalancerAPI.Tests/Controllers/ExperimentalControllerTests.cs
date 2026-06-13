@@ -640,6 +640,62 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task GetDailyAll_WhenCurrentPeriod_ExcludesPlayersWithNoPlays()
+    {
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] });
+        db.ExperimentalDailyStats.AddRange(
+            new ExperimentalDailyStats { Uuid = TestUuid, Wins = 3, Losses = 1, Kills = 10, Deaths = 4 },
+            new ExperimentalDailyStats { Uuid = U2, Wins = 0, Losses = 0, Kills = 5, Deaths = 2 },
+            new ExperimentalDailyStats { Uuid = U3, Wins = 1, Losses = 0, Kills = 2, Deaths = 1 });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDailyAll(null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailyAllStatsResponse>(ok.Value);
+        Assert.Equal(2, body.Players.Count);
+        Assert.DoesNotContain(body.Players, p => p.Name == "beta");
+        Assert.Equal("alpha", body.Players[0].Name);
+        Assert.Equal("gamma", body.Players[1].Name);
+    }
+
+    [Fact]
+    public async Task GetDailyAll_WhenIdGiven_ExcludesPlayersWithNoPlays()
+    {
+        const int dayId = 42;
+        await using var db = CreateDbContextWithDailyStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] });
+        db.TimeDays.Add(new TimeDay { Id = dayId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalDailyStatsDay.AddRange(
+            new ExperimentalDailyStatsDay { DayStartDate = dayId, Uuid = TestUuid, Wins = 2, Losses = 3, Kills = 8, Deaths = 9 },
+            new ExperimentalDailyStatsDay { DayStartDate = dayId, Uuid = U2, Wins = 0, Losses = 0, Kills = 1, Deaths = 0 },
+            new ExperimentalDailyStatsDay { DayStartDate = dayId, Uuid = U3, Wins = 4, Losses = 0, Kills = 6, Deaths = 2 });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetDailyAll(dayId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailyAllStatsResponse>(ok.Value);
+        Assert.Equal(2, body.Players.Count);
+        Assert.DoesNotContain(body.Players, p => p.Name == "beta");
+        Assert.Equal("gamma", body.Players[0].Name);
+        Assert.Equal("alpha", body.Players[1].Name);
+    }
+
+    [Fact]
     public async Task GetDailyExperimentalSpecs_WhenNameNotFound_ReturnsNotFound()
     {
         var specWeights = new Mock<ISpecWeightsService>();
@@ -1022,6 +1078,62 @@ public class ExperimentalControllerTests
             result.Result!,
             StatusCodes.Status404NotFound,
             "No week found with id 99999.");
+    }
+
+    [Fact]
+    public async Task GetWeeklyAll_WhenCurrentPeriod_ExcludesPlayersWithNoPlays()
+    {
+        await using var db = CreateDbContextWithWeeklyStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] });
+        db.ExperimentalWeeklyStats.AddRange(
+            new ExperimentalWeeklyStats { Uuid = TestUuid, Wins = 3, Losses = 1, Kills = 10, Deaths = 4 },
+            new ExperimentalWeeklyStats { Uuid = U2, Wins = 0, Losses = 0, Kills = 5, Deaths = 2 },
+            new ExperimentalWeeklyStats { Uuid = U3, Wins = 0, Losses = 2, Kills = 2, Deaths = 1 });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetWeeklyAll(null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklyAllStatsResponse>(ok.Value);
+        Assert.Equal(2, body.Players.Count);
+        Assert.DoesNotContain(body.Players, p => p.Name == "beta");
+        Assert.Equal("alpha", body.Players[0].Name);
+        Assert.Equal("gamma", body.Players[1].Name);
+    }
+
+    [Fact]
+    public async Task GetWeeklyAll_WhenIdGiven_ExcludesPlayersWithNoPlays()
+    {
+        const int weekId = 42;
+        await using var db = CreateDbContextWithWeeklyStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] });
+        db.TimeWeeks.Add(new TimeWeek { Id = weekId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalWeeklyStatsWeek.AddRange(
+            new ExperimentalWeeklyStatsWeek { WeekStartDate = weekId, Uuid = TestUuid, Wins = 2, Losses = 3, Kills = 8, Deaths = 9 },
+            new ExperimentalWeeklyStatsWeek { WeekStartDate = weekId, Uuid = U2, Wins = 0, Losses = 0, Kills = 1, Deaths = 0 },
+            new ExperimentalWeeklyStatsWeek { WeekStartDate = weekId, Uuid = U3, Wins = 5, Losses = 1, Kills = 6, Deaths = 2 });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetWeeklyAll(weekId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklyAllStatsResponse>(ok.Value);
+        Assert.Equal(2, body.Players.Count);
+        Assert.DoesNotContain(body.Players, p => p.Name == "beta");
+        Assert.Equal("gamma", body.Players[0].Name);
+        Assert.Equal("alpha", body.Players[1].Name);
     }
 
     [Fact]
