@@ -554,30 +554,30 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetDailyExperimentalAll_WhenNameNotFound_ReturnsNotFound()
+    public async Task GetDailyExperimentalSpecs_WhenNameNotFound_ReturnsNotFound()
     {
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
-        var result = await controller.GetDailyExperimentalAll("does-not-exist", null, CancellationToken.None);
+        var result = await controller.GetDailyExperimentalSpecs("does-not-exist", null, CancellationToken.None);
 
         var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task GetDailyExperimentalAll_WhenNameEmpty_ReturnsBadRequest()
+    public async Task GetDailyExperimentalSpecs_WhenNameEmpty_ReturnsBadRequest()
     {
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
-        var result = await controller.GetDailyExperimentalAll("   ", null, CancellationToken.None);
+        var result = await controller.GetDailyExperimentalSpecs("   ", null, CancellationToken.None);
 
         AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player identifier is required.");
     }
 
     [Fact]
-    public async Task GetDailyExperimentalAll_WhenNameAmbiguous_ReturnsConflict()
+    public async Task GetDailyExperimentalSpecs_WhenNameAmbiguous_ReturnsConflict()
     {
         await using var db = CreateDbContextWithDailyStatsTable();
         db.Names.AddRange(
@@ -588,7 +588,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetDailyExperimentalAll("alpha", null, CancellationToken.None);
+        var result = await controller.GetDailyExperimentalSpecs("alpha", null, CancellationToken.None);
 
         AssertProblem(
             result.Result!,
@@ -597,7 +597,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetDailyExperimentalAll_WhenNoRow_ReturnsOkWithZeros()
+    public async Task GetDailyExperimentalSpecs_WhenNoRow_ReturnsOkWithZeros()
     {
         await using var db = CreateDbContextWithDailyStatsTable();
         db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
@@ -606,10 +606,10 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetDailyExperimentalAll("alpha", null, CancellationToken.None);
+        var result = await controller.GetDailyExperimentalSpecs("alpha", null, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var body = Assert.IsType<ExperimentalController.ExperimentalDailyAllSpecsResponse>(ok.Value);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailySpecsResponse>(ok.Value);
         Assert.Equal(18, body.Specs.Count);
         Assert.All(body.Specs, entry =>
         {
@@ -626,7 +626,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetDailyExperimentalAll_WhenCurrentRowExists_ReturnsOkWithStats()
+    public async Task GetDailyExperimentalSpecs_WhenCurrentRowExists_ReturnsOkWithStats()
     {
         await using var db = CreateDbContextWithDailyStatsTable();
         db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
@@ -643,10 +643,10 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetDailyExperimentalAll("alpha", null, CancellationToken.None);
+        var result = await controller.GetDailyExperimentalSpecs("alpha", null, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var body = Assert.IsType<ExperimentalController.ExperimentalDailyAllSpecsResponse>(ok.Value);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailySpecsResponse>(ok.Value);
         var pyro = Assert.Single(body.Specs, x => x.Spec == "Pyromancer");
         Assert.Equal(3, pyro.Wins);
         Assert.Equal(1, pyro.Losses);
@@ -659,7 +659,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetDailyExperimentalAll_WhenIdGiven_UsesHistoricalStats()
+    public async Task GetDailyExperimentalSpecs_WhenIdGiven_UsesHistoricalStats()
     {
         const int dayId = 42;
         await using var db = CreateDbContextWithDailyStatsTable();
@@ -679,10 +679,10 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetDailyExperimentalAll("alpha", dayId, CancellationToken.None);
+        var result = await controller.GetDailyExperimentalSpecs("alpha", dayId, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var body = Assert.IsType<ExperimentalController.ExperimentalDailyAllSpecsResponse>(ok.Value);
+        var body = Assert.IsType<ExperimentalController.ExperimentalDailySpecsResponse>(ok.Value);
         var pyro = Assert.Single(body.Specs, x => x.Spec == "Pyromancer");
         Assert.Equal(5, pyro.Wins);
         Assert.Equal(2, pyro.Losses);
@@ -695,7 +695,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetDailyExperimentalAll_WhenIdUnknown_Returns404()
+    public async Task GetDailyExperimentalSpecs_WhenIdUnknown_Returns404()
     {
         await using var db = CreateDbContextWithDailyStatsTable();
         db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
@@ -704,7 +704,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetDailyExperimentalAll("alpha", 99999, CancellationToken.None);
+        var result = await controller.GetDailyExperimentalSpecs("alpha", 99999, CancellationToken.None);
 
         AssertProblem(
             result.Result!,
@@ -853,30 +853,30 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetWeeklyExperimentalAll_WhenNameNotFound_ReturnsNotFound()
+    public async Task GetWeeklyExperimentalSpecs_WhenNameNotFound_ReturnsNotFound()
     {
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
-        var result = await controller.GetWeeklyExperimentalAll("does-not-exist", null, CancellationToken.None);
+        var result = await controller.GetWeeklyExperimentalSpecs("does-not-exist", null, CancellationToken.None);
 
         var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
         Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task GetWeeklyExperimentalAll_WhenNameEmpty_ReturnsBadRequest()
+    public async Task GetWeeklyExperimentalSpecs_WhenNameEmpty_ReturnsBadRequest()
     {
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object);
 
-        var result = await controller.GetWeeklyExperimentalAll("   ", null, CancellationToken.None);
+        var result = await controller.GetWeeklyExperimentalSpecs("   ", null, CancellationToken.None);
 
         AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player identifier is required.");
     }
 
     [Fact]
-    public async Task GetWeeklyExperimentalAll_WhenNameAmbiguous_ReturnsConflict()
+    public async Task GetWeeklyExperimentalSpecs_WhenNameAmbiguous_ReturnsConflict()
     {
         await using var db = CreateDbContextWithWeeklyStatsTable();
         db.Names.AddRange(
@@ -887,7 +887,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetWeeklyExperimentalAll("alpha", null, CancellationToken.None);
+        var result = await controller.GetWeeklyExperimentalSpecs("alpha", null, CancellationToken.None);
 
         AssertProblem(
             result.Result!,
@@ -896,7 +896,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetWeeklyExperimentalAll_WhenNoRow_ReturnsOkWithZeros()
+    public async Task GetWeeklyExperimentalSpecs_WhenNoRow_ReturnsOkWithZeros()
     {
         await using var db = CreateDbContextWithWeeklyStatsTable();
         db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
@@ -905,10 +905,10 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetWeeklyExperimentalAll("alpha", null, CancellationToken.None);
+        var result = await controller.GetWeeklyExperimentalSpecs("alpha", null, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklyAllSpecsResponse>(ok.Value);
+        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklySpecsResponse>(ok.Value);
         Assert.Equal(18, body.Specs.Count);
         Assert.All(body.Specs, entry =>
         {
@@ -925,7 +925,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetWeeklyExperimentalAll_WhenCurrentRowExists_ReturnsOkWithStats()
+    public async Task GetWeeklyExperimentalSpecs_WhenCurrentRowExists_ReturnsOkWithStats()
     {
         await using var db = CreateDbContextWithWeeklyStatsTable();
         db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
@@ -942,10 +942,10 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetWeeklyExperimentalAll("alpha", null, CancellationToken.None);
+        var result = await controller.GetWeeklyExperimentalSpecs("alpha", null, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklyAllSpecsResponse>(ok.Value);
+        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklySpecsResponse>(ok.Value);
         var pyro = Assert.Single(body.Specs, x => x.Spec == "Pyromancer");
         Assert.Equal(3, pyro.Wins);
         Assert.Equal(1, pyro.Losses);
@@ -958,7 +958,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetWeeklyExperimentalAll_WhenIdGiven_UsesHistoricalStats()
+    public async Task GetWeeklyExperimentalSpecs_WhenIdGiven_UsesHistoricalStats()
     {
         const int weekId = 42;
         await using var db = CreateDbContextWithWeeklyStatsTable();
@@ -978,10 +978,10 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetWeeklyExperimentalAll("alpha", weekId, CancellationToken.None);
+        var result = await controller.GetWeeklyExperimentalSpecs("alpha", weekId, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklyAllSpecsResponse>(ok.Value);
+        var body = Assert.IsType<ExperimentalController.ExperimentalWeeklySpecsResponse>(ok.Value);
         var pyro = Assert.Single(body.Specs, x => x.Spec == "Pyromancer");
         Assert.Equal(5, pyro.Wins);
         Assert.Equal(2, pyro.Losses);
@@ -994,7 +994,7 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
-    public async Task GetWeeklyExperimentalAll_WhenIdUnknown_Returns404()
+    public async Task GetWeeklyExperimentalSpecs_WhenIdUnknown_Returns404()
     {
         await using var db = CreateDbContextWithWeeklyStatsTable();
         db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
@@ -1003,7 +1003,7 @@ public class ExperimentalControllerTests
         var specWeights = new Mock<ISpecWeightsService>();
         var controller = CreateController(specWeights.Object, dbContext: db);
 
-        var result = await controller.GetWeeklyExperimentalAll("alpha", 99999, CancellationToken.None);
+        var result = await controller.GetWeeklyExperimentalSpecs("alpha", 99999, CancellationToken.None);
 
         AssertProblem(
             result.Result!,

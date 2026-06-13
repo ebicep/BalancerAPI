@@ -330,14 +330,14 @@ public class ExperimentalController(
             row?.Deaths ?? 0));
     }
 
-    [HttpGet("daily-experimental-all/{name}")]
+    [HttpGet("daily-experimental-specs/{name}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]
-    [ProducesResponseType(typeof(ExperimentalDailyAllSpecsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ExperimentalDailySpecsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ExperimentalDailyAllSpecsResponse>> GetDailyExperimentalAll(
+    public async Task<ActionResult<ExperimentalDailySpecsResponse>> GetDailyExperimentalSpecs(
         string name,
         [FromQuery] int? id,
         CancellationToken cancellationToken)
@@ -366,14 +366,14 @@ public class ExperimentalController(
                 resolved.Uuid!.Value,
                 cancellationToken);
 
-            return Ok(MapExperimentalDailyAllSpecs(historical));
+            return Ok(MapExperimentalDailySpecs(historical));
         }
 
         var row = await dbContext.ExperimentalSpecsWlCurrentDay
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Uuid == resolved.Uuid, cancellationToken);
 
-        return Ok(MapExperimentalDailyAllSpecs(row));
+        return Ok(MapExperimentalDailySpecs(row));
     }
 
     [HttpGet("weekly/{name}")]
@@ -430,14 +430,14 @@ public class ExperimentalController(
             row?.Deaths ?? 0));
     }
 
-    [HttpGet("weekly-experimental-all/{name}")]
+    [HttpGet("weekly-experimental-specs/{name}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]
-    [ProducesResponseType(typeof(ExperimentalWeeklyAllSpecsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ExperimentalWeeklySpecsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ExperimentalWeeklyAllSpecsResponse>> GetWeeklyExperimentalAll(
+    public async Task<ActionResult<ExperimentalWeeklySpecsResponse>> GetWeeklyExperimentalSpecs(
         string name,
         [FromQuery] int? id,
         CancellationToken cancellationToken)
@@ -466,14 +466,14 @@ public class ExperimentalController(
                 resolved.Uuid!.Value,
                 cancellationToken);
 
-            return Ok(MapExperimentalWeeklyAllSpecs(historical));
+            return Ok(MapExperimentalWeeklySpecs(historical));
         }
 
         var row = await dbContext.ExperimentalSpecsWlCurrentWeek
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Uuid == resolved.Uuid, cancellationToken);
 
-        return Ok(MapExperimentalWeeklyAllSpecs(row));
+        return Ok(MapExperimentalWeeklySpecs(row));
     }
 
     [HttpPost("balance")]
@@ -656,10 +656,10 @@ public class ExperimentalController(
             ? null
             : Problem(detail: resolved.Message, statusCode: resolved.StatusCode);
 
-    private static ExperimentalDailyAllSpecsResponse MapExperimentalDailyAllSpecs(object? row)
+    private static ExperimentalDailySpecsResponse MapExperimentalDailySpecs(object? row)
     {
         var mapped = MapExperimentalAllSpecs(row);
-        return new ExperimentalDailyAllSpecsResponse(
+        return new ExperimentalDailySpecsResponse(
             mapped.Specs.Select(s => new ExperimentalDailySpecStatsEntry(s.Spec, s.Wins, s.Losses, s.Kills, s.Deaths)).ToList(),
             new ExperimentalDailySpecStatsEntry(
                 mapped.Total.Spec,
@@ -669,10 +669,10 @@ public class ExperimentalController(
                 mapped.Total.Deaths));
     }
 
-    private static ExperimentalWeeklyAllSpecsResponse MapExperimentalWeeklyAllSpecs(object? row)
+    private static ExperimentalWeeklySpecsResponse MapExperimentalWeeklySpecs(object? row)
     {
         var mapped = MapExperimentalAllSpecs(row);
-        return new ExperimentalWeeklyAllSpecsResponse(
+        return new ExperimentalWeeklySpecsResponse(
             mapped.Specs.Select(s => new ExperimentalWeeklySpecStatsEntry(s.Spec, s.Wins, s.Losses, s.Kills, s.Deaths)).ToList(),
             new ExperimentalWeeklySpecStatsEntry(
                 mapped.Total.Spec,
@@ -734,7 +734,7 @@ public class ExperimentalController(
         int Kills,
         int Deaths);
 
-    public sealed record ExperimentalDailyAllSpecsResponse(
+    public sealed record ExperimentalDailySpecsResponse(
         IReadOnlyList<ExperimentalDailySpecStatsEntry> Specs,
         ExperimentalDailySpecStatsEntry Total);
 
@@ -745,7 +745,7 @@ public class ExperimentalController(
         int Kills,
         int Deaths);
 
-    public sealed record ExperimentalWeeklyAllSpecsResponse(
+    public sealed record ExperimentalWeeklySpecsResponse(
         IReadOnlyList<ExperimentalWeeklySpecStatsEntry> Specs,
         ExperimentalWeeklySpecStatsEntry Total);
 
