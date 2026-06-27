@@ -20,6 +20,8 @@ public static class ApiPermissions
     public const string ExperimentalSpecBansWrite = "experimental.spec-bans.write";
     public const string ExperimentalRequestSpecWrite = "experimental.request-spec.write";
 
+    public const string RegularBalance = "regular.balance";
+
     public const string AdjustAuto = "adjust.auto";
     public const string AdjustManual = "adjust.manual";
     public const string PlayersAdd = "players.add";
@@ -42,6 +44,7 @@ public static class ApiPermissions
         ExperimentalLogsClear,
         ExperimentalSpecBansWrite,
         ExperimentalRequestSpecWrite,
+        RegularBalance,
         AdjustAuto,
         AdjustManual,
         PlayersAdd,
