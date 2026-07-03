@@ -35,6 +35,17 @@ public static class ExperimentalSpecs
     public static readonly HashSet<string> TankSet = new(Tank, StringComparer.Ordinal);
     public static readonly HashSet<string> HealSet = new(Heal, StringComparer.Ordinal);
 
+    public static readonly IReadOnlyDictionary<string, int> KbValues =
+        new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["Berserker"]   = 3,
+            ["Revenant"]    = 3,
+            ["Earthwarden"] = 3,
+            ["Pyromancer"]  = 2,
+            ["Crusader"]    = 2,
+            ["Thunderlord"] = 2,
+        };
+
     public static Dictionary<int, (int Dmg, int Tank, int Heal, string[] Required)> BuildRoleCounts(
         string mainHealer,
         IReadOnlyList<string> tankPicks)

@@ -103,14 +103,23 @@ public sealed class ExperimentalBalanceService(
             .Select(r => r.Uuid)
             .ToHashSet();
 
-        var shuffledSpecs = GetLineupsNew(teamSize, random);
+        string[] shuffledSpecs;
+        do
+        {
+            shuffledSpecs = GetLineupsNew(teamSize, random);
+        }
+        while (LineupKbTotal(shuffledSpecs) > teamSize);
         var shuffledIndexMap = BuildShuffledIndexMap(shuffledSpecs);
 
         for (var iter = 0; iter < maxIter; iter++)
         {
             if (iter > 0 && iter % shuffleEvery == 0)
             {
-                shuffledSpecs = GetLineupsNew(teamSize, random);
+                do
+                {
+                    shuffledSpecs = GetLineupsNew(teamSize, random);
+                }
+                while (LineupKbTotal(shuffledSpecs) > teamSize);
                 shuffledIndexMap = BuildShuffledIndexMap(shuffledSpecs);
             }
 
@@ -973,6 +982,17 @@ public sealed class ExperimentalBalanceService(
         }
 
         return sum;
+    }
+
+    private static int LineupKbTotal(IReadOnlyList<string> specs)
+    {
+        var total = 0;
+        foreach (var spec in specs)
+        {
+            if (ExperimentalSpecs.KbValues.TryGetValue(spec, out var kbValue))
+                total += kbValue;
+        }
+        return total;
     }
 
     private static int MaxSpecTypeDiff(PlayerAssignment[] blue, PlayerAssignment[] red)
