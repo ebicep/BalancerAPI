@@ -14,8 +14,37 @@ public class PlayerController(
     IPlayerGetService playerGetService,
     IPlayerDeleteService playerDeleteService,
     IPlayerUuidUpdateService playerUuidUpdateService,
-    IPlayerKeyResolver playerKeyResolver) : ControllerBase
+    IPlayerKeyResolver playerKeyResolver,
+    IBaseWeightLeaderboardService baseWeightLeaderboardService) : ControllerBase
 {
+    [HttpGet("leaderboard")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.PlayersRead)]
+    [ProducesResponseType(typeof(IReadOnlyList<BaseWeightLeaderboardEntry>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<BaseWeightLeaderboardEntry>>> GetLeaderboard(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1)
+        {
+            return Problem(
+                detail: "page must be greater than or equal to 1.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (pageSize is < 1 or > 100)
+        {
+            return Problem(
+                detail: "pageSize must be between 1 and 100.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var result = await baseWeightLeaderboardService.GetLeaderboardAsync(page, pageSize, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpGet("{nameOrUuid}")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.PlayersRead)]

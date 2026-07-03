@@ -66,6 +66,7 @@ public class PlayerControllerTests
             playerGetService,
             Mock.Of<IPlayerDeleteService>(),
             Mock.Of<IPlayerUuidUpdateService>(),
-            playerKeyResolver);
+            playerKeyResolver,
+            Mock.Of<IBaseWeightLeaderboardService>());
     }
 }
