@@ -5,28 +5,7 @@ public static class RolePermissions
     private static readonly IReadOnlyDictionary<string, HashSet<string>> Map =
         new Dictionary<string, HashSet<string>>(StringComparer.Ordinal)
         {
-            [ApiRoles.BotFull] =
-            [
-                ApiPermissions.NamesUpdate,
-                ApiPermissions.TimeRead,
-                ApiPermissions.TimeWrite,
-                ApiPermissions.SettingsRead,
-                ApiPermissions.SettingsWrite,
-                ApiPermissions.ExperimentalRead,
-                ApiPermissions.ExperimentalBalance,
-                ApiPermissions.ExperimentalConfirm,
-                ApiPermissions.ExperimentalInput,
-                ApiPermissions.ExperimentalLogsTruncate,
-                ApiPermissions.ExperimentalLogsClear,
-                ApiPermissions.ExperimentalSpecBansWrite,
-                ApiPermissions.ExperimentalRequestSpecWrite,
-                ApiPermissions.AdjustAuto,
-                ApiPermissions.AdjustManual,
-                ApiPermissions.PlayersAdd,
-                ApiPermissions.PlayersRead,
-                ApiPermissions.PlayersDelete,
-                ApiPermissions.PlayersUpdateUuid
-            ],
+            [ApiRoles.BotFull] = new HashSet<string>(ApiPermissions.All, StringComparer.Ordinal),
             [ApiRoles.WebReadOnly] =
             [
                 ApiPermissions.TimeRead,
