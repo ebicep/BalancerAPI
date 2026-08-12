@@ -61,7 +61,8 @@ public class ExperimentalBalanceInputServiceTests
         bool posted = true,
         string? inputJson = null,
         bool counted = false,
-        string? gameId = null) =>
+        string? gameId = null,
+        bool? uncount = null) =>
         new()
         {
             BalanceId = balanceId,
@@ -71,7 +72,8 @@ public class ExperimentalBalanceInputServiceTests
             Posted = posted,
             Input = inputJson,
             Counted = counted,
-            GameId = gameId
+            GameId = gameId,
+            Uncount = uncount
         };
 
     [Fact]
@@ -111,7 +113,7 @@ public class ExperimentalBalanceInputServiceTests
             ],
             GameId: PayloadMongoGameId);
 
-        var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
 
         Assert.True(result.Success);
         Assert.Equal(200, result.StatusCode);
@@ -202,7 +204,7 @@ public class ExperimentalBalanceInputServiceTests
             Losers: [new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
-        var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(400, result.StatusCode);
@@ -228,7 +230,7 @@ public class ExperimentalBalanceInputServiceTests
             Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
-        var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(409, result.StatusCode);
@@ -262,7 +264,7 @@ public class ExperimentalBalanceInputServiceTests
             Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
-        var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(409, result.StatusCode);
@@ -292,7 +294,7 @@ public class ExperimentalBalanceInputServiceTests
         }
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
-        Assert.True((await sut.InputAsync(balanceId, zeroBody, CancellationToken.None)).Success);
+        Assert.True((await sut.InputAsync(balanceId, zeroBody, uncount: false, CancellationToken.None)).Success);
 
         await using (var mid = new BalancerDbContext(options))
         {
@@ -301,7 +303,7 @@ public class ExperimentalBalanceInputServiceTests
             await mid.SaveChangesAsync();
         }
 
-        Assert.True((await sut.InputAsync(balanceId, zeroBody, CancellationToken.None)).Success);
+        Assert.True((await sut.InputAsync(balanceId, zeroBody, uncount: false, CancellationToken.None)).Success);
 
         await using (var verify = new BalancerDbContext(options))
         {
@@ -341,7 +343,7 @@ public class ExperimentalBalanceInputServiceTests
             Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
-        var result = await sut.InputAsync(balanceId, mismatched, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, mismatched, uncount: false, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(400, result.StatusCode);
@@ -383,7 +385,7 @@ public class ExperimentalBalanceInputServiceTests
             Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: otherGameId);
 
-        var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(400, result.StatusCode);
@@ -415,7 +417,7 @@ public class ExperimentalBalanceInputServiceTests
             Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
-        var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(400, result.StatusCode);
@@ -448,7 +450,7 @@ public class ExperimentalBalanceInputServiceTests
             Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
 
-        var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(404, result.StatusCode);
@@ -463,7 +465,7 @@ public class ExperimentalBalanceInputServiceTests
             Losers: [],
             GameId: "not-a-valid-object-id");
 
-        var result = await sut.InputAsync(Guid.NewGuid(), body, CancellationToken.None);
+        var result = await sut.InputAsync(Guid.NewGuid(), body, uncount: false, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal(400, result.StatusCode);
@@ -505,7 +507,7 @@ public class ExperimentalBalanceInputServiceTests
             ],
             GameId: PayloadMongoGameId);
 
-        Assert.True((await sut.InputAsync(balanceId, body, CancellationToken.None)).Success);
+        Assert.True((await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None)).Success);
 
         string storedInputJson;
         await using (var beforeUninput = new BalancerDbContext(options))
@@ -565,7 +567,7 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var body = BuildValidZeroStatsBody();
-        var inputResult = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var inputResult = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
         Assert.True(inputResult.Success);
         Assert.NotNull(inputResult.Response);
 
@@ -616,7 +618,7 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var countedBody = BuildValidZeroStatsBody();
-        Assert.True((await sut.InputAsync(balanceId, countedBody, CancellationToken.None)).Success);
+        Assert.True((await sut.InputAsync(balanceId, countedBody, uncount: false, CancellationToken.None)).Success);
 
         var wrongBody = countedBody with
         {
@@ -675,7 +677,7 @@ public class ExperimentalBalanceInputServiceTests
             ],
             GameId: PayloadMongoGameId);
 
-        var result = await sut.InputAsync(balanceId, body, CancellationToken.None);
+        var result = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
         Assert.True(result.Success);
         var u1Change = result.Response!.Changes!.Single(x => x.Uuid == U1);
         Assert.Equal(-3, u1Change.OldTrajectory);
@@ -730,11 +732,11 @@ public class ExperimentalBalanceInputServiceTests
         }
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
-        var firstInput = await sut.InputAsync(firstBalanceId, BuildValidZeroStatsBody(), CancellationToken.None);
+        var firstInput = await sut.InputAsync(firstBalanceId, BuildValidZeroStatsBody(), uncount: false, CancellationToken.None);
         Assert.True(firstInput.Success);
         Assert.NotNull(firstInput.Response);
 
-        var secondInput = await sut.InputAsync(secondBalanceId, BuildValidZeroStatsBody(), CancellationToken.None);
+        var secondInput = await sut.InputAsync(secondBalanceId, BuildValidZeroStatsBody(), uncount: false, CancellationToken.None);
         Assert.True(secondInput.Success);
 
         var uninput = await sut.UninputAsync(firstBalanceId, BuildValidZeroStatsBody(), CancellationToken.None);
@@ -845,7 +847,7 @@ public class ExperimentalBalanceInputServiceTests
 
         var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
         var zero = BuildValidZeroStatsBody();
-        Assert.True((await sut.InputAsync(balanceId, zero, CancellationToken.None)).Success);
+        Assert.True((await sut.InputAsync(balanceId, zero, uncount: false, CancellationToken.None)).Success);
         Assert.True((await sut.UninputAsync(balanceId, zero, CancellationToken.None)).Success);
 
         var second = await sut.UninputAsync(balanceId, zero, CancellationToken.None);
@@ -880,7 +882,7 @@ public class ExperimentalBalanceInputServiceTests
             Winners: [new ExperimentalBalanceInputPlayerLine(U1, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U2, "", 0, 0)],
             Losers: [new ExperimentalBalanceInputPlayerLine(U3, "", 0, 0), new ExperimentalBalanceInputPlayerLine(U4, "", 0, 0)],
             GameId: PayloadMongoGameId);
-        Assert.True((await sut.InputAsync(balanceId, body, CancellationToken.None)).Success);
+        Assert.True((await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None)).Success);
 
         await using (var tamper = new BalancerDbContext(options))
         {
@@ -1088,5 +1090,331 @@ public class ExperimentalBalanceInputServiceTests
 
         Assert.False(result.Success);
         Assert.Equal(409, result.StatusCode);
+    }
+
+    private static ExperimentalBalanceInputBody BuildValidStatsBody() =>
+        new(
+            Winners:
+            [
+                new ExperimentalBalanceInputPlayerLine(U1, "", 5, 2),
+                new ExperimentalBalanceInputPlayerLine(U2, "", 3, 1)
+            ],
+            Losers:
+            [
+                new ExperimentalBalanceInputPlayerLine(U3, "", 2, 5),
+                new ExperimentalBalanceInputPlayerLine(U4, "", 1, 3)
+            ],
+            GameId: PayloadMongoGameId);
+
+    private static void SeedUncountScenario(
+        BalancerDbContext db,
+        Guid balanceId,
+        DateTime metaTime,
+        bool? uncount = null,
+        string? inputJson = null)
+    {
+        db.ExperimentalBalanceLogs.Add(BuildLog(balanceId, metaTime, inputJson: inputJson, uncount: uncount));
+        db.ExperimentalSpecLogs.AddRange(
+            new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = U1, Cryomancer = U2 },
+            new ExperimentalSpecLog { BalanceId = balanceId, Aquamancer = U3, Berserker = U4 });
+        foreach (var u in new[] { U1, U2, U3, U4 })
+        {
+            db.ExperimentalSpecsWl.Add(new ExperimentalSpecsWl { Uuid = u });
+            db.BaseWeights.Add(new BaseWeight { Uuid = u, Weight = 1000, LastUpdated = metaTime });
+        }
+    }
+
+    [Fact]
+    public async Task InputAsync_WhenUncount_UpdatesOnlyUncountTableAndSetsUncountFlagAndAudit()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            SeedUncountScenario(db, balanceId, metaTime);
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var result = await sut.InputAsync(balanceId, BuildValidStatsBody(), uncount: true, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(200, result.StatusCode);
+        Assert.NotNull(result.Response?.Changes);
+        Assert.All(result.Response!.Changes!, c =>
+        {
+            Assert.Null(c.OldTrajectory);
+            Assert.Null(c.NewTrajectory);
+        });
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.Empty(verify.AdjustmentDaily);
+
+            var log = verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId);
+            Assert.False(log.Counted);
+            Assert.True(log.Uncount);
+            Assert.False(string.IsNullOrEmpty(log.Input));
+            Assert.Equal(PayloadMongoGameId, log.GameId);
+
+            var audit = verify.ExperimentalInputLogs.Single(x => x.BalanceId == balanceId);
+            Assert.Equal("input_uncount", audit.Action);
+            Assert.Equal(PayloadMongoGameId, audit.GameId);
+
+            var u1 = verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U1);
+            Assert.Equal(1, u1.PyromancerWins);
+            Assert.Equal(5, u1.PyromancerKills);
+            Assert.Equal(2, u1.PyromancerDeaths);
+
+            var u2 = verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U2);
+            Assert.Equal(1, u2.CryomancerWins);
+            Assert.Equal(3, u2.CryomancerKills);
+            Assert.Equal(1, u2.CryomancerDeaths);
+
+            var u3 = verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U3);
+            Assert.Equal(1, u3.AquamancerLosses);
+            Assert.Equal(2, u3.AquamancerKills);
+            Assert.Equal(5, u3.AquamancerDeaths);
+
+            var u4 = verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U4);
+            Assert.Equal(1, u4.BerserkerLosses);
+            Assert.Equal(1, u4.BerserkerKills);
+            Assert.Equal(3, u4.BerserkerDeaths);
+
+            var counted1 = verify.ExperimentalSpecsWl.Single(x => x.Uuid == U1);
+            Assert.Equal(0, counted1.PyromancerWins);
+            Assert.Equal(0, counted1.PyromancerKills);
+            Assert.Equal(0, counted1.PyromancerDeaths);
+            var counted3 = verify.ExperimentalSpecsWl.Single(x => x.Uuid == U3);
+            Assert.Equal(0, counted3.AquamancerLosses);
+            Assert.Equal(0, counted3.AquamancerKills);
+            Assert.Equal(0, counted3.AquamancerDeaths);
+        }
+    }
+
+    [Fact]
+    public async Task InputAsync_WhenAlreadyUncounted_Returns409()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            SeedUncountScenario(db, balanceId, metaTime);
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var body = BuildValidStatsBody();
+        Assert.True((await sut.InputAsync(balanceId, body, uncount: true, CancellationToken.None)).Success);
+
+        var second = await sut.InputAsync(balanceId, body, uncount: true, CancellationToken.None);
+        Assert.False(second.Success);
+        Assert.Equal(409, second.StatusCode);
+
+        var secondCounted = await sut.InputAsync(balanceId, body, uncount: false, CancellationToken.None);
+        Assert.False(secondCounted.Success);
+        Assert.Equal(409, secondCounted.StatusCode);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.Equal(1, verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U1).PyromancerWins);
+            Assert.Single(verify.ExperimentalInputLogs.Where(x => x.BalanceId == balanceId));
+        }
+    }
+
+    [Fact]
+    public async Task UninputAsync_AfterUncountedInput_ReversesUncountTableClearsFlagAndAudits()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            SeedUncountScenario(db, balanceId, metaTime);
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var body = BuildValidStatsBody();
+        Assert.True((await sut.InputAsync(balanceId, body, uncount: true, CancellationToken.None)).Success);
+
+        var uninput = await sut.UninputAsync(balanceId, body, CancellationToken.None);
+
+        Assert.True(uninput.Success);
+        Assert.Equal(200, uninput.StatusCode);
+        Assert.NotNull(uninput.Response?.Changes);
+        Assert.All(uninput.Response!.Changes!, c =>
+        {
+            Assert.Null(c.OldTrajectory);
+            Assert.Null(c.NewTrajectory);
+        });
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.Empty(verify.AdjustmentDaily);
+
+            var log = verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId);
+            Assert.False(log.Counted);
+            Assert.Null(log.Uncount);
+            Assert.False(string.IsNullOrEmpty(log.Input));
+
+            var audits = verify.ExperimentalInputLogs
+                .Where(x => x.BalanceId == balanceId)
+                .OrderBy(x => x.OccurredAt)
+                .ToList();
+            Assert.Equal(2, audits.Count);
+            Assert.Equal("input_uncount", audits[0].Action);
+            Assert.Equal("uninput_uncount", audits[1].Action);
+            Assert.Equal(PayloadMongoGameId, audits[1].GameId);
+
+            var u1 = verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U1);
+            Assert.Equal(0, u1.PyromancerWins);
+            Assert.Equal(0, u1.PyromancerKills);
+            Assert.Equal(0, u1.PyromancerDeaths);
+
+            var counted1 = verify.ExperimentalSpecsWl.Single(x => x.Uuid == U1);
+            Assert.Equal(0, counted1.PyromancerWins);
+            Assert.Equal(0, counted1.PyromancerKills);
+            Assert.Equal(0, counted1.PyromancerDeaths);
+        }
+    }
+
+    [Fact]
+    public async Task UncountedInputThenUninput_RoundTripsCountedAndUncountTables()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(BuildLog(balanceId, metaTime));
+            db.ExperimentalSpecLogs.AddRange(
+                new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = U1, Cryomancer = U2 },
+                new ExperimentalSpecLog { BalanceId = balanceId, Aquamancer = U3, Berserker = U4 });
+            foreach (var u in new[] { U1, U2, U3, U4 })
+            {
+                db.BaseWeights.Add(new BaseWeight { Uuid = u, Weight = 1000, LastUpdated = metaTime });
+            }
+
+            db.ExperimentalSpecsWl.AddRange(
+                new ExperimentalSpecsWl { Uuid = U1, PyromancerWins = 4, PyromancerKills = 20, PyromancerDeaths = 9 },
+                new ExperimentalSpecsWl { Uuid = U2 },
+                new ExperimentalSpecsWl { Uuid = U3, AquamancerLosses = 2, AquamancerKills = 6, AquamancerDeaths = 11 },
+                new ExperimentalSpecsWl { Uuid = U4 });
+            db.ExperimentalSpecsWlUncount.AddRange(
+                new ExperimentalSpecsWlUncount { Uuid = U1, PyromancerWins = 1, PyromancerKills = 7, PyromancerDeaths = 3 },
+                new ExperimentalSpecsWlUncount { Uuid = U3, AquamancerLosses = 3, AquamancerKills = 4, AquamancerDeaths = 8 });
+
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        var body = BuildValidStatsBody();
+        Assert.True((await sut.InputAsync(balanceId, body, uncount: true, CancellationToken.None)).Success);
+
+        await using (var mid = new BalancerDbContext(options))
+        {
+            var u1 = mid.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U1);
+            Assert.Equal(2, u1.PyromancerWins);
+            Assert.Equal(12, u1.PyromancerKills);
+            Assert.Equal(5, u1.PyromancerDeaths);
+
+            var u2 = mid.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U2);
+            Assert.Equal(1, u2.CryomancerWins);
+        }
+
+        Assert.True((await sut.UninputAsync(balanceId, body, CancellationToken.None)).Success);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            var counted1 = verify.ExperimentalSpecsWl.Single(x => x.Uuid == U1);
+            Assert.Equal(4, counted1.PyromancerWins);
+            Assert.Equal(20, counted1.PyromancerKills);
+            Assert.Equal(9, counted1.PyromancerDeaths);
+
+            var counted3 = verify.ExperimentalSpecsWl.Single(x => x.Uuid == U3);
+            Assert.Equal(2, counted3.AquamancerLosses);
+            Assert.Equal(6, counted3.AquamancerKills);
+            Assert.Equal(11, counted3.AquamancerDeaths);
+
+            var u1 = verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U1);
+            Assert.Equal(1, u1.PyromancerWins);
+            Assert.Equal(7, u1.PyromancerKills);
+            Assert.Equal(3, u1.PyromancerDeaths);
+
+            var u3 = verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U3);
+            Assert.Equal(3, u3.AquamancerLosses);
+            Assert.Equal(4, u3.AquamancerKills);
+            Assert.Equal(8, u3.AquamancerDeaths);
+
+            var u2 = verify.ExperimentalSpecsWlUncount.Single(x => x.Uuid == U2);
+            Assert.Equal(0, u2.CryomancerWins);
+            Assert.Equal(0, u2.CryomancerKills);
+            Assert.Equal(0, u2.CryomancerDeaths);
+
+            Assert.Empty(verify.AdjustmentDaily);
+        }
+    }
+
+    [Fact]
+    public async Task InputAsync_WhenUncount_SnapshotsCountedPlusUncountedBaseline()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var balanceId = Guid.NewGuid();
+        var metaTime = new DateTime(2026, 4, 5, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.TimeDays.Add(new TimeDay { Id = 7, Timestamp = metaTime });
+            db.TimeWeeks.Add(new TimeWeek { Id = 3, Timestamp = metaTime });
+            db.ExperimentalBalanceLogs.Add(BuildLog(balanceId, metaTime));
+            db.ExperimentalSpecLogs.AddRange(
+                new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = U1, Cryomancer = U2 },
+                new ExperimentalSpecLog { BalanceId = balanceId, Aquamancer = U3, Berserker = U4 });
+            foreach (var u in new[] { U1, U2, U3, U4 })
+            {
+                db.BaseWeights.Add(new BaseWeight { Uuid = u, Weight = 1000, LastUpdated = metaTime });
+            }
+
+            db.ExperimentalSpecsWl.AddRange(
+                new ExperimentalSpecsWl { Uuid = U1, PyromancerWins = 4, PyromancerKills = 20, PyromancerDeaths = 9 },
+                new ExperimentalSpecsWl { Uuid = U2 },
+                new ExperimentalSpecsWl { Uuid = U3 },
+                new ExperimentalSpecsWl { Uuid = U4 });
+            db.ExperimentalSpecsWlUncount.Add(new ExperimentalSpecsWlUncount
+            {
+                Uuid = U1,
+                PyromancerWins = 1,
+                PyromancerKills = 7,
+                PyromancerDeaths = 3
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceInputService(new TestDbContextFactory(options));
+        Assert.True((await sut.InputAsync(balanceId, BuildValidStatsBody(), uncount: true, CancellationToken.None)).Success);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            var daily = verify.ExperimentalSpecsWlDaily.Single(x => x.Uuid == U1 && x.DayStartDate == 7);
+            Assert.Equal(5, daily.PyromancerWins);
+            Assert.Equal(27, daily.PyromancerKills);
+            Assert.Equal(12, daily.PyromancerDeaths);
+
+            var weekly = verify.ExperimentalSpecsWlWeekly.Single(x => x.Uuid == U1 && x.WeekStartDate == 3);
+            Assert.Equal(5, weekly.PyromancerWins);
+            Assert.Equal(27, weekly.PyromancerKills);
+            Assert.Equal(12, weekly.PyromancerDeaths);
+
+            var dailyU2 = verify.ExperimentalSpecsWlDaily.Single(x => x.Uuid == U2 && x.DayStartDate == 7);
+            Assert.Equal(0, dailyU2.CryomancerWins);
+        }
     }
 }

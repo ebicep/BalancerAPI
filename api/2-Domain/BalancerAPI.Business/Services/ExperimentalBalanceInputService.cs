@@ -24,6 +24,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
     public async Task<ExperimentalBalanceInputServiceResult> InputAsync(
         Guid balanceId,
         ExperimentalBalanceInputBody body,
+        bool uncount,
         CancellationToken cancellationToken)
     {
         var requestedGameId = ExperimentalBalanceLogGameIds.TryNormalize(body.GameId);
@@ -54,6 +55,12 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return Fail(409, "Balance result already counted.");
         }
 
+        if (log.Uncount == true)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Fail(409, "Balance result already recorded as uncounted.");
+        }
+
         if (log.GameId is not null && log.GameId != requestedGameId)
         {
             await tx.RollbackAsync(cancellationToken);
@@ -82,20 +89,34 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
         var oldDailyStats = await LoadDailyStatsFromViewAsync(db, roster, cancellationToken);
 
-        var tracked = await LoadAdjustmentDailyTrackedAsync(db, roster, cancellationToken);
         var trajectories = new Dictionary<Guid, (int? Old, int? New)>();
-        foreach (var line in ctx!.Winners)
+        if (uncount)
         {
-            ApplyInputTrajectoryStep(db, tracked, line.Uuid, won: true, trajectories);
+            foreach (var uuid in roster)
+            {
+                trajectories[uuid] = (null, null);
+            }
+        }
+        else
+        {
+            var tracked = await LoadAdjustmentDailyTrackedAsync(db, roster, cancellationToken);
+            foreach (var line in ctx!.Winners)
+            {
+                ApplyInputTrajectoryStep(db, tracked, line.Uuid, won: true, trajectories);
+            }
+
+            foreach (var line in ctx.Losers)
+            {
+                ApplyInputTrajectoryStep(db, tracked, line.Uuid, won: false, trajectories);
+            }
         }
 
-        foreach (var line in ctx.Losers)
-        {
-            ApplyInputTrajectoryStep(db, tracked, line.Uuid, won: false, trajectories);
-        }
+        var targetRows = uncount
+            ? await LoadOrCreateUncountRowsAsync(db, roster, cancellationToken)
+            : AsStatRows(ctx!.WlByUuid);
 
-        ApplyInputLines(ctx.Winners, ctx.WlByUuid, ctx.SpecByPlayer, ApplyWin);
-        ApplyInputLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, ApplyLoss);
+        ApplyInputLines(ctx!.Winners, targetRows, ctx.SpecByPlayer, ApplyWin);
+        ApplyInputLines(ctx.Losers, targetRows, ctx.SpecByPlayer, ApplyLoss);
         var now = DateTime.UtcNow;
         var baseRows = await db.BaseWeights.Where(b => roster.Contains(b.Uuid)).ToListAsync(cancellationToken);
         foreach (var row in baseRows)
@@ -110,13 +131,21 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         }
 
         log.GameId = requestedGameId;
-        log.Counted = true;
+        if (uncount)
+        {
+            log.Uncount = true;
+        }
+        else
+        {
+            log.Counted = true;
+            log.Uncount = null;
+        }
 
         db.ExperimentalInputLogs.Add(new ExperimentalInputLog
         {
             BalanceId = balanceId,
             GameId = requestedGameId,
-            Action = "input",
+            Action = uncount ? "input_uncount" : "input",
             OccurredAt = DateTime.UtcNow
         });
 
@@ -160,7 +189,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
             return Fail(409, "Balance must be confirmed before uninput.");
         }
 
-        if (!log.Counted)
+        if (!log.Counted && log.Uncount != true)
         {
             await tx.RollbackAsync(cancellationToken);
             return Fail(409, "Balance result not counted.");
@@ -205,41 +234,64 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
         var oldDailyStats = await LoadDailyStatsFromViewAsync(db, roster, cancellationToken);
 
-        var tracked = await LoadAdjustmentDailyTrackedAsync(db, roster, cancellationToken);
+        var uncounted = log.Uncount == true;
         var trajectories = new Dictionary<Guid, (int? Old, int? New)>();
-        foreach (var line in ctx!.Winners)
+        if (uncounted)
         {
-            if (!TryUninputTrajectoryStep(db, tracked, line.Uuid, won: true, trajectories))
+            foreach (var uuid in roster)
             {
-                await tx.RollbackAsync(cancellationToken);
-                return Fail(409, "Cannot uninput; adjustment trajectories are inconsistent with the stored input.");
+                trajectories[uuid] = (null, null);
+            }
+        }
+        else
+        {
+            var tracked = await LoadAdjustmentDailyTrackedAsync(db, roster, cancellationToken);
+            foreach (var line in ctx!.Winners)
+            {
+                if (!TryUninputTrajectoryStep(db, tracked, line.Uuid, won: true, trajectories))
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    return Fail(409, "Cannot uninput; adjustment trajectories are inconsistent with the stored input.");
+                }
+            }
+
+            foreach (var line in ctx.Losers)
+            {
+                if (!TryUninputTrajectoryStep(db, tracked, line.Uuid, won: false, trajectories))
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    return Fail(409, "Cannot uninput; adjustment trajectories are inconsistent with the stored input.");
+                }
             }
         }
 
-        foreach (var line in ctx.Losers)
-        {
-            if (!TryUninputTrajectoryStep(db, tracked, line.Uuid, won: false, trajectories))
-            {
-                await tx.RollbackAsync(cancellationToken);
-                return Fail(409, "Cannot uninput; adjustment trajectories are inconsistent with the stored input.");
-            }
-        }
+        var targetRows = uncounted
+            ? await LoadUncountRowsAsync(db, roster, cancellationToken)
+            : AsStatRows(ctx!.WlByUuid);
 
-        if (!TryApplyReverseLines(ctx.Winners, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseWin)
-            || !TryApplyReverseLines(ctx.Losers, ctx.WlByUuid, ctx.SpecByPlayer, TryReverseLoss))
+        if (targetRows is null
+            || !TryApplyReverseLines(ctx!.Winners, targetRows, ctx.SpecByPlayer, TryReverseWin)
+            || !TryApplyReverseLines(ctx.Losers, targetRows, ctx.SpecByPlayer, TryReverseLoss))
         {
             await tx.RollbackAsync(cancellationToken);
             return Fail(409, "Cannot uninput; win/loss stats are inconsistent with the stored input.");
         }
 
-        log.Counted = false;
+        if (uncounted)
+        {
+            log.Uncount = null;
+        }
+        else
+        {
+            log.Counted = false;
+        }
 
         var auditGameId = log.GameId ?? requestedGameId;
         db.ExperimentalInputLogs.Add(new ExperimentalInputLog
         {
             BalanceId = balanceId,
             GameId = auditGameId,
-            Action = "uninput",
+            Action = uncounted ? "uninput_uncount" : "uninput",
             OccurredAt = DateTime.UtcNow
         });
 
@@ -427,11 +479,55 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         return (null, new InputApplicationContext(winners, losers, specByPlayer, wlByUuid));
     }
 
+    private static Dictionary<Guid, ExperimentalSpecsWlColumns> AsStatRows(
+        IReadOnlyDictionary<Guid, ExperimentalSpecsWl> wlByUuid) =>
+        wlByUuid.ToDictionary(x => x.Key, x => (ExperimentalSpecsWlColumns)x.Value);
+
+    private static async Task<Dictionary<Guid, ExperimentalSpecsWlColumns>> LoadOrCreateUncountRowsAsync(
+        BalancerDbContext db,
+        HashSet<Guid> roster,
+        CancellationToken cancellationToken)
+    {
+        var list = roster.ToList();
+        var rows = await db.ExperimentalSpecsWlUncount
+            .Where(x => list.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+        var byUuid = rows.ToDictionary(x => x.Uuid, x => (ExperimentalSpecsWlColumns)x);
+        foreach (var uuid in roster)
+        {
+            if (byUuid.ContainsKey(uuid))
+            {
+                continue;
+            }
+
+            var entity = new ExperimentalSpecsWlUncount { Uuid = uuid };
+            db.ExperimentalSpecsWlUncount.Add(entity);
+            byUuid[uuid] = entity;
+        }
+
+        return byUuid;
+    }
+
+    /// <summary>Null when the roster has no uncount row, which means the stored input cannot be reversed.</summary>
+    private static async Task<Dictionary<Guid, ExperimentalSpecsWlColumns>?> LoadUncountRowsAsync(
+        BalancerDbContext db,
+        HashSet<Guid> roster,
+        CancellationToken cancellationToken)
+    {
+        var list = roster.ToList();
+        var rows = await db.ExperimentalSpecsWlUncount
+            .Where(x => list.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+        return rows.Count == roster.Count
+            ? rows.ToDictionary(x => x.Uuid, x => (ExperimentalSpecsWlColumns)x)
+            : null;
+    }
+
     private static bool TryApplyReverseLines(
         IReadOnlyList<ExperimentalBalanceInputPlayerLine> lines,
-        IReadOnlyDictionary<Guid, ExperimentalSpecsWl> wlByUuid,
+        IReadOnlyDictionary<Guid, ExperimentalSpecsWlColumns> wlByUuid,
         IReadOnlyDictionary<Guid, string> specByPlayer,
-        Func<ExperimentalSpecsWl, string, int, int, bool> tryReverse)
+        Func<ExperimentalSpecsWlColumns, string, int, int, bool> tryReverse)
     {
         foreach (var line in lines)
         {
@@ -706,9 +802,9 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
 
     private static void ApplyInputLines(
         IReadOnlyList<ExperimentalBalanceInputPlayerLine> lines,
-        IReadOnlyDictionary<Guid, ExperimentalSpecsWl> wlByUuid,
+        IReadOnlyDictionary<Guid, ExperimentalSpecsWlColumns> wlByUuid,
         IReadOnlyDictionary<Guid, string> specByPlayer,
-        Action<ExperimentalSpecsWl, string, int, int> applySpecStats)
+        Action<ExperimentalSpecsWlColumns, string, int, int> applySpecStats)
     {
         foreach (var line in lines)
         {
@@ -716,7 +812,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         }
     }
 
-    private static void ApplyWin(ExperimentalSpecsWl row, string spec, int kills, int deaths)
+    private static void ApplyWin(ExperimentalSpecsWlColumns row, string spec, int kills, int deaths)
     {
         switch (spec)
         {
@@ -743,7 +839,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         }
     }
 
-    private static void ApplyLoss(ExperimentalSpecsWl row, string spec, int kills, int deaths)
+    private static void ApplyLoss(ExperimentalSpecsWlColumns row, string spec, int kills, int deaths)
     {
         switch (spec)
         {
@@ -770,7 +866,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         }
     }
 
-    private static bool TryReverseWin(ExperimentalSpecsWl row, string spec, int kills, int deaths)
+    private static bool TryReverseWin(ExperimentalSpecsWlColumns row, string spec, int kills, int deaths)
     {
         switch (spec)
         {
@@ -833,7 +929,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         }
     }
 
-    private static bool TryReverseLoss(ExperimentalSpecsWl row, string spec, int kills, int deaths)
+    private static bool TryReverseLoss(ExperimentalSpecsWlColumns row, string spec, int kills, int deaths)
     {
         switch (spec)
         {

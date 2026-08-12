@@ -133,6 +133,92 @@ public class TimeServiceSnapshotTests
     }
 
     [Fact]
+    public async Task CreateNewDayAsync_WhenOnlyUncountedStatsChanged_SnapshotsCountedPlusUncounted()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var boundary = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+        var uncountedOnly = Guid.NewGuid();
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            seed.TimeDays.Add(new TimeDay { Id = 0, Timestamp = boundary });
+
+            seed.ExperimentalSpecsWl.Add(new ExperimentalSpecsWl
+            {
+                Uuid = uncountedOnly,
+                PyromancerWins = 4,
+                PyromancerKills = 20,
+                LastUpdated = boundary.AddMinutes(-1)
+            });
+            seed.ExperimentalSpecsWlUncount.Add(new ExperimentalSpecsWlUncount
+            {
+                Uuid = uncountedOnly,
+                PyromancerWins = 1,
+                PyromancerKills = 7,
+                LastUpdated = boundary.AddMinutes(1)
+            });
+
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+            var newDayId = await service.CreateNewDayAsync(CancellationToken.None);
+
+            var wlDaily = await db.ExperimentalSpecsWlDaily.Where(x => x.DayStartDate == newDayId).ToListAsync();
+            Assert.Single(wlDaily);
+            Assert.Equal(uncountedOnly, wlDaily[0].Uuid);
+            Assert.Equal(5, wlDaily[0].PyromancerWins);
+            Assert.Equal(27, wlDaily[0].PyromancerKills);
+        }
+    }
+
+    [Fact]
+    public async Task CreateNewWeekAsync_WhenOnlyUncountedStatsChanged_SnapshotsCountedPlusUncounted()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var boundary = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+        var uncountedOnly = Guid.NewGuid();
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            seed.TimeWeeks.Add(new TimeWeek { Id = 0, Timestamp = boundary });
+
+            seed.ExperimentalSpecsWl.Add(new ExperimentalSpecsWl
+            {
+                Uuid = uncountedOnly,
+                PyromancerWins = 4,
+                PyromancerKills = 20,
+                LastUpdated = boundary.AddMinutes(-1)
+            });
+            seed.ExperimentalSpecsWlUncount.Add(new ExperimentalSpecsWlUncount
+            {
+                Uuid = uncountedOnly,
+                PyromancerWins = 1,
+                PyromancerKills = 7,
+                LastUpdated = boundary.AddMinutes(1)
+            });
+
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+            var response = await service.CreateNewWeekAsync(CancellationToken.None);
+
+            var wlWeekly = await db.ExperimentalSpecsWlWeekly.Where(x => x.WeekStartDate == response.NewWeek).ToListAsync();
+            Assert.Single(wlWeekly);
+            Assert.Equal(uncountedOnly, wlWeekly[0].Uuid);
+            Assert.Equal(5, wlWeekly[0].PyromancerWins);
+            Assert.Equal(27, wlWeekly[0].PyromancerKills);
+        }
+    }
+
+    [Fact]
     public async Task CreateNewDayAsync_WhenRunTwiceWithoutChanges_DoesNotCreateSecondSnapshot()
     {
         var options = CreateOptions(Guid.NewGuid().ToString());

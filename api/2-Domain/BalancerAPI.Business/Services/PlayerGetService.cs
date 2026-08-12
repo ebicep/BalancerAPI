@@ -51,6 +51,12 @@ public sealed class PlayerGetService(IDbContextFactory<BalancerDbContext> dbCont
             uuid,
             db => db.ExperimentalSpecsWl,
             cancellationToken);
+        var experimentalSpecsWlUncountTask = LoadByUuidAsync(
+            dbContextFactory,
+            "experimental_specs_wl_uncount",
+            uuid,
+            db => db.ExperimentalSpecsWlUncount,
+            cancellationToken);
         var experimentalSpecsWlDailyTask = LoadByUuidAsync(
             dbContextFactory,
             "experimental_specs_wl_daily",
@@ -79,6 +85,7 @@ public sealed class PlayerGetService(IDbContextFactory<BalancerDbContext> dbCont
             experimentalSpecWeightsWeeklyTask,
             experimentalSpecBansTask,
             experimentalSpecsWlTask,
+            experimentalSpecsWlUncountTask,
             experimentalSpecsWlDailyTask,
             experimentalSpecsWlWeeklyTask,
             adjustmentDailyTask);
@@ -94,6 +101,7 @@ public sealed class PlayerGetService(IDbContextFactory<BalancerDbContext> dbCont
         MergeTable(await experimentalSpecWeightsWeeklyTask, data);
         MergeTable(await experimentalSpecBansTask, data);
         MergeTable(await experimentalSpecsWlTask, data);
+        MergeTable(await experimentalSpecsWlUncountTask, data);
         MergeTable(await experimentalSpecsWlDailyTask, data);
         MergeTable(await experimentalSpecsWlWeeklyTask, data);
         MergeTable(await adjustmentDailyTask, data);

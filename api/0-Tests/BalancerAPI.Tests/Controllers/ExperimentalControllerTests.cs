@@ -1501,7 +1501,7 @@ public class ExperimentalControllerTests
     public async Task InputBalance_WhenServiceSucceeds_ReturnsOkWithBalanceId()
     {
         var input = new Mock<IExperimentalBalanceInputService>();
-        input.Setup(x => x.InputAsync(TestBalanceId, It.IsAny<ExperimentalBalanceInputBody>(), It.IsAny<CancellationToken>()))
+        input.Setup(x => x.InputAsync(TestBalanceId, It.IsAny<ExperimentalBalanceInputBody>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ExperimentalBalanceInputServiceResult(
                 true,
                 200,

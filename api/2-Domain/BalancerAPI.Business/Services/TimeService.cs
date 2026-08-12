@@ -245,104 +245,17 @@ public sealed class TimeService(
             .Select(x => x.Uuid)
             .ToHashSetAsync(cancellationToken);
 
-        return await db.ExperimentalSpecsWl.AsNoTracking()
-            .Where(x => x.LastUpdated > boundary && !alreadyWlSnapshottedUuids.Contains(x.Uuid))
-            .Select(x => new ExperimentalSpecsWlDaily
-            {
-                Uuid = x.Uuid,
-                DayStartDate = newId,
+        var changedUuids = await LoadChangedSpecsWlUuidsAsync(db, boundary, cancellationToken);
+        changedUuids.ExceptWith(alreadyWlSnapshottedUuids);
+        if (changedUuids.Count == 0)
+        {
+            return [];
+        }
 
-                PyromancerWins = x.PyromancerWins,
-                PyromancerLosses = x.PyromancerLosses,
-                PyromancerKills = x.PyromancerKills,
-                PyromancerDeaths = x.PyromancerDeaths,
-
-                CryomancerWins = x.CryomancerWins,
-                CryomancerLosses = x.CryomancerLosses,
-                CryomancerKills = x.CryomancerKills,
-                CryomancerDeaths = x.CryomancerDeaths,
-
-                AquamancerWins = x.AquamancerWins,
-                AquamancerLosses = x.AquamancerLosses,
-                AquamancerKills = x.AquamancerKills,
-                AquamancerDeaths = x.AquamancerDeaths,
-
-                BerserkerWins = x.BerserkerWins,
-                BerserkerLosses = x.BerserkerLosses,
-                BerserkerKills = x.BerserkerKills,
-                BerserkerDeaths = x.BerserkerDeaths,
-
-                DefenderWins = x.DefenderWins,
-                DefenderLosses = x.DefenderLosses,
-                DefenderKills = x.DefenderKills,
-                DefenderDeaths = x.DefenderDeaths,
-
-                RevenantWins = x.RevenantWins,
-                RevenantLosses = x.RevenantLosses,
-                RevenantKills = x.RevenantKills,
-                RevenantDeaths = x.RevenantDeaths,
-
-                AvengerWins = x.AvengerWins,
-                AvengerLosses = x.AvengerLosses,
-                AvengerKills = x.AvengerKills,
-                AvengerDeaths = x.AvengerDeaths,
-
-                CrusaderWins = x.CrusaderWins,
-                CrusaderLosses = x.CrusaderLosses,
-                CrusaderKills = x.CrusaderKills,
-                CrusaderDeaths = x.CrusaderDeaths,
-
-                ProtectorWins = x.ProtectorWins,
-                ProtectorLosses = x.ProtectorLosses,
-                ProtectorKills = x.ProtectorKills,
-                ProtectorDeaths = x.ProtectorDeaths,
-
-                ThunderlordWins = x.ThunderlordWins,
-                ThunderlordLosses = x.ThunderlordLosses,
-                ThunderlordKills = x.ThunderlordKills,
-                ThunderlordDeaths = x.ThunderlordDeaths,
-
-                SpiritguardWins = x.SpiritguardWins,
-                SpiritguardLosses = x.SpiritguardLosses,
-                SpiritguardKills = x.SpiritguardKills,
-                SpiritguardDeaths = x.SpiritguardDeaths,
-
-                EarthwardenWins = x.EarthwardenWins,
-                EarthwardenLosses = x.EarthwardenLosses,
-                EarthwardenKills = x.EarthwardenKills,
-                EarthwardenDeaths = x.EarthwardenDeaths,
-
-                AssassinWins = x.AssassinWins,
-                AssassinLosses = x.AssassinLosses,
-                AssassinKills = x.AssassinKills,
-                AssassinDeaths = x.AssassinDeaths,
-
-                VindicatorWins = x.VindicatorWins,
-                VindicatorLosses = x.VindicatorLosses,
-                VindicatorKills = x.VindicatorKills,
-                VindicatorDeaths = x.VindicatorDeaths,
-
-                ApothecaryWins = x.ApothecaryWins,
-                ApothecaryLosses = x.ApothecaryLosses,
-                ApothecaryKills = x.ApothecaryKills,
-                ApothecaryDeaths = x.ApothecaryDeaths,
-
-                ConjurerWins = x.ConjurerWins,
-                ConjurerLosses = x.ConjurerLosses,
-                ConjurerKills = x.ConjurerKills,
-                ConjurerDeaths = x.ConjurerDeaths,
-
-                SentinelWins = x.SentinelWins,
-                SentinelLosses = x.SentinelLosses,
-                SentinelKills = x.SentinelKills,
-                SentinelDeaths = x.SentinelDeaths,
-
-                LuminaryWins = x.LuminaryWins,
-                LuminaryLosses = x.LuminaryLosses,
-                LuminaryKills = x.LuminaryKills,
-                LuminaryDeaths = x.LuminaryDeaths
-            })
-            .ToListAsync(cancellationToken);
+        var (counted, uncounted) = await LoadSpecsWlRowsAsync(db, changedUuids, cancellationToken);
+        return counted
+            .Select(x => SnapshotGuard.ToDailySnapshot(x, uncounted.GetValueOrDefault(x.Uuid), newId))
+            .ToList();
     }
 
     private async Task<List<BaseWeightWeekly>> LoadChangedBaseWeightsWeeklyAsync(
@@ -418,104 +331,52 @@ public sealed class TimeService(
             .Select(x => x.Uuid)
             .ToHashSetAsync(cancellationToken);
 
-        return await db.ExperimentalSpecsWl.AsNoTracking()
-            .Where(x => x.LastUpdated > boundary && !alreadyWlSnapshottedUuids.Contains(x.Uuid))
-            .Select(x => new ExperimentalSpecsWlWeekly
-            {
-                Uuid = x.Uuid,
-                WeekStartDate = newId,
+        var changedUuids = await LoadChangedSpecsWlUuidsAsync(db, boundary, cancellationToken);
+        changedUuids.ExceptWith(alreadyWlSnapshottedUuids);
+        if (changedUuids.Count == 0)
+        {
+            return [];
+        }
 
-                PyromancerWins = x.PyromancerWins,
-                PyromancerLosses = x.PyromancerLosses,
-                PyromancerKills = x.PyromancerKills,
-                PyromancerDeaths = x.PyromancerDeaths,
+        var (counted, uncounted) = await LoadSpecsWlRowsAsync(db, changedUuids, cancellationToken);
+        return counted
+            .Select(x => SnapshotGuard.ToWeeklySnapshot(x, uncounted.GetValueOrDefault(x.Uuid), newId))
+            .ToList();
+    }
 
-                CryomancerWins = x.CryomancerWins,
-                CryomancerLosses = x.CryomancerLosses,
-                CryomancerKills = x.CryomancerKills,
-                CryomancerDeaths = x.CryomancerDeaths,
-
-                AquamancerWins = x.AquamancerWins,
-                AquamancerLosses = x.AquamancerLosses,
-                AquamancerKills = x.AquamancerKills,
-                AquamancerDeaths = x.AquamancerDeaths,
-
-                BerserkerWins = x.BerserkerWins,
-                BerserkerLosses = x.BerserkerLosses,
-                BerserkerKills = x.BerserkerKills,
-                BerserkerDeaths = x.BerserkerDeaths,
-
-                DefenderWins = x.DefenderWins,
-                DefenderLosses = x.DefenderLosses,
-                DefenderKills = x.DefenderKills,
-                DefenderDeaths = x.DefenderDeaths,
-
-                RevenantWins = x.RevenantWins,
-                RevenantLosses = x.RevenantLosses,
-                RevenantKills = x.RevenantKills,
-                RevenantDeaths = x.RevenantDeaths,
-
-                AvengerWins = x.AvengerWins,
-                AvengerLosses = x.AvengerLosses,
-                AvengerKills = x.AvengerKills,
-                AvengerDeaths = x.AvengerDeaths,
-
-                CrusaderWins = x.CrusaderWins,
-                CrusaderLosses = x.CrusaderLosses,
-                CrusaderKills = x.CrusaderKills,
-                CrusaderDeaths = x.CrusaderDeaths,
-
-                ProtectorWins = x.ProtectorWins,
-                ProtectorLosses = x.ProtectorLosses,
-                ProtectorKills = x.ProtectorKills,
-                ProtectorDeaths = x.ProtectorDeaths,
-
-                ThunderlordWins = x.ThunderlordWins,
-                ThunderlordLosses = x.ThunderlordLosses,
-                ThunderlordKills = x.ThunderlordKills,
-                ThunderlordDeaths = x.ThunderlordDeaths,
-
-                SpiritguardWins = x.SpiritguardWins,
-                SpiritguardLosses = x.SpiritguardLosses,
-                SpiritguardKills = x.SpiritguardKills,
-                SpiritguardDeaths = x.SpiritguardDeaths,
-
-                EarthwardenWins = x.EarthwardenWins,
-                EarthwardenLosses = x.EarthwardenLosses,
-                EarthwardenKills = x.EarthwardenKills,
-                EarthwardenDeaths = x.EarthwardenDeaths,
-
-                AssassinWins = x.AssassinWins,
-                AssassinLosses = x.AssassinLosses,
-                AssassinKills = x.AssassinKills,
-                AssassinDeaths = x.AssassinDeaths,
-
-                VindicatorWins = x.VindicatorWins,
-                VindicatorLosses = x.VindicatorLosses,
-                VindicatorKills = x.VindicatorKills,
-                VindicatorDeaths = x.VindicatorDeaths,
-
-                ApothecaryWins = x.ApothecaryWins,
-                ApothecaryLosses = x.ApothecaryLosses,
-                ApothecaryKills = x.ApothecaryKills,
-                ApothecaryDeaths = x.ApothecaryDeaths,
-
-                ConjurerWins = x.ConjurerWins,
-                ConjurerLosses = x.ConjurerLosses,
-                ConjurerKills = x.ConjurerKills,
-                ConjurerDeaths = x.ConjurerDeaths,
-
-                SentinelWins = x.SentinelWins,
-                SentinelLosses = x.SentinelLosses,
-                SentinelKills = x.SentinelKills,
-                SentinelDeaths = x.SentinelDeaths,
-
-                LuminaryWins = x.LuminaryWins,
-                LuminaryLosses = x.LuminaryLosses,
-                LuminaryKills = x.LuminaryKills,
-                LuminaryDeaths = x.LuminaryDeaths
-            })
+    /// <summary>Players whose counted or uncounted spec stats moved since the previous period boundary.</summary>
+    private static async Task<HashSet<Guid>> LoadChangedSpecsWlUuidsAsync(
+        BalancerDbContext db,
+        DateTime boundary,
+        CancellationToken cancellationToken)
+    {
+        var counted = await db.ExperimentalSpecsWl.AsNoTracking()
+            .Where(x => x.LastUpdated > boundary)
+            .Select(x => x.Uuid)
             .ToListAsync(cancellationToken);
+        var uncounted = await db.ExperimentalSpecsWlUncount.AsNoTracking()
+            .Where(x => x.LastUpdated > boundary)
+            .Select(x => x.Uuid)
+            .ToListAsync(cancellationToken);
+
+        return [.. counted, .. uncounted];
+    }
+
+    private static async Task<(List<ExperimentalSpecsWl> Counted, Dictionary<Guid, ExperimentalSpecsWlUncount> Uncounted)>
+        LoadSpecsWlRowsAsync(
+            BalancerDbContext db,
+            HashSet<Guid> uuids,
+            CancellationToken cancellationToken)
+    {
+        var list = uuids.ToList();
+        var counted = await db.ExperimentalSpecsWl.AsNoTracking()
+            .Where(x => list.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+        var uncounted = await db.ExperimentalSpecsWlUncount.AsNoTracking()
+            .Where(x => list.Contains(x.Uuid))
+            .ToDictionaryAsync(x => x.Uuid, cancellationToken);
+
+        return (counted, uncounted);
     }
 
     public async Task<(int Season, DateTime Timestamp)> CreateNewSeasonAsync(CancellationToken cancellationToken)

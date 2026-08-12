@@ -148,6 +148,14 @@ public sealed class PlayerUuidUpdateService(
                 cancellationToken);
             await UpdateUuidOnSetAsync(
                 dbContext,
+                dbContext.ExperimentalSpecsWlUncount,
+                "experimental_specs_wl_uncount",
+                oldUuid,
+                newUuid,
+                tablesUpdated,
+                cancellationToken);
+            await UpdateUuidOnSetAsync(
+                dbContext,
                 dbContext.BaseWeights,
                 "base_weights",
                 oldUuid,
@@ -358,6 +366,9 @@ public sealed class PlayerUuidUpdateService(
                 cancellationToken),
             "experimental_specs_wl" => dbContext.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE experimental_specs_wl SET uuid = {newUuid} WHERE uuid = {oldUuid}",
+                cancellationToken),
+            "experimental_specs_wl_uncount" => dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE experimental_specs_wl_uncount SET uuid = {newUuid} WHERE uuid = {oldUuid}",
                 cancellationToken),
             "base_weights_daily" => dbContext.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE base_weights_daily SET uuid = {newUuid} WHERE uuid = {oldUuid}",

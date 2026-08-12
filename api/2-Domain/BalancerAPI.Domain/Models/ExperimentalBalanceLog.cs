@@ -23,4 +23,7 @@ public class ExperimentalBalanceLog
 
     /// <summary>Whether WL stats currently reflect the stored <see cref="Input"/>.</summary>
     public bool Counted { get; set; }
+
+    /// <summary>True while the stored <see cref="Input"/> is applied to the uncounted WL stats instead of the counted ones.</summary>
+    public bool? Uncount { get; set; }
 }

@@ -689,7 +689,8 @@ public class ExperimentalController(
     public async Task<ActionResult<ExperimentalBalanceInputResponse>> InputBalance(
         Guid balanceId,
         [FromBody] ExperimentalBalanceInputBody? body,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] bool uncount = false)
     {
         if (body is null)
         {
@@ -698,7 +699,7 @@ public class ExperimentalController(
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var result = await experimentalBalanceInputService.InputAsync(balanceId, body, cancellationToken);
+        var result = await experimentalBalanceInputService.InputAsync(balanceId, body, uncount, cancellationToken);
         if (result.Success)
         {
             return Ok(result.Response!);

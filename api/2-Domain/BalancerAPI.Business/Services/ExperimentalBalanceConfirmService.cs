@@ -134,7 +134,7 @@ public sealed class ExperimentalBalanceConfirmService(IDbContextFactory<Balancer
             return new ExperimentalBalanceConfirmServiceResult(false, 409, "Balance already unconfirmed.");
         }
 
-        if (log.Counted)
+        if (log.Counted || log.Uncount == true)
         {
             await tx.RollbackAsync(cancellationToken);
             return new ExperimentalBalanceConfirmServiceResult(false, 409, "Balance must be uninput before unconfirm.");

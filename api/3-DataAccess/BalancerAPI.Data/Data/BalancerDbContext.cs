@@ -26,6 +26,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalSpecWeightWeekly> ExperimentalSpecWeightsWeekly => Set<ExperimentalSpecWeightWeekly>();
     public DbSet<ExperimentalSpecWeightCurrentWeek> ExperimentalSpecWeightsCurrentWeek => Set<ExperimentalSpecWeightCurrentWeek>();
     public DbSet<ExperimentalSpecsWl> ExperimentalSpecsWl => Set<ExperimentalSpecsWl>();
+    public DbSet<ExperimentalSpecsWlUncount> ExperimentalSpecsWlUncount => Set<ExperimentalSpecsWlUncount>();
     public DbSet<ExperimentalSpecsWlWeekly> ExperimentalSpecsWlWeekly => Set<ExperimentalSpecsWlWeekly>();
     public DbSet<ExperimentalSpecsWlDaily> ExperimentalSpecsWlDaily => Set<ExperimentalSpecsWlDaily>();
     public DbSet<TimeWeek> TimeWeeks => Set<TimeWeek>();
@@ -127,6 +128,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureExperimentalSpecWeightsWeekly(modelBuilder);
         ConfigureExperimentalSpecWeightsCurrentWeekView(modelBuilder);
         ConfigureExperimentalSpecsWl(modelBuilder);
+        ConfigureExperimentalSpecsWlUncount(modelBuilder);
         ConfigureExperimentalSpecsWlWeekly(modelBuilder);
         ConfigureExperimentalSpecsWlDaily(modelBuilder);
         ConfigureTimeWeek(modelBuilder);
@@ -271,6 +273,7 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
             entity.Property(e => e.Posted).HasColumnName("posted");
             entity.Property(e => e.Input).HasColumnName("input").HasColumnType("jsonb").IsRequired(false);
             entity.Property(e => e.Counted).HasColumnName("counted");
+            entity.Property(e => e.Uncount).HasColumnName("uncount").IsRequired(false);
         });
     }
 
@@ -533,6 +536,21 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         modelBuilder.Entity<ExperimentalSpecsWl>(entity =>
         {
             entity.ToTable("experimental_specs_wl");
+            entity.HasKey(e => e.Uuid);
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.LastUpdated)
+                .HasColumnName("last_updated")
+                .HasColumnType("timestamp with time zone")
+                .HasDefaultValueSql("now()");
+            ConfigureWlColumns(entity);
+        });
+    }
+
+    private static void ConfigureExperimentalSpecsWlUncount(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlUncount>(entity =>
+        {
+            entity.ToTable("experimental_specs_wl_uncount");
             entity.HasKey(e => e.Uuid);
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.LastUpdated)

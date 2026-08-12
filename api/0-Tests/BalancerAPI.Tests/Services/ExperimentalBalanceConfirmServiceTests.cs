@@ -285,6 +285,47 @@ public class ExperimentalBalanceConfirmServiceTests
     }
 
     [Fact]
+    public async Task UnconfirmAsync_WhenUncounted_Returns409()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = CreateOptions(dbName);
+        var balanceId = Guid.NewGuid();
+        var createdAt = new DateTime(2026, 4, 6, 13, 0, 0, DateTimeKind.Utc);
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = JsonSerializer.Serialize(new ExperimentalBalanceMeta(1, 1, [], 1, createdAt)),
+                CreatedAt = createdAt,
+                Posted = true,
+                Counted = false,
+                Uncount = true
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog
+            {
+                BalanceId = balanceId,
+                Pyromancer = Guid.NewGuid()
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ExperimentalBalanceConfirmService(new TestDbContextFactory(options));
+        var result = await sut.UnconfirmAsync(balanceId, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(409, result.StatusCode);
+
+        await using (var verify = new BalancerDbContext(options))
+        {
+            Assert.Single(verify.ExperimentalSpecLogs.Where(x => x.BalanceId == balanceId));
+            Assert.True(verify.ExperimentalBalanceLogs.Single(x => x.BalanceId == balanceId).Posted);
+        }
+    }
+
+    [Fact]
     public async Task ConfirmAsync_WhenSpecRequestFulfilled_DeletesRequestRow()
     {
         var dbName = Guid.NewGuid().ToString();

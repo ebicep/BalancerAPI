@@ -7,6 +7,7 @@ public interface IExperimentalBalanceInputService
     Task<ExperimentalBalanceInputServiceResult> InputAsync(
         Guid balanceId,
         ExperimentalBalanceInputBody body,
+        bool uncount,
         CancellationToken cancellationToken);
 
     Task<ExperimentalBalanceInputServiceResult> UninputAsync(
