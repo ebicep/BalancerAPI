@@ -17,6 +17,7 @@ public class PlayerAddServiceTests
         var (db, factory) = CreateDbContextAndFactory();
         db.TimeDays.Add(new TimeDay { Id = 7, Timestamp = DateTime.UtcNow });
         db.TimeWeeks.Add(new TimeWeek { Id = 3, Timestamp = DateTime.UtcNow });
+        db.TimeSeasons.Add(new TimeSeason { Id = 2, Timestamp = DateTime.UtcNow });
         await db.SaveChangesAsync();
 
         var resolver = new Mock<IMinecraftPlayerResolveService>();
@@ -40,6 +41,7 @@ public class PlayerAddServiceTests
         Assert.Contains("base_weights_weekly", payload.TablesAdded);
         Assert.Contains("experimental_spec_weights_weekly", payload.TablesAdded);
         Assert.Contains("experimental_specs_wl_weekly", payload.TablesAdded);
+        Assert.Contains("experimental_specs_wl_seasonal", payload.TablesAdded);
 
         Assert.NotNull(await db.Names.FindAsync(PlayerUuid));
         Assert.NotNull(await db.BaseWeights.FindAsync(PlayerUuid));
@@ -51,6 +53,7 @@ public class PlayerAddServiceTests
         Assert.NotNull(await db.BaseWeightsWeekly.FindAsync(PlayerUuid, 3));
         Assert.NotNull(await db.ExperimentalSpecWeightsWeekly.FindAsync(PlayerUuid, 3));
         Assert.NotNull(await db.ExperimentalSpecsWlWeekly.FindAsync(PlayerUuid, 3));
+        Assert.NotNull(await db.ExperimentalSpecsWlSeasonal.FindAsync(PlayerUuid, 2));
     }
 
     [Fact]

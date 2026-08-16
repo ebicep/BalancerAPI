@@ -580,6 +580,158 @@ public class ExperimentalController(
         return Ok(MapExperimentalWeeklySpecs(row));
     }
 
+    [HttpGet("season/{name}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalSeasonStatsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalSeasonStatsResponse>> GetSeason(
+        string name,
+        [FromQuery] int? id,
+        CancellationToken cancellationToken)
+    {
+        var resolved = await playerKeyResolver.ResolveAsync(name, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
+        {
+            return problem;
+        }
+
+        if (id is not null)
+        {
+            var seasonExists = await dbContext.TimeSeasons
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!seasonExists)
+            {
+                return Problem(
+                    detail: $"No season found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.GetExperimentalSeasonStatsForSeasonAsync(
+                id.Value,
+                resolved.Uuid!.Value,
+                cancellationToken);
+
+            return Ok(new ExperimentalSeasonStatsResponse(
+                historical?.Wins ?? 0,
+                historical?.Losses ?? 0,
+                historical?.Kills ?? 0,
+                historical?.Deaths ?? 0));
+        }
+
+        var row = await dbContext.ExperimentalSeasonStats
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Uuid == resolved.Uuid, cancellationToken);
+
+        return Ok(new ExperimentalSeasonStatsResponse(
+            row?.Wins ?? 0,
+            row?.Losses ?? 0,
+            row?.Kills ?? 0,
+            row?.Deaths ?? 0));
+    }
+
+    [HttpGet("season-all")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalSeasonAllStatsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ExperimentalSeasonAllStatsResponse>> GetSeasonAll(
+        [FromQuery] int? id,
+        CancellationToken cancellationToken)
+    {
+        if (id is not null)
+        {
+            var seasonExists = await dbContext.TimeSeasons
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!seasonExists)
+            {
+                return Problem(
+                    detail: $"No season found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.ExperimentalSeasonStatsSeason
+                .AsNoTracking()
+                .Where(x => x.SeasonStartDate == id.Value)
+                .Join(
+                    dbContext.Names,
+                    s => s.Uuid,
+                    n => n.Uuid,
+                    (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
+                .Where(x => x.Wins + x.Losses > 0)
+                .OrderByDescending(x => x.Wins - x.Losses)
+                .Select(x => new ExperimentalSeasonAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
+                .ToListAsync(cancellationToken);
+
+            return Ok(new ExperimentalSeasonAllStatsResponse(historical));
+        }
+
+        var rows = await dbContext.ExperimentalSeasonStats
+            .AsNoTracking()
+            .Join(
+                dbContext.Names,
+                s => s.Uuid,
+                n => n.Uuid,
+                (s, n) => new { n.Name, s.Wins, s.Losses, s.Kills, s.Deaths })
+            .Where(x => x.Wins + x.Losses > 0)
+            .OrderByDescending(x => x.Wins - x.Losses)
+            .Select(x => new ExperimentalSeasonAllStatsEntry(x.Name, x.Wins, x.Losses, x.Kills, x.Deaths))
+            .ToListAsync(cancellationToken);
+
+        return Ok(new ExperimentalSeasonAllStatsResponse(rows));
+    }
+
+    [HttpGet("season-experimental-specs/{name}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(ExperimentalSeasonSpecsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ExperimentalSeasonSpecsResponse>> GetSeasonExperimentalSpecs(
+        string name,
+        [FromQuery] int? id,
+        CancellationToken cancellationToken)
+    {
+        var resolved = await playerKeyResolver.ResolveAsync(name, cancellationToken);
+        var problem = ProblemFrom(resolved);
+        if (problem is not null)
+        {
+            return problem;
+        }
+
+        if (id is not null)
+        {
+            var seasonExists = await dbContext.TimeSeasons
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == id.Value, cancellationToken);
+            if (!seasonExists)
+            {
+                return Problem(
+                    detail: $"No season found with id {id.Value}.",
+                    statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var historical = await dbContext.GetExperimentalSpecsWlForSeasonAsync(
+                id.Value,
+                resolved.Uuid!.Value,
+                cancellationToken);
+
+            return Ok(MapExperimentalSeasonSpecs(historical));
+        }
+
+        var row = await dbContext.ExperimentalSpecsWlCurrentSeason
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Uuid == resolved.Uuid, cancellationToken);
+
+        return Ok(MapExperimentalSeasonSpecs(row));
+    }
+
     [HttpPost("balance")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalBalance)]
@@ -787,6 +939,19 @@ public class ExperimentalController(
                 mapped.Total.Deaths));
     }
 
+    private static ExperimentalSeasonSpecsResponse MapExperimentalSeasonSpecs(object? row)
+    {
+        var mapped = MapExperimentalAllSpecs(row);
+        return new ExperimentalSeasonSpecsResponse(
+            mapped.Specs.Select(s => new ExperimentalSeasonSpecStatsEntry(s.Spec, s.Wins, s.Losses, s.Kills, s.Deaths)).ToList(),
+            new ExperimentalSeasonSpecStatsEntry(
+                mapped.Total.Spec,
+                mapped.Total.Wins,
+                mapped.Total.Losses,
+                mapped.Total.Kills,
+                mapped.Total.Deaths));
+    }
+
     private static (List<ExperimentalSpecStatsEntryData> Specs, ExperimentalSpecStatsEntryData Total) MapExperimentalAllSpecs(
         object? row)
     {
@@ -885,6 +1050,33 @@ public class ExperimentalController(
 
     public sealed record ExperimentalWeeklyAllStatsResponse(
         IReadOnlyList<ExperimentalWeeklyAllStatsEntry> Players);
+
+    public sealed record ExperimentalSeasonSpecStatsEntry(
+        string Spec,
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
+    public sealed record ExperimentalSeasonSpecsResponse(
+        IReadOnlyList<ExperimentalSeasonSpecStatsEntry> Specs,
+        ExperimentalSeasonSpecStatsEntry Total);
+
+    public sealed record ExperimentalSeasonStatsResponse(
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
+    public sealed record ExperimentalSeasonAllStatsEntry(
+        string Name,
+        int Wins,
+        int Losses,
+        int Kills,
+        int Deaths);
+
+    public sealed record ExperimentalSeasonAllStatsResponse(
+        IReadOnlyList<ExperimentalSeasonAllStatsEntry> Players);
 
     public sealed record ExperimentalBalanceInputRequest(
         [property: JsonPropertyName("players")] IReadOnlyList<string> Players);

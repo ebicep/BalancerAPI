@@ -28,19 +28,24 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
     public DbSet<ExperimentalSpecsWl> ExperimentalSpecsWl => Set<ExperimentalSpecsWl>();
     public DbSet<ExperimentalSpecsWlUncount> ExperimentalSpecsWlUncount => Set<ExperimentalSpecsWlUncount>();
     public DbSet<ExperimentalSpecsWlWeekly> ExperimentalSpecsWlWeekly => Set<ExperimentalSpecsWlWeekly>();
+    public DbSet<ExperimentalSpecsWlSeasonal> ExperimentalSpecsWlSeasonal => Set<ExperimentalSpecsWlSeasonal>();
     public DbSet<ExperimentalSpecsWlDaily> ExperimentalSpecsWlDaily => Set<ExperimentalSpecsWlDaily>();
     public DbSet<TimeWeek> TimeWeeks => Set<TimeWeek>();
     public DbSet<TimeDay> TimeDays => Set<TimeDay>();
     public DbSet<TimeSeason> TimeSeasons => Set<TimeSeason>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<ExperimentalSpecsWlCurrentWeek> ExperimentalSpecsWlCurrentWeek => Set<ExperimentalSpecsWlCurrentWeek>();
+    public DbSet<ExperimentalSpecsWlCurrentSeason> ExperimentalSpecsWlCurrentSeason => Set<ExperimentalSpecsWlCurrentSeason>();
     public DbSet<ExperimentalSpecsWlCurrentDay> ExperimentalSpecsWlCurrentDay => Set<ExperimentalSpecsWlCurrentDay>();
     public DbSet<ExperimentalDailyStats> ExperimentalDailyStats => Set<ExperimentalDailyStats>();
     public DbSet<ExperimentalSpecsWlDay> ExperimentalSpecsWlDay => Set<ExperimentalSpecsWlDay>();
     public DbSet<ExperimentalDailyStatsDay> ExperimentalDailyStatsDay => Set<ExperimentalDailyStatsDay>();
     public DbSet<ExperimentalSpecsWlWeek> ExperimentalSpecsWlWeek => Set<ExperimentalSpecsWlWeek>();
+    public DbSet<ExperimentalSpecsWlSeason> ExperimentalSpecsWlSeason => Set<ExperimentalSpecsWlSeason>();
     public DbSet<ExperimentalWeeklyStatsWeek> ExperimentalWeeklyStatsWeek => Set<ExperimentalWeeklyStatsWeek>();
+    public DbSet<ExperimentalSeasonStatsSeason> ExperimentalSeasonStatsSeason => Set<ExperimentalSeasonStatsSeason>();
     public DbSet<ExperimentalWeeklyStats> ExperimentalWeeklyStats => Set<ExperimentalWeeklyStats>();
+    public DbSet<ExperimentalSeasonStats> ExperimentalSeasonStats => Set<ExperimentalSeasonStats>();
     public DbSet<ExperimentalBalancePlayerData> ExperimentalBalancePlayerData => Set<ExperimentalBalancePlayerData>();
     public DbSet<ExperimentalBalanceLog> ExperimentalBalanceLogs => Set<ExperimentalBalanceLog>();
     public DbSet<ExperimentalInputLog> ExperimentalInputLogs => Set<ExperimentalInputLog>();
@@ -111,6 +116,36 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
                 cancellationToken);
     }
 
+    /// <summary>
+    /// Per-spec W/L/K/D for a completed season from <c>experimental_specs_wl_season</c>.
+    /// </summary>
+    public virtual async Task<ExperimentalSpecsWlSeason?> GetExperimentalSpecsWlForSeasonAsync(
+        int seasonId,
+        Guid playerUuid,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExperimentalSpecsWlSeason
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.SeasonStartDate == seasonId && x.Uuid == playerUuid,
+                cancellationToken);
+    }
+
+    /// <summary>
+    /// Per-player W/L/K/D for a completed season from <c>experimental_season_stats_season</c>.
+    /// </summary>
+    public virtual async Task<ExperimentalSeasonStatsSeason?> GetExperimentalSeasonStatsForSeasonAsync(
+        int seasonId,
+        Guid playerUuid,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExperimentalSeasonStatsSeason
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.SeasonStartDate == seasonId && x.Uuid == playerUuid,
+                cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -130,19 +165,24 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         ConfigureExperimentalSpecsWl(modelBuilder);
         ConfigureExperimentalSpecsWlUncount(modelBuilder);
         ConfigureExperimentalSpecsWlWeekly(modelBuilder);
+        ConfigureExperimentalSpecsWlSeasonal(modelBuilder);
         ConfigureExperimentalSpecsWlDaily(modelBuilder);
         ConfigureTimeWeek(modelBuilder);
         ConfigureTimeDay(modelBuilder);
         ConfigureTimeSeason(modelBuilder);
         ConfigureSettings(modelBuilder);
         ConfigureCurrentWeekView(modelBuilder);
+        ConfigureCurrentSeasonView(modelBuilder);
         ConfigureCurrentDayView(modelBuilder);
         ConfigureExperimentalDailyStatsView(modelBuilder);
         ConfigureExperimentalSpecsWlDayView(modelBuilder);
         ConfigureExperimentalDailyStatsDayView(modelBuilder);
         ConfigureExperimentalSpecsWlWeekView(modelBuilder);
+        ConfigureExperimentalSpecsWlSeasonView(modelBuilder);
         ConfigureExperimentalWeeklyStatsWeekView(modelBuilder);
+        ConfigureExperimentalSeasonStatsSeasonView(modelBuilder);
         ConfigureExperimentalWeeklyStatsView(modelBuilder);
+        ConfigureExperimentalSeasonStatsView(modelBuilder);
         ConfigureBalancePlayerDataView(modelBuilder);
         ConfigureExperimentalBalanceLog(modelBuilder);
         ConfigureExperimentalInputLog(modelBuilder);
@@ -573,6 +613,18 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         });
     }
 
+    private static void ConfigureExperimentalSpecsWlSeasonal(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlSeasonal>(entity =>
+        {
+            entity.ToTable("experimental_specs_wl_seasonal");
+            entity.HasKey(e => new { e.Uuid, e.SeasonStartDate });
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.SeasonStartDate).HasColumnName("season_start_date");
+            ConfigureWlColumns(entity);
+        });
+    }
+
     private static void ConfigureExperimentalSpecsWlDaily(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ExperimentalSpecsWlDaily>(entity =>
@@ -636,6 +688,17 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         {
             entity.HasNoKey();
             entity.ToView("experimental_specs_wl_current_week");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            ConfigureWlColumns(entity);
+        });
+    }
+
+    private static void ConfigureCurrentSeasonView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlCurrentSeason>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_specs_wl_current_season");
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             ConfigureWlColumns(entity);
         });
@@ -705,6 +768,18 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         });
     }
 
+    private static void ConfigureExperimentalSpecsWlSeasonView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSpecsWlSeason>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_specs_wl_season");
+            entity.Property(e => e.SeasonStartDate).HasColumnName("season_start_date");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            ConfigureWlColumns(entity);
+        });
+    }
+
     private static void ConfigureExperimentalWeeklyStatsWeekView(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ExperimentalWeeklyStatsWeek>(entity =>
@@ -720,12 +795,41 @@ public class BalancerDbContext(DbContextOptions<BalancerDbContext> options) : Db
         });
     }
 
+    private static void ConfigureExperimentalSeasonStatsSeasonView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSeasonStatsSeason>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_season_stats_season");
+            entity.Property(e => e.SeasonStartDate).HasColumnName("season_start_date");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Wins).HasColumnName("wins");
+            entity.Property(e => e.Losses).HasColumnName("losses");
+            entity.Property(e => e.Kills).HasColumnName("kills");
+            entity.Property(e => e.Deaths).HasColumnName("deaths");
+        });
+    }
+
     private static void ConfigureExperimentalWeeklyStatsView(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ExperimentalWeeklyStats>(entity =>
         {
             entity.HasNoKey();
             entity.ToView("experimental_weekly_stats");
+            entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
+            entity.Property(e => e.Wins).HasColumnName("wins");
+            entity.Property(e => e.Losses).HasColumnName("losses");
+            entity.Property(e => e.Kills).HasColumnName("kills");
+            entity.Property(e => e.Deaths).HasColumnName("deaths");
+        });
+    }
+
+    private static void ConfigureExperimentalSeasonStatsView(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExperimentalSeasonStats>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("experimental_season_stats");
             entity.Property(e => e.Uuid).HasColumnName("uuid").HasColumnType("uuid");
             entity.Property(e => e.Wins).HasColumnName("wins");
             entity.Property(e => e.Losses).HasColumnName("losses");

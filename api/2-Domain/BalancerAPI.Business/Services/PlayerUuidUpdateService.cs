@@ -59,7 +59,7 @@ public sealed class PlayerUuidUpdateService(
             {
                 return (Result: PlayerUuidUpdateServiceResult.Fail(
                     409,
-                    "newUuid already has snapshot rows for the same day or week as oldUuid."), Commit: false);
+                    "newUuid already has snapshot rows for the same day, week, or season as oldUuid."), Commit: false);
             }
 
             var oldNameRow = await dbContext.Names.AsNoTracking()
@@ -102,6 +102,14 @@ public sealed class PlayerUuidUpdateService(
                 dbContext,
                 dbContext.ExperimentalSpecsWlWeekly,
                 "experimental_specs_wl_weekly",
+                oldUuid,
+                newUuid,
+                tablesUpdated,
+                cancellationToken);
+            await UpdateUuidOnSetAsync(
+                dbContext,
+                dbContext.ExperimentalSpecsWlSeasonal,
+                "experimental_specs_wl_seasonal",
                 oldUuid,
                 newUuid,
                 tablesUpdated,
@@ -284,9 +292,21 @@ public sealed class PlayerUuidUpdateService(
             .Where(x => x.Uuid == oldUuid)
             .Select(x => x.WeekStartDate)
             .ToListAsync(cancellationToken);
-        return oldWlWeekDates.Count > 0 &&
-               await dbContext.ExperimentalSpecsWlWeekly.AnyAsync(
-                   x => x.Uuid == newUuid && oldWlWeekDates.Contains(x.WeekStartDate),
+        if (oldWlWeekDates.Count > 0 &&
+            await dbContext.ExperimentalSpecsWlWeekly.AnyAsync(
+                x => x.Uuid == newUuid && oldWlWeekDates.Contains(x.WeekStartDate),
+                cancellationToken))
+        {
+            return true;
+        }
+
+        var oldWlSeasonDates = await dbContext.ExperimentalSpecsWlSeasonal
+            .Where(x => x.Uuid == oldUuid)
+            .Select(x => x.SeasonStartDate)
+            .ToListAsync(cancellationToken);
+        return oldWlSeasonDates.Count > 0 &&
+               await dbContext.ExperimentalSpecsWlSeasonal.AnyAsync(
+                   x => x.Uuid == newUuid && oldWlSeasonDates.Contains(x.SeasonStartDate),
                    cancellationToken);
     }
 
@@ -384,6 +404,9 @@ public sealed class PlayerUuidUpdateService(
                 cancellationToken),
             "experimental_specs_wl_weekly" => dbContext.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE experimental_specs_wl_weekly SET uuid = {newUuid} WHERE uuid = {oldUuid}",
+                cancellationToken),
+            "experimental_specs_wl_seasonal" => dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE experimental_specs_wl_seasonal SET uuid = {newUuid} WHERE uuid = {oldUuid}",
                 cancellationToken),
             "adjustment_daily_log" => dbContext.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE adjustment_daily_log SET uuid = {newUuid} WHERE uuid = {oldUuid}",

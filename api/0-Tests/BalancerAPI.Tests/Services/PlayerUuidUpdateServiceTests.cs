@@ -45,6 +45,7 @@ public class PlayerUuidUpdateServiceTests
         Assert.Equal(NewUuid, payload.NewUuid);
         Assert.Contains("names", payload.TablesUpdated);
         Assert.Contains("base_weights", payload.TablesUpdated);
+        Assert.Contains("experimental_specs_wl_seasonal", payload.TablesUpdated);
         Assert.Contains("adjustment_daily_log", payload.TablesUpdated);
         Assert.Contains("experimental_spec_logs", payload.TablesUpdated);
 
@@ -160,6 +161,7 @@ public class PlayerUuidUpdateServiceTests
     {
         db.TimeDays.Add(new TimeDay { Id = 7, Timestamp = DateTime.UtcNow });
         db.TimeWeeks.Add(new TimeWeek { Id = 3, Timestamp = DateTime.UtcNow });
+        db.TimeSeasons.Add(new TimeSeason { Id = 2, Timestamp = DateTime.UtcNow });
         db.Names.Add(new PlayerName { Uuid = OldUuid, Name = "sumSmash", PreviousNames = [] });
         db.BaseWeights.Add(new BaseWeight
         {
@@ -175,6 +177,7 @@ public class PlayerUuidUpdateServiceTests
         db.BaseWeightsWeekly.Add(new BaseWeightWeekly { Uuid = OldUuid, WeekStartDate = 3, Weight = 275 });
         db.ExperimentalSpecWeightsWeekly.Add(new ExperimentalSpecWeightWeekly { Uuid = OldUuid, WeekStartDate = 3 });
         db.ExperimentalSpecsWlWeekly.Add(new ExperimentalSpecsWlWeekly { Uuid = OldUuid, WeekStartDate = 3 });
+        db.ExperimentalSpecsWlSeasonal.Add(new ExperimentalSpecsWlSeasonal { Uuid = OldUuid, SeasonStartDate = 2 });
     }
 
     private sealed class TestDbContextFactory(DbContextOptions<BalancerDbContext> options) : IDbContextFactory<BalancerDbContext>

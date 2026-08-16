@@ -22,6 +22,7 @@ public class PlayerGetServiceTests
         "experimental_specs_wl",
         "experimental_specs_wl_daily",
         "experimental_specs_wl_weekly",
+        "experimental_specs_wl_seasonal",
         "adjustment_daily"
     ];
 
@@ -93,6 +94,7 @@ public class PlayerGetServiceTests
     {
         db.TimeDays.Add(new TimeDay { Id = 7, Timestamp = DateTime.UtcNow });
         db.TimeWeeks.Add(new TimeWeek { Id = 3, Timestamp = DateTime.UtcNow });
+        db.TimeSeasons.Add(new TimeSeason { Id = 2, Timestamp = DateTime.UtcNow });
         db.Names.Add(new PlayerName { Uuid = PlayerUuid, Name = "sumSmash", PreviousNames = [] });
         db.BaseWeights.Add(new BaseWeight
         {
@@ -109,6 +111,7 @@ public class PlayerGetServiceTests
         db.BaseWeightsWeekly.Add(new BaseWeightWeekly { Uuid = PlayerUuid, WeekStartDate = 3, Weight = 275 });
         db.ExperimentalSpecWeightsWeekly.Add(new ExperimentalSpecWeightWeekly { Uuid = PlayerUuid, WeekStartDate = 3 });
         db.ExperimentalSpecsWlWeekly.Add(new ExperimentalSpecsWlWeekly { Uuid = PlayerUuid, WeekStartDate = 3 });
+        db.ExperimentalSpecsWlSeasonal.Add(new ExperimentalSpecsWlSeasonal { Uuid = PlayerUuid, SeasonStartDate = 2 });
     }
 
     private sealed class TestDbContextFactory(DbContextOptions<BalancerDbContext> options) : IDbContextFactory<BalancerDbContext>

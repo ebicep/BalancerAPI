@@ -381,9 +381,16 @@ public sealed class TimeService(
 
     public async Task<(int Season, DateTime Timestamp)> CreateNewSeasonAsync(CancellationToken cancellationToken)
     {
+        await using var tx = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
         var maxId = await dbContext.TimeSeasons
             .Select(x => (int?)x.Id)
             .MaxAsync(cancellationToken);
+
+        var previousBoundary = await dbContext.TimeSeasons
+            .OrderByDescending(x => x.Id)
+            .Select(x => (DateTime?)x.Timestamp)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var newId = (maxId ?? -1) + 1;
         var timestamp = EasternTime.Now;
@@ -395,6 +402,16 @@ public sealed class TimeService(
         });
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        var boundary = previousBoundary ?? DateTime.MinValue;
+        var changedWl = await LoadChangedExperimentalSpecsWlSeasonalAsync(newId, boundary, cancellationToken);
+        if (changedWl.Count > 0)
+        {
+            dbContext.ExperimentalSpecsWlSeasonal.AddRange(changedWl);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
         return (newId, timestamp);
     }
 
@@ -409,10 +426,42 @@ public sealed class TimeService(
             return false;
         }
 
+        var specsWlSeasonal = await dbContext.ExperimentalSpecsWlSeasonal
+            .Where(x => x.SeasonStartDate == seasonId)
+            .ToListAsync(cancellationToken);
+        if (specsWlSeasonal.Count > 0)
+        {
+            dbContext.ExperimentalSpecsWlSeasonal.RemoveRange(specsWlSeasonal);
+        }
+
         dbContext.TimeSeasons.Remove(timeSeason);
         await dbContext.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
         return true;
+    }
+
+    private async Task<List<ExperimentalSpecsWlSeasonal>> LoadChangedExperimentalSpecsWlSeasonalAsync(
+        int newId,
+        DateTime boundary,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var alreadyWlSnapshottedUuids = await db.ExperimentalSpecsWlSeasonal.AsNoTracking()
+            .Where(x => x.SeasonStartDate == newId)
+            .Select(x => x.Uuid)
+            .ToHashSetAsync(cancellationToken);
+
+        var changedUuids = await LoadChangedSpecsWlUuidsAsync(db, boundary, cancellationToken);
+        changedUuids.ExceptWith(alreadyWlSnapshottedUuids);
+        if (changedUuids.Count == 0)
+        {
+            return [];
+        }
+
+        var (counted, uncounted) = await LoadSpecsWlRowsAsync(db, changedUuids, cancellationToken);
+        return counted
+            .Select(x => SnapshotGuard.ToSeasonalSnapshot(x, uncounted.GetValueOrDefault(x.Uuid), newId))
+            .ToList();
     }
 
     public async Task<(int Season, DateTime Timestamp)?> GetLatestSeasonAsync(CancellationToken cancellationToken)

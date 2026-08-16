@@ -34,6 +34,7 @@ public class PlayerDeleteServiceTests
         Assert.Contains("base_weights_weekly", payload.TablesRemoved);
         Assert.Contains("experimental_spec_weights_weekly", payload.TablesRemoved);
         Assert.Contains("experimental_specs_wl_weekly", payload.TablesRemoved);
+        Assert.Contains("experimental_specs_wl_seasonal", payload.TablesRemoved);
 
         Assert.True(payload.Data.ContainsKey("base_weights"));
         var baseWeights = Assert.IsAssignableFrom<IEnumerable<BaseWeight>>(payload.Data["base_weights"]);
@@ -51,6 +52,7 @@ public class PlayerDeleteServiceTests
         Assert.Null(await db.BaseWeightsWeekly.FindAsync(PlayerUuid, 3));
         Assert.Null(await db.ExperimentalSpecWeightsWeekly.FindAsync(PlayerUuid, 3));
         Assert.Null(await db.ExperimentalSpecsWlWeekly.FindAsync(PlayerUuid, 3));
+        Assert.Null(await db.ExperimentalSpecsWlSeasonal.FindAsync(PlayerUuid, 2));
     }
 
     [Fact]
@@ -92,6 +94,7 @@ public class PlayerDeleteServiceTests
     {
         db.TimeDays.Add(new TimeDay { Id = 7, Timestamp = DateTime.UtcNow });
         db.TimeWeeks.Add(new TimeWeek { Id = 3, Timestamp = DateTime.UtcNow });
+        db.TimeSeasons.Add(new TimeSeason { Id = 2, Timestamp = DateTime.UtcNow });
         db.Names.Add(new PlayerName { Uuid = PlayerUuid, Name = "sumSmash", PreviousNames = [] });
         db.BaseWeights.Add(new BaseWeight
         {
@@ -107,6 +110,7 @@ public class PlayerDeleteServiceTests
         db.BaseWeightsWeekly.Add(new BaseWeightWeekly { Uuid = PlayerUuid, WeekStartDate = 3, Weight = 275 });
         db.ExperimentalSpecWeightsWeekly.Add(new ExperimentalSpecWeightWeekly { Uuid = PlayerUuid, WeekStartDate = 3 });
         db.ExperimentalSpecsWlWeekly.Add(new ExperimentalSpecsWlWeekly { Uuid = PlayerUuid, WeekStartDate = 3 });
+        db.ExperimentalSpecsWlSeasonal.Add(new ExperimentalSpecsWlSeasonal { Uuid = PlayerUuid, SeasonStartDate = 2 });
     }
 
     private sealed class TestDbContextFactory(DbContextOptions<BalancerDbContext> options) : IDbContextFactory<BalancerDbContext>

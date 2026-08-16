@@ -219,6 +219,84 @@ public class TimeServiceSnapshotTests
     }
 
     [Fact]
+    public async Task CreateNewSeasonAsync_SnapshotsOnlyChangedPlayers()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var boundary = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var wlUnchanged = Guid.NewGuid();
+        var wlChanged = Guid.NewGuid();
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            seed.TimeSeasons.Add(new TimeSeason { Id = 0, Timestamp = boundary });
+
+            seed.ExperimentalSpecsWl.AddRange(
+                new ExperimentalSpecsWl { Uuid = wlUnchanged, LastUpdated = boundary.AddMinutes(-1) },
+                new ExperimentalSpecsWl { Uuid = wlChanged, PyromancerWins = 3, LastUpdated = boundary.AddMinutes(1) });
+
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+            var (newSeasonId, _) = await service.CreateNewSeasonAsync(CancellationToken.None);
+
+            Assert.Equal(1, newSeasonId);
+
+            var wlSeasonal = await db.ExperimentalSpecsWlSeasonal.Where(x => x.SeasonStartDate == newSeasonId).ToListAsync();
+            Assert.Single(wlSeasonal);
+            Assert.Equal(wlChanged, wlSeasonal[0].Uuid);
+            Assert.Equal(3, wlSeasonal[0].PyromancerWins);
+        }
+    }
+
+    [Fact]
+    public async Task CreateNewSeasonAsync_WhenOnlyUncountedStatsChanged_SnapshotsCountedPlusUncounted()
+    {
+        var options = CreateOptions(Guid.NewGuid().ToString());
+        var boundary = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+        var uncountedOnly = Guid.NewGuid();
+
+        await using (var seed = new BalancerDbContext(options))
+        {
+            seed.TimeSeasons.Add(new TimeSeason { Id = 0, Timestamp = boundary });
+
+            seed.ExperimentalSpecsWl.Add(new ExperimentalSpecsWl
+            {
+                Uuid = uncountedOnly,
+                PyromancerWins = 4,
+                PyromancerKills = 20,
+                LastUpdated = boundary.AddMinutes(-1)
+            });
+            seed.ExperimentalSpecsWlUncount.Add(new ExperimentalSpecsWlUncount
+            {
+                Uuid = uncountedOnly,
+                PyromancerWins = 1,
+                PyromancerKills = 7,
+                LastUpdated = boundary.AddMinutes(1)
+            });
+
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var db = new BalancerDbContext(options))
+        {
+            var autoWeekly = CreateAutoWeeklyServiceMock();
+            var service = new TimeService(db, new TestDbContextFactory(options), autoWeekly.Object);
+            var (newSeasonId, _) = await service.CreateNewSeasonAsync(CancellationToken.None);
+
+            var wlSeasonal = await db.ExperimentalSpecsWlSeasonal.Where(x => x.SeasonStartDate == newSeasonId).ToListAsync();
+            Assert.Single(wlSeasonal);
+            Assert.Equal(uncountedOnly, wlSeasonal[0].Uuid);
+            Assert.Equal(5, wlSeasonal[0].PyromancerWins);
+            Assert.Equal(27, wlSeasonal[0].PyromancerKills);
+        }
+    }
+
+    [Fact]
     public async Task CreateNewDayAsync_WhenRunTwiceWithoutChanges_DoesNotCreateSecondSnapshot()
     {
         var options = CreateOptions(Guid.NewGuid().ToString());
@@ -338,7 +416,7 @@ public class TimeServiceSnapshotTests
     }
 
     [Fact]
-    public async Task UndoSeasonAsync_RemovesTimeSeason()
+    public async Task UndoSeasonAsync_RemovesSnapshotsAndTimeSeason()
     {
         var options = CreateOptions(Guid.NewGuid().ToString());
         var keepSeasonId = 30;
@@ -349,6 +427,11 @@ public class TimeServiceSnapshotTests
             seed.TimeSeasons.AddRange(
                 new TimeSeason { Id = keepSeasonId, Timestamp = DateTime.UtcNow.AddDays(-30) },
                 new TimeSeason { Id = removeSeasonId, Timestamp = DateTime.UtcNow });
+
+            seed.ExperimentalSpecsWlSeasonal.AddRange(
+                new ExperimentalSpecsWlSeasonal { Uuid = Guid.NewGuid(), SeasonStartDate = keepSeasonId, PyromancerWins = 1 },
+                new ExperimentalSpecsWlSeasonal { Uuid = Guid.NewGuid(), SeasonStartDate = removeSeasonId, PyromancerWins = 2 });
+
             await seed.SaveChangesAsync();
         }
 
@@ -360,7 +443,10 @@ public class TimeServiceSnapshotTests
 
             Assert.True(wasUndone);
             Assert.False(await db.TimeSeasons.AnyAsync(x => x.Id == removeSeasonId));
+            Assert.Empty(await db.ExperimentalSpecsWlSeasonal.Where(x => x.SeasonStartDate == removeSeasonId).ToListAsync());
+
             Assert.True(await db.TimeSeasons.AnyAsync(x => x.Id == keepSeasonId));
+            Assert.Single(await db.ExperimentalSpecsWlSeasonal.Where(x => x.SeasonStartDate == keepSeasonId).ToListAsync());
         }
     }
 

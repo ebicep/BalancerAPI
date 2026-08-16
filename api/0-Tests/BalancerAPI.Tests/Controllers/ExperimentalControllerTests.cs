@@ -1296,6 +1296,447 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task GetSeason_WhenNameNotFound_ReturnsNotFound()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetSeason("does-not-exist", null, CancellationToken.None);
+
+        var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
+        Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetSeason_WhenNameEmpty_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetSeason("   ", null, CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player identifier is required.");
+    }
+
+    [Fact]
+    public async Task GetSeason_WhenNameAmbiguous_ReturnsConflict()
+    {
+        await using var db = CreateDbContext();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeason("alpha", null, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status409Conflict,
+            "Player name is ambiguous in names table: alpha.");
+    }
+
+    [Fact]
+    public async Task GetSeason_WhenNoSeasonRow_ReturnsOkWithZeros()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeason("alpha", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonStatsResponse>(ok.Value);
+        Assert.Equal(0, body.Wins);
+        Assert.Equal(0, body.Losses);
+        Assert.Equal(0, body.Kills);
+        Assert.Equal(0, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetSeason_WhenRowExists_ReturnsOkWithStats()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.ExperimentalSeasonStats.Add(new ExperimentalSeasonStats
+        {
+            Uuid = TestUuid,
+            Wins = 3,
+            Losses = 1,
+            Kills = 10,
+            Deaths = 4
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeason("alpha", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonStatsResponse>(ok.Value);
+        Assert.Equal(3, body.Wins);
+        Assert.Equal(1, body.Losses);
+        Assert.Equal(10, body.Kills);
+        Assert.Equal(4, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetSeason_WhenIdGiven_UsesHistoricalStats()
+    {
+        const int seasonId = 42;
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.TimeSeasons.Add(new TimeSeason { Id = seasonId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalSeasonStatsSeason.Add(new ExperimentalSeasonStatsSeason
+        {
+            SeasonStartDate = seasonId,
+            Uuid = TestUuid,
+            Wins = 5,
+            Losses = 2,
+            Kills = 20,
+            Deaths = 8
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeason("alpha", seasonId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonStatsResponse>(ok.Value);
+        Assert.Equal(5, body.Wins);
+        Assert.Equal(2, body.Losses);
+        Assert.Equal(20, body.Kills);
+        Assert.Equal(8, body.Deaths);
+    }
+
+    [Fact]
+    public async Task GetSeason_WhenIdUnknown_Returns404()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeason("alpha", 99999, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status404NotFound,
+            "No season found with id 99999.");
+    }
+
+    [Fact]
+    public async Task GetSeasonAll_WhenNoStats_ReturnsOkWithEmptyList()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonAll(null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonAllStatsResponse>(ok.Value);
+        Assert.Empty(body.Players);
+    }
+
+    [Fact]
+    public async Task GetSeasonAll_WhenCurrentPeriod_ReturnsPlayersSortedByWlDescending()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] });
+        db.ExperimentalSeasonStats.AddRange(
+            new ExperimentalSeasonStats { Uuid = TestUuid, Wins = 3, Losses = 1, Kills = 10, Deaths = 4 },
+            new ExperimentalSeasonStats { Uuid = U2, Wins = 5, Losses = 2, Kills = 20, Deaths = 8 },
+            new ExperimentalSeasonStats { Uuid = U3, Wins = 1, Losses = 4, Kills = 5, Deaths = 12 });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonAll(null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonAllStatsResponse>(ok.Value);
+        Assert.Equal(3, body.Players.Count);
+        Assert.Equal("beta", body.Players[0].Name);
+        Assert.Equal(5, body.Players[0].Wins);
+        Assert.Equal(2, body.Players[0].Losses);
+        Assert.Equal("alpha", body.Players[1].Name);
+        Assert.Equal("gamma", body.Players[2].Name);
+    }
+
+    [Fact]
+    public async Task GetSeasonAll_WhenIdGiven_ReturnsHistoricalPlayersSortedByWlDescending()
+    {
+        const int seasonId = 42;
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] });
+        db.TimeSeasons.Add(new TimeSeason { Id = seasonId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalSeasonStatsSeason.AddRange(
+            new ExperimentalSeasonStatsSeason { SeasonStartDate = seasonId, Uuid = TestUuid, Wins = 2, Losses = 3, Kills = 8, Deaths = 9 },
+            new ExperimentalSeasonStatsSeason { SeasonStartDate = seasonId, Uuid = U2, Wins = 7, Losses = 1, Kills = 15, Deaths = 5 });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonAll(seasonId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonAllStatsResponse>(ok.Value);
+        Assert.Equal(2, body.Players.Count);
+        Assert.Equal("beta", body.Players[0].Name);
+        Assert.Equal(7, body.Players[0].Wins);
+        Assert.Equal("alpha", body.Players[1].Name);
+        Assert.Equal(2, body.Players[1].Wins);
+    }
+
+    [Fact]
+    public async Task GetSeasonAll_WhenIdUnknown_Returns404()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonAll(99999, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status404NotFound,
+            "No season found with id 99999.");
+    }
+
+    [Fact]
+    public async Task GetSeasonAll_WhenCurrentPeriod_ExcludesPlayersWithNoPlays()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] });
+        db.ExperimentalSeasonStats.AddRange(
+            new ExperimentalSeasonStats { Uuid = TestUuid, Wins = 3, Losses = 1, Kills = 10, Deaths = 4 },
+            new ExperimentalSeasonStats { Uuid = U2, Wins = 0, Losses = 0, Kills = 5, Deaths = 2 },
+            new ExperimentalSeasonStats { Uuid = U3, Wins = 0, Losses = 2, Kills = 2, Deaths = 1 });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonAll(null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonAllStatsResponse>(ok.Value);
+        Assert.Equal(2, body.Players.Count);
+        Assert.DoesNotContain(body.Players, p => p.Name == "beta");
+        Assert.Equal("alpha", body.Players[0].Name);
+        Assert.Equal("gamma", body.Players[1].Name);
+    }
+
+    [Fact]
+    public async Task GetSeasonAll_WhenIdGiven_ExcludesPlayersWithNoPlays()
+    {
+        const int seasonId = 42;
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "beta", PreviousNames = [] },
+            new PlayerName { Uuid = U3, Name = "gamma", PreviousNames = [] });
+        db.TimeSeasons.Add(new TimeSeason { Id = seasonId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalSeasonStatsSeason.AddRange(
+            new ExperimentalSeasonStatsSeason { SeasonStartDate = seasonId, Uuid = TestUuid, Wins = 2, Losses = 3, Kills = 8, Deaths = 9 },
+            new ExperimentalSeasonStatsSeason { SeasonStartDate = seasonId, Uuid = U2, Wins = 0, Losses = 0, Kills = 1, Deaths = 0 },
+            new ExperimentalSeasonStatsSeason { SeasonStartDate = seasonId, Uuid = U3, Wins = 5, Losses = 1, Kills = 6, Deaths = 2 });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonAll(seasonId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonAllStatsResponse>(ok.Value);
+        Assert.Equal(2, body.Players.Count);
+        Assert.DoesNotContain(body.Players, p => p.Name == "beta");
+        Assert.Equal("gamma", body.Players[0].Name);
+        Assert.Equal("alpha", body.Players[1].Name);
+    }
+
+    [Fact]
+    public async Task GetSeasonExperimentalSpecs_WhenNameNotFound_ReturnsNotFound()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetSeasonExperimentalSpecs("does-not-exist", null, CancellationToken.None);
+
+        var pd = AssertProblem(result.Result!, StatusCodes.Status404NotFound);
+        Assert.Contains("does-not-exist", pd.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetSeasonExperimentalSpecs_WhenNameEmpty_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object);
+
+        var result = await controller.GetSeasonExperimentalSpecs("   ", null, CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "Player identifier is required.");
+    }
+
+    [Fact]
+    public async Task GetSeasonExperimentalSpecs_WhenNameAmbiguous_ReturnsConflict()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.AddRange(
+            new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] },
+            new PlayerName { Uuid = U2, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonExperimentalSpecs("alpha", null, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status409Conflict,
+            "Player name is ambiguous in names table: alpha.");
+    }
+
+    [Fact]
+    public async Task GetSeasonExperimentalSpecs_WhenNoRow_ReturnsOkWithZeros()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonExperimentalSpecs("alpha", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonSpecsResponse>(ok.Value);
+        Assert.Equal(18, body.Specs.Count);
+        Assert.All(body.Specs, entry =>
+        {
+            Assert.Equal(0, entry.Wins);
+            Assert.Equal(0, entry.Losses);
+            Assert.Equal(0, entry.Kills);
+            Assert.Equal(0, entry.Deaths);
+        });
+        Assert.Equal("Total", body.Total.Spec);
+        Assert.Equal(0, body.Total.Wins);
+        Assert.Equal(0, body.Total.Losses);
+        Assert.Equal(0, body.Total.Kills);
+        Assert.Equal(0, body.Total.Deaths);
+    }
+
+    [Fact]
+    public async Task GetSeasonExperimentalSpecs_WhenCurrentRowExists_ReturnsOkWithStats()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.ExperimentalSpecsWlCurrentSeason.Add(new ExperimentalSpecsWlCurrentSeason
+        {
+            Uuid = TestUuid,
+            PyromancerWins = 3,
+            PyromancerLosses = 1,
+            PyromancerKills = 10,
+            PyromancerDeaths = 4
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonExperimentalSpecs("alpha", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonSpecsResponse>(ok.Value);
+        var pyro = Assert.Single(body.Specs, x => x.Spec == "Pyromancer");
+        Assert.Equal(3, pyro.Wins);
+        Assert.Equal(1, pyro.Losses);
+        Assert.Equal(10, pyro.Kills);
+        Assert.Equal(4, pyro.Deaths);
+        Assert.Equal(3, body.Total.Wins);
+        Assert.Equal(1, body.Total.Losses);
+        Assert.Equal(10, body.Total.Kills);
+        Assert.Equal(4, body.Total.Deaths);
+    }
+
+    [Fact]
+    public async Task GetSeasonExperimentalSpecs_WhenIdGiven_UsesHistoricalStats()
+    {
+        const int seasonId = 42;
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        db.TimeSeasons.Add(new TimeSeason { Id = seasonId, Timestamp = DateTime.UtcNow });
+        db.ExperimentalSpecsWlSeason.Add(new ExperimentalSpecsWlSeason
+        {
+            SeasonStartDate = seasonId,
+            Uuid = TestUuid,
+            PyromancerWins = 5,
+            PyromancerLosses = 2,
+            PyromancerKills = 20,
+            PyromancerDeaths = 8
+        });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonExperimentalSpecs("alpha", seasonId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var body = Assert.IsType<ExperimentalController.ExperimentalSeasonSpecsResponse>(ok.Value);
+        var pyro = Assert.Single(body.Specs, x => x.Spec == "Pyromancer");
+        Assert.Equal(5, pyro.Wins);
+        Assert.Equal(2, pyro.Losses);
+        Assert.Equal(20, pyro.Kills);
+        Assert.Equal(8, pyro.Deaths);
+        Assert.Equal(5, body.Total.Wins);
+        Assert.Equal(2, body.Total.Losses);
+        Assert.Equal(20, body.Total.Kills);
+        Assert.Equal(8, body.Total.Deaths);
+    }
+
+    [Fact]
+    public async Task GetSeasonExperimentalSpecs_WhenIdUnknown_Returns404()
+    {
+        await using var db = CreateDbContextWithSeasonStatsTable();
+        db.Names.Add(new PlayerName { Uuid = TestUuid, Name = "alpha", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var specWeights = new Mock<ISpecWeightsService>();
+        var controller = CreateController(specWeights.Object, dbContext: db);
+
+        var result = await controller.GetSeasonExperimentalSpecs("alpha", 99999, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status404NotFound,
+            "No season found with id 99999.");
+    }
+
+    [Fact]
     public async Task Balance_WhenValid_ReturnsOkWithPayload()
     {
         var now = new DateTime(2026, 3, 15, 20, 32, 0, DateTimeKind.Utc);
@@ -2176,6 +2617,14 @@ public class ExperimentalControllerTests
         return new TestBalancerDbContextForWeeklyStats(options);
     }
 
+    private static BalancerDbContext CreateDbContextWithSeasonStatsTable()
+    {
+        var options = new DbContextOptionsBuilder<BalancerDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new TestBalancerDbContextForSeasonStats(options);
+    }
+
     private sealed class TestBalancerDbContextForDailyStats(DbContextOptions<BalancerDbContext> options)
         : BalancerDbContext(options)
     {
@@ -2294,6 +2743,67 @@ public class ExperimentalControllerTests
             {
                 entity.ToTable("experimental_specs_wl_week_test");
                 entity.HasKey(x => new { x.WeekStartDate, x.Uuid });
+            });
+        }
+    }
+
+    private sealed class TestBalancerDbContextForSeasonStats(DbContextOptions<BalancerDbContext> options)
+        : BalancerDbContext(options)
+    {
+        public override async Task<ExperimentalSeasonStatsSeason?> GetExperimentalSeasonStatsForSeasonAsync(
+            int seasonId,
+            Guid playerUuid,
+            CancellationToken cancellationToken = default)
+        {
+            return await ExperimentalSeasonStatsSeason
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.SeasonStartDate == seasonId && x.Uuid == playerUuid,
+                    cancellationToken);
+        }
+
+        public override async Task<ExperimentalSpecsWlSeason?> GetExperimentalSpecsWlForSeasonAsync(
+            int seasonId,
+            Guid playerUuid,
+            CancellationToken cancellationToken = default)
+        {
+            return await ExperimentalSpecsWlSeason
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.SeasonStartDate == seasonId && x.Uuid == playerUuid,
+                    cancellationToken);
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Ignore<ExperimentalSeasonStats>();
+            modelBuilder.Entity<ExperimentalSeasonStats>(entity =>
+            {
+                entity.ToTable("experimental_season_stats_test");
+                entity.HasKey(x => x.Uuid);
+            });
+
+            modelBuilder.Ignore<ExperimentalSeasonStatsSeason>();
+            modelBuilder.Entity<ExperimentalSeasonStatsSeason>(entity =>
+            {
+                entity.ToTable("experimental_season_stats_season_test");
+                entity.HasKey(x => new { x.SeasonStartDate, x.Uuid });
+            });
+
+            modelBuilder.Ignore<ExperimentalSpecsWlCurrentSeason>();
+            modelBuilder.Entity<ExperimentalSpecsWlCurrentSeason>(entity =>
+            {
+                entity.ToTable("experimental_specs_wl_current_season_test");
+                entity.HasKey(x => x.Uuid);
+            });
+
+            modelBuilder.Ignore<ExperimentalSpecsWlSeason>();
+            modelBuilder.Entity<ExperimentalSpecsWlSeason>(entity =>
+            {
+                entity.ToTable("experimental_specs_wl_season_test");
+                entity.HasKey(x => new { x.SeasonStartDate, x.Uuid });
             });
         }
     }

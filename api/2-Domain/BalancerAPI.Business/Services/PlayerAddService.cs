@@ -17,6 +17,7 @@ public sealed class PlayerAddService(
         // Independent reads can run in parallel, but DbContext itself is not thread-safe.
         var currentDayTask = GetCurrentDayIdAsync(dbContextFactory, cancellationToken);
         var currentWeekTask = GetCurrentWeekIdAsync(dbContextFactory, cancellationToken);
+        var currentSeasonTask = GetCurrentSeasonIdAsync(dbContextFactory, cancellationToken);
 
         var resolved = await minecraftPlayerResolveService.ResolveAsync(uuid.ToString(), cancellationToken);
         if (!resolved.Success)
@@ -45,6 +46,7 @@ public sealed class PlayerAddService(
 
             var currentDayId = await currentDayTask;
             var currentWeekId = await currentWeekTask;
+            var currentSeasonId = await currentSeasonTask;
             await InsertCurrentSnapshotTablesAsync(
                 dbContext,
                 uuid,
@@ -52,6 +54,7 @@ public sealed class PlayerAddService(
                 addedTables,
                 currentDayId,
                 currentWeekId,
+                currentSeasonId,
                 cancellationToken);
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -80,6 +83,14 @@ public sealed class PlayerAddService(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         return await db.TimeWeeks.Select(x => (int?)x.Id).MaxAsync(cancellationToken);
+    }
+
+    private static async Task<int?> GetCurrentSeasonIdAsync(
+        IDbContextFactory<BalancerDbContext> dbContextFactory,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await db.TimeSeasons.Select(x => (int?)x.Id).MaxAsync(cancellationToken);
     }
 
     private async Task UpsertNameAsync(
@@ -158,6 +169,7 @@ public sealed class PlayerAddService(
         List<string> addedTables,
         int? currentDayId,
         int? currentWeekId,
+        int? currentSeasonId,
         CancellationToken cancellationToken)
     {
         if (currentDayId is not null)
@@ -188,46 +200,61 @@ public sealed class PlayerAddService(
             }
         }
 
-        if (currentWeekId is null)
+        if (currentWeekId is not null)
+        {
+            if (!await dbContext.BaseWeightsWeekly.AnyAsync(
+                    x => x.Uuid == uuid && x.WeekStartDate == currentWeekId.Value,
+                    cancellationToken))
+            {
+                dbContext.BaseWeightsWeekly.Add(new BaseWeightWeekly
+                {
+                    Uuid = uuid,
+                    WeekStartDate = currentWeekId.Value,
+                    Weight = baseWeight
+                });
+                addedTables.Add("base_weights_weekly");
+            }
+
+            if (!await dbContext.ExperimentalSpecWeightsWeekly.AnyAsync(
+                    x => x.Uuid == uuid && x.WeekStartDate == currentWeekId.Value,
+                    cancellationToken))
+            {
+                dbContext.ExperimentalSpecWeightsWeekly.Add(new ExperimentalSpecWeightWeekly
+                {
+                    Uuid = uuid,
+                    WeekStartDate = currentWeekId.Value
+                });
+                addedTables.Add("experimental_spec_weights_weekly");
+            }
+
+            if (!await dbContext.ExperimentalSpecsWlWeekly.AnyAsync(
+                    x => x.Uuid == uuid && x.WeekStartDate == currentWeekId.Value,
+                    cancellationToken))
+            {
+                dbContext.ExperimentalSpecsWlWeekly.Add(new ExperimentalSpecsWlWeekly
+                {
+                    Uuid = uuid,
+                    WeekStartDate = currentWeekId.Value
+                });
+                addedTables.Add("experimental_specs_wl_weekly");
+            }
+        }
+
+        if (currentSeasonId is null)
         {
             return;
         }
 
-        if (!await dbContext.BaseWeightsWeekly.AnyAsync(
-                x => x.Uuid == uuid && x.WeekStartDate == currentWeekId.Value,
+        if (!await dbContext.ExperimentalSpecsWlSeasonal.AnyAsync(
+                x => x.Uuid == uuid && x.SeasonStartDate == currentSeasonId.Value,
                 cancellationToken))
         {
-            dbContext.BaseWeightsWeekly.Add(new BaseWeightWeekly
+            dbContext.ExperimentalSpecsWlSeasonal.Add(new ExperimentalSpecsWlSeasonal
             {
                 Uuid = uuid,
-                WeekStartDate = currentWeekId.Value,
-                Weight = baseWeight
+                SeasonStartDate = currentSeasonId.Value
             });
-            addedTables.Add("base_weights_weekly");
-        }
-
-        if (!await dbContext.ExperimentalSpecWeightsWeekly.AnyAsync(
-                x => x.Uuid == uuid && x.WeekStartDate == currentWeekId.Value,
-                cancellationToken))
-        {
-            dbContext.ExperimentalSpecWeightsWeekly.Add(new ExperimentalSpecWeightWeekly
-            {
-                Uuid = uuid,
-                WeekStartDate = currentWeekId.Value
-            });
-            addedTables.Add("experimental_spec_weights_weekly");
-        }
-
-        if (!await dbContext.ExperimentalSpecsWlWeekly.AnyAsync(
-                x => x.Uuid == uuid && x.WeekStartDate == currentWeekId.Value,
-                cancellationToken))
-        {
-            dbContext.ExperimentalSpecsWlWeekly.Add(new ExperimentalSpecsWlWeekly
-            {
-                Uuid = uuid,
-                WeekStartDate = currentWeekId.Value
-            });
-            addedTables.Add("experimental_specs_wl_weekly");
+            addedTables.Add("experimental_specs_wl_seasonal");
         }
     }
 

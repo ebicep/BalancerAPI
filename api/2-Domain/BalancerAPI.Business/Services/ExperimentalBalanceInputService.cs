@@ -84,6 +84,7 @@ public sealed class ExperimentalBalanceInputService(IDbContextFactory<BalancerDb
         var rosterList = roster.ToList();
         await SnapshotGuard.EnsureSpecsWlDailyAsync(db, rosterList, cancellationToken);
         await SnapshotGuard.EnsureSpecsWlWeeklyAsync(db, rosterList, cancellationToken);
+        await SnapshotGuard.EnsureSpecsWlSeasonalAsync(db, rosterList, cancellationToken);
         await SnapshotGuard.EnsureBaseWeightDailyAsync(db, rosterList, cancellationToken);
         await SnapshotGuard.EnsureBaseWeightWeeklyAsync(db, rosterList, cancellationToken);
 

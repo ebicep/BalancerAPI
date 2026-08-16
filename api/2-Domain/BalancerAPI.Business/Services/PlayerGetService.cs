@@ -69,6 +69,12 @@ public sealed class PlayerGetService(IDbContextFactory<BalancerDbContext> dbCont
             uuid,
             db => db.ExperimentalSpecsWlWeekly,
             cancellationToken);
+        var experimentalSpecsWlSeasonalTask = LoadByUuidAsync(
+            dbContextFactory,
+            "experimental_specs_wl_seasonal",
+            uuid,
+            db => db.ExperimentalSpecsWlSeasonal,
+            cancellationToken);
         var adjustmentDailyTask = LoadByUuidAsync(
             dbContextFactory,
             "adjustment_daily",
@@ -88,6 +94,7 @@ public sealed class PlayerGetService(IDbContextFactory<BalancerDbContext> dbCont
             experimentalSpecsWlUncountTask,
             experimentalSpecsWlDailyTask,
             experimentalSpecsWlWeeklyTask,
+            experimentalSpecsWlSeasonalTask,
             adjustmentDailyTask);
 
         var data = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -104,6 +111,7 @@ public sealed class PlayerGetService(IDbContextFactory<BalancerDbContext> dbCont
         MergeTable(await experimentalSpecsWlUncountTask, data);
         MergeTable(await experimentalSpecsWlDailyTask, data);
         MergeTable(await experimentalSpecsWlWeeklyTask, data);
+        MergeTable(await experimentalSpecsWlSeasonalTask, data);
         MergeTable(await adjustmentDailyTask, data);
 
         if (!data.ContainsKey("base_weights"))
