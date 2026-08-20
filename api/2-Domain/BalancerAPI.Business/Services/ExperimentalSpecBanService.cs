@@ -13,6 +13,12 @@ public interface IExperimentalSpecBanService
         string canonicalSpec,
         bool banned,
         CancellationToken cancellationToken);
+
+    Task<ExperimentalSpecBanServiceResult> SetBansAsync(
+        Guid uuid,
+        IReadOnlyList<string> canonicalSpecs,
+        bool banned,
+        CancellationToken cancellationToken);
 }
 
 public sealed class ExperimentalSpecBanService(IDbContextFactory<BalancerDbContext> dbContextFactory)
@@ -28,9 +34,16 @@ public sealed class ExperimentalSpecBanService(IDbContextFactory<BalancerDbConte
         return Ok(BansFromRow(row));
     }
 
-    public async Task<ExperimentalSpecBanServiceResult> SetBanAsync(
+    public Task<ExperimentalSpecBanServiceResult> SetBanAsync(
         Guid uuid,
         string canonicalSpec,
+        bool banned,
+        CancellationToken cancellationToken) =>
+        SetBansAsync(uuid, [canonicalSpec], banned, cancellationToken);
+
+    public async Task<ExperimentalSpecBanServiceResult> SetBansAsync(
+        Guid uuid,
+        IReadOnlyList<string> canonicalSpecs,
         bool banned,
         CancellationToken cancellationToken)
     {
@@ -38,16 +51,13 @@ public sealed class ExperimentalSpecBanService(IDbContextFactory<BalancerDbConte
         var row = await db.ExperimentalSpecBans
             .FirstOrDefaultAsync(x => x.Uuid == uuid, cancellationToken);
 
-        if (!banned)
+        var alreadyInDesiredState = canonicalSpecs.All(spec =>
+            banned
+                ? row is not null && ExperimentalSpecBanFlags.GetBanFlag(row, spec)
+                : row is null || !ExperimentalSpecBanFlags.GetBanFlag(row, spec));
+        if (alreadyInDesiredState)
         {
-            if (row is null || !ExperimentalSpecBanFlags.GetBanFlag(row, canonicalSpec))
-            {
-                return Fail(400, $"Player is not banned from {canonicalSpec}.");
-            }
-        }
-        else if (row is not null && ExperimentalSpecBanFlags.GetBanFlag(row, canonicalSpec))
-        {
-            return Fail(400, $"Player is already banned from {canonicalSpec}.");
+            return Fail(400, GroupAlreadyInStateMessage(canonicalSpecs, banned));
         }
 
         if (row is null)
@@ -56,18 +66,28 @@ public sealed class ExperimentalSpecBanService(IDbContextFactory<BalancerDbConte
             db.ExperimentalSpecBans.Add(row);
         }
 
-        SetBanFlag(row, canonicalSpec, banned);
-
-        if (banned)
+        var newlyBanned = new List<string>();
+        foreach (var spec in canonicalSpecs)
         {
-            var matchingRequest = await db.ExperimentalSpecRequests
-                .FirstOrDefaultAsync(
-                    x => x.Uuid == uuid && x.Spec == canonicalSpec,
-                    cancellationToken);
-            if (matchingRequest is not null)
+            var currentlyBanned = ExperimentalSpecBanFlags.GetBanFlag(row, spec);
+            if (currentlyBanned == banned)
             {
-                db.ExperimentalSpecRequests.Remove(matchingRequest);
+                continue;
             }
+
+            SetBanFlag(row, spec, banned);
+            if (banned)
+            {
+                newlyBanned.Add(spec);
+            }
+        }
+
+        if (newlyBanned.Count > 0)
+        {
+            var matchingRequests = await db.ExperimentalSpecRequests
+                .Where(x => x.Uuid == uuid && newlyBanned.Contains(x.Spec))
+                .ToListAsync(cancellationToken);
+            db.ExperimentalSpecRequests.RemoveRange(matchingRequests);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -80,6 +100,20 @@ public sealed class ExperimentalSpecBanService(IDbContextFactory<BalancerDbConte
 
     private static ExperimentalSpecBanServiceResult Fail(int statusCode, string message) =>
         new(false, statusCode, message, null);
+
+    private static string GroupAlreadyInStateMessage(IReadOnlyList<string> canonicalSpecs, bool banned)
+    {
+        if (canonicalSpecs.Count == 1)
+        {
+            return banned
+                ? $"Player is already banned from {canonicalSpecs[0]}."
+                : $"Player is not banned from {canonicalSpecs[0]}.";
+        }
+
+        return banned
+            ? "Player is already banned from all requested specs."
+            : "Player is not banned from any requested specs.";
+    }
 
     private static IReadOnlyList<string> BansFromRow(ExperimentalSpecBan? row)
     {

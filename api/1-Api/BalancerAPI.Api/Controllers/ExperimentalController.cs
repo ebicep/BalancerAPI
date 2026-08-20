@@ -209,11 +209,11 @@ public class ExperimentalController(
         bool banned,
         CancellationToken cancellationToken)
     {
-        var canonicalSpec = ManualWeightAdjustmentService.TryNormalizeSpec(request?.Spec);
-        if (canonicalSpec is null)
+        var resolvedSpecs = TryResolveBanTargets(request, out var resolveError);
+        if (resolvedSpecs is null)
         {
             return Problem(
-                detail: "Unknown or missing spec.",
+                detail: resolveError,
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
@@ -224,9 +224,9 @@ public class ExperimentalController(
             return problem;
         }
 
-        var result = await experimentalSpecBanService.SetBanAsync(
+        var result = await experimentalSpecBanService.SetBansAsync(
             resolved.Uuid!.Value,
-            canonicalSpec,
+            resolvedSpecs,
             banned,
             cancellationToken);
         if (!result.Success)
@@ -906,6 +906,57 @@ public class ExperimentalController(
         }
 
         return Problem(detail: result.Message, statusCode: result.StatusCode);
+    }
+
+    private static IReadOnlyList<string>? TryResolveBanTargets(
+        ExperimentalSpecBanRequest? request,
+        out string error)
+    {
+        var hasSpec = !string.IsNullOrWhiteSpace(request?.Spec);
+        var hasClass = !string.IsNullOrWhiteSpace(request?.Class);
+        var hasSpecType = !string.IsNullOrWhiteSpace(request?.SpecType);
+        var provided = (hasSpec ? 1 : 0) + (hasClass ? 1 : 0) + (hasSpecType ? 1 : 0);
+        if (provided != 1)
+        {
+            error = "Provide exactly one of spec, class, or specType.";
+            return null;
+        }
+
+        if (hasSpec)
+        {
+            var canonicalSpec = ManualWeightAdjustmentService.TryNormalizeSpec(request!.Spec);
+            if (canonicalSpec is null)
+            {
+                error = "Unknown or missing spec.";
+                return null;
+            }
+
+            error = "";
+            return [canonicalSpec];
+        }
+
+        if (hasClass)
+        {
+            var canonicalClass = ExperimentalSpecs.TryNormalizeClass(request!.Class);
+            if (canonicalClass is null)
+            {
+                error = "Unknown or missing class.";
+                return null;
+            }
+
+            error = "";
+            return ExperimentalSpecs.SpecsForClass(canonicalClass);
+        }
+
+        var canonicalSpecType = ExperimentalSpecs.TryNormalizeSpecType(request!.SpecType);
+        if (canonicalSpecType is null)
+        {
+            error = "Unknown or missing specType.";
+            return null;
+        }
+
+        error = "";
+        return ExperimentalSpecs.SpecsForSpecType(canonicalSpecType);
     }
 
     private ActionResult? ProblemFrom(PlayerKeyResolveResult resolved) =>

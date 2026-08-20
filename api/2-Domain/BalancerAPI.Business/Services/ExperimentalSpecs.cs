@@ -46,6 +46,66 @@ public static class ExperimentalSpecs
             ["Thunderlord"] = 2,
         };
 
+    private static readonly IReadOnlyDictionary<string, string[]> ByClass =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            [ExperimentalClasses.Mage] =
+                ["Pyromancer", "Cryomancer", "Aquamancer"],
+            [ExperimentalClasses.Warrior] =
+                ["Berserker", "Defender", "Revenant"],
+            [ExperimentalClasses.Paladin] =
+                ["Avenger", "Crusader", "Protector"],
+            [ExperimentalClasses.Shaman] =
+                ["Thunderlord", "Spiritguard", "Earthwarden"],
+            [ExperimentalClasses.Rogue] =
+                ["Assassin", "Vindicator", "Apothecary"],
+            [ExperimentalClasses.Arcanist] =
+                ["Conjurer", "Sentinel", "Luminary"],
+        };
+
+    private static readonly IReadOnlyDictionary<string, string[]> BySpecType =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            [ExperimentalSpecTypes.Damage] = Damage,
+            [ExperimentalSpecTypes.Tank] = [..Tank, "Spiritguard"],
+            [ExperimentalSpecTypes.Healer] = Heal,
+        };
+
+    public static string? TryNormalizeClass(string? className)
+    {
+        if (string.IsNullOrWhiteSpace(className))
+        {
+            return null;
+        }
+
+        var trimmed = className.Trim();
+        return ExperimentalClasses.AllOrdered.FirstOrDefault(
+            c => string.Equals(c, trimmed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static string? TryNormalizeSpecType(string? specType)
+    {
+        if (string.IsNullOrWhiteSpace(specType))
+        {
+            return null;
+        }
+
+        var trimmed = specType.Trim();
+        if (string.Equals(trimmed, "Heal", StringComparison.OrdinalIgnoreCase))
+        {
+            return ExperimentalSpecTypes.Healer;
+        }
+
+        return ExperimentalSpecTypes.AllOrdered.FirstOrDefault(
+            t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static IReadOnlyList<string> SpecsForClass(string canonicalClass) =>
+        SpecsInAllOrdered(ByClass[canonicalClass]);
+
+    public static IReadOnlyList<string> SpecsForSpecType(string canonicalSpecType) =>
+        SpecsInAllOrdered(BySpecType[canonicalSpecType]);
+
     public static Dictionary<int, (int Dmg, int Tank, int Heal, string[] Required)> BuildRoleCounts(
         string mainHealer,
         IReadOnlyList<string> tankPicks)
@@ -63,4 +123,37 @@ public static class ExperimentalSpecs
             [14] = (4, 4, 2, ["Avenger", "Defender", "Aquamancer", "Luminary"])
         };
     }
+
+    private static IReadOnlyList<string> SpecsInAllOrdered(IReadOnlyCollection<string> specs)
+    {
+        var set = specs as HashSet<string> ?? new HashSet<string>(specs, StringComparer.Ordinal);
+        return AllOrdered.Where(set.Contains).ToArray();
+    }
+}
+
+public static class ExperimentalClasses
+{
+    public const string Mage = "Mage";
+    public const string Warrior = "Warrior";
+    public const string Paladin = "Paladin";
+    public const string Shaman = "Shaman";
+    public const string Rogue = "Rogue";
+    public const string Arcanist = "Arcanist";
+
+    public static readonly string[] AllOrdered =
+    [
+        Mage, Warrior, Paladin, Shaman, Rogue, Arcanist
+    ];
+}
+
+public static class ExperimentalSpecTypes
+{
+    public const string Damage = "Damage";
+    public const string Tank = "Tank";
+    public const string Healer = "Healer";
+
+    public static readonly string[] AllOrdered =
+    [
+        Damage, Tank, Healer
+    ];
 }

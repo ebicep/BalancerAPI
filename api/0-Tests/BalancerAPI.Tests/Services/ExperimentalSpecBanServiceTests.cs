@@ -207,6 +207,127 @@ public class ExperimentalSpecBanServiceTests
         }
     }
 
+    [Fact]
+    public async Task SetBansAsync_WhenMage_SetsThreeFlagsAndRemovesMageRequests()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.ExperimentalSpecRequests.Add(new ExperimentalSpecRequest
+            {
+                Uuid = TestUuid,
+                Spec = "Pyromancer",
+                GameCooldown = 0,
+                CreatedTime = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+
+            var result = await service.SetBansAsync(
+                TestUuid,
+                ExperimentalSpecs.SpecsForClass(ExperimentalClasses.Mage),
+                banned: true,
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal(["Pyromancer", "Cryomancer", "Aquamancer"], result.Data!.Bans);
+            db.ChangeTracker.Clear();
+            var row = await db.ExperimentalSpecBans.SingleAsync(x => x.Uuid == TestUuid);
+            Assert.True(row.Pyromancer);
+            Assert.True(row.Cryomancer);
+            Assert.True(row.Aquamancer);
+            Assert.Empty(await db.ExperimentalSpecRequests.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task SetBansAsync_WhenMageAndPyroAlreadyBanned_SetsRemainingFlags()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.ExperimentalSpecBans.Add(new ExperimentalSpecBan
+            {
+                Uuid = TestUuid,
+                Pyromancer = true
+            });
+            await db.SaveChangesAsync();
+
+            var result = await service.SetBansAsync(
+                TestUuid,
+                ExperimentalSpecs.SpecsForClass(ExperimentalClasses.Mage),
+                banned: true,
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal(["Pyromancer", "Cryomancer", "Aquamancer"], result.Data!.Bans);
+        }
+    }
+
+    [Fact]
+    public async Task SetBansAsync_WhenMageAllAlreadyBanned_Returns400()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.ExperimentalSpecBans.Add(new ExperimentalSpecBan
+            {
+                Uuid = TestUuid,
+                Pyromancer = true,
+                Cryomancer = true,
+                Aquamancer = true
+            });
+            await db.SaveChangesAsync();
+
+            var result = await service.SetBansAsync(
+                TestUuid,
+                ExperimentalSpecs.SpecsForClass(ExperimentalClasses.Mage),
+                banned: true,
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(400, result.StatusCode);
+            Assert.Contains("already banned", result.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public async Task SetBansAsync_WhenTankSpecType_IncludesSpiritguard()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            var tanks = ExperimentalSpecs.SpecsForSpecType(ExperimentalSpecTypes.Tank);
+            Assert.Contains("Spiritguard", tanks);
+
+            var result = await service.SetBansAsync(TestUuid, tanks, banned: true, CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Contains("Spiritguard", result.Data!.Bans);
+            db.ChangeTracker.Clear();
+            var row = await db.ExperimentalSpecBans.SingleAsync(x => x.Uuid == TestUuid);
+            Assert.True(row.Spiritguard);
+        }
+    }
+
+    [Fact]
+    public async Task SetBansAsync_WhenHealAliasSpecs_BansHealers()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            var canonical = ExperimentalSpecs.TryNormalizeSpecType("Heal");
+            Assert.Equal(ExperimentalSpecTypes.Healer, canonical);
+            var healers = ExperimentalSpecs.SpecsForSpecType(canonical!);
+
+            var result = await service.SetBansAsync(TestUuid, healers, banned: true, CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal(
+                ["Aquamancer", "Revenant", "Protector", "Earthwarden", "Apothecary", "Luminary"],
+                result.Data!.Bans);
+        }
+    }
+
     private static (ExperimentalSpecBanService Service, BalancerDbContext Db) CreateService()
     {
         var options = new DbContextOptionsBuilder<BalancerDbContext>()
