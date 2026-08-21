@@ -89,6 +89,26 @@ public class ExperimentalController(
         return Ok(result.Data);
     }
 
+    [HttpPost("logs/untruncate")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalLogsTruncate)]
+    [ProducesResponseType(typeof(ExperimentalSpecLogsViewResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ExperimentalSpecLogsViewResponse>> UntruncateLogs(
+        [FromBody] ExperimentalSpecLogsResponse? request,
+        CancellationToken cancellationToken)
+    {
+        var result = await experimentalSpecLogsService.UntruncateAsync(request, cancellationToken);
+        if (!result.Success)
+        {
+            return Problem(detail: result.Message, statusCode: result.StatusCode);
+        }
+
+        var data = result.Data!;
+        return Ok(new ExperimentalSpecLogsViewResponse(data.Count, data.Log));
+    }
+
     [HttpGet("spec-weights/leaderboard")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalRead)]

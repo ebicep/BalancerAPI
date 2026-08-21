@@ -2347,6 +2347,14 @@ public class ExperimentalControllerTests
         Assert.Equal(2, body.Count);
         Assert.Equal(["alpha", "beta"], body.Log["pyromancer"]);
         Assert.Equal(["beta"], body.Log["cryomancer"]);
+        Assert.NotNull(body.Rows);
+        Assert.Equal(2, body.Rows.Count);
+        Assert.All(body.Rows, row =>
+        {
+            Assert.NotNull(row.Id);
+            Assert.NotEqual(Guid.Empty, row.Id!.Value);
+            Assert.NotNull(row.BalanceId);
+        });
     }
 
     [Fact]
@@ -2388,6 +2396,8 @@ public class ExperimentalControllerTests
         Assert.Equal(0, body.Count);
         Assert.Equal(18, body.Log.Count);
         Assert.All(body.Log.Values, names => Assert.Empty(names));
+        Assert.NotNull(body.Rows);
+        Assert.Empty(body.Rows);
         Assert.Empty(db.ExperimentalSpecLogs);
     }
 
@@ -2463,6 +2473,11 @@ public class ExperimentalControllerTests
         }
 
         await db.SaveChangesAsync();
+        var expectedRemoved = await db.ExperimentalSpecLogs
+            .AsNoTracking()
+            .OrderBy(x => x.BalanceId)
+            .Take(2)
+            .ToListAsync();
 
         var result = await controller.TruncateLogs(CancellationToken.None);
 
@@ -2470,6 +2485,7 @@ public class ExperimentalControllerTests
         var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
         Assert.Equal(2, body.Count);
         Assert.Equal(["r0", "r1"], body.Log["pyromancer"]);
+        AssertRowsMatch(expectedRemoved, body.Rows);
         Assert.Equal(3, await db.ExperimentalSpecLogs.CountAsync());
     }
 
@@ -2524,6 +2540,8 @@ public class ExperimentalControllerTests
         Assert.Equal(0, body.Count);
         Assert.Equal(18, body.Log.Count);
         Assert.All(body.Log.Values, names => Assert.Empty(names));
+        Assert.NotNull(body.Rows);
+        Assert.Empty(body.Rows);
         Assert.Empty(db.ExperimentalSpecLogs);
     }
 
@@ -2559,6 +2577,12 @@ public class ExperimentalControllerTests
         db.ExperimentalBalanceLogs.AddRange(balanceLogs);
         db.ExperimentalSpecLogs.AddRange(specLogs);
         await db.SaveChangesAsync();
+        var expectedRemoved = await db.ExperimentalSpecLogs
+            .AsNoTracking()
+            .OrderBy(x => x.BalanceId)
+            .ThenBy(x => x.Pyromancer == null)
+            .Skip(4)
+            .ToListAsync();
 
         var result = await controller.TruncateLogsLast(CancellationToken.None);
 
@@ -2567,6 +2591,7 @@ public class ExperimentalControllerTests
         Assert.Equal(2, body.Count);
         Assert.Equal(["t2a"], body.Log["pyromancer"]);
         Assert.Equal(["t2b"], body.Log["cryomancer"]);
+        AssertRowsMatch(expectedRemoved, body.Rows);
         Assert.Equal(4, await db.ExperimentalSpecLogs.CountAsync());
         var remainingPyro = await db.ExperimentalSpecLogs
             .Where(x => x.Pyromancer != null)
@@ -2654,6 +2679,8 @@ public class ExperimentalControllerTests
         Assert.Equal(0, body.Count);
         Assert.Equal(18, body.Log.Count);
         Assert.All(body.Log.Values, names => Assert.Empty(names));
+        Assert.NotNull(body.Rows);
+        Assert.Empty(body.Rows);
         Assert.Empty(db.ExperimentalSpecLogs);
     }
 
@@ -2680,6 +2707,10 @@ public class ExperimentalControllerTests
         }
 
         await db.SaveChangesAsync();
+        var expectedRemoved = await db.ExperimentalSpecLogs
+            .AsNoTracking()
+            .OrderBy(x => x.BalanceId)
+            .ToListAsync();
 
         var result = await controller.ClearLogs(CancellationToken.None);
 
@@ -2687,6 +2718,7 @@ public class ExperimentalControllerTests
         var body = Assert.IsType<ExperimentalSpecLogsResponse>(ok.Value);
         Assert.Equal(5, body.Count);
         Assert.Equal(["r0", "r1", "r2", "r3", "r4"], body.Log["pyromancer"]);
+        AssertRowsMatch(expectedRemoved, body.Rows);
         Assert.Empty(db.ExperimentalSpecLogs);
     }
 
@@ -2726,6 +2758,161 @@ public class ExperimentalControllerTests
             StatusCodes.Status500InternalServerError,
             $"No name found for player {unknownUuid}.");
         Assert.Equal(5, await db.ExperimentalSpecLogs.CountAsync());
+    }
+
+    [Fact]
+    public async Task UntruncateLogs_AfterTruncate_RestoresSameRows()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var balanceId = Guid.Parse($"a0000000-0000-0000-0000-{i:D12}");
+            var uuid = Guid.Parse($"a1000000-0000-0000-0000-{i:D12}");
+            db.Names.Add(new PlayerName { Uuid = uuid, Name = $"ur{i}", PreviousNames = [] });
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid });
+        }
+
+        await db.SaveChangesAsync();
+
+        var truncateResult = await controller.TruncateLogs(CancellationToken.None);
+        var truncateOk = Assert.IsType<OkObjectResult>(truncateResult.Result);
+        var truncateBody = Assert.IsType<ExperimentalSpecLogsResponse>(truncateOk.Value);
+        Assert.Equal(2, truncateBody.Count);
+        Assert.NotNull(truncateBody.Rows);
+        Assert.Equal(3, await db.ExperimentalSpecLogs.CountAsync());
+
+        var untruncateResult = await controller.UntruncateLogs(truncateBody, CancellationToken.None);
+
+        var untruncateOk = Assert.IsType<OkObjectResult>(untruncateResult.Result);
+        var untruncateBody = Assert.IsType<ExperimentalSpecLogsViewResponse>(untruncateOk.Value);
+        Assert.Equal(5, untruncateBody.Count);
+        Assert.Equal(["ur0", "ur1", "ur2", "ur3", "ur4"], untruncateBody.Log["pyromancer"]);
+        Assert.Equal(5, await db.ExperimentalSpecLogs.CountAsync());
+        var restored = await db.ExperimentalSpecLogs
+            .AsNoTracking()
+            .Where(x => truncateBody.Rows!.Select(r => r.Id!.Value).Contains(x.Id))
+            .OrderBy(x => x.Id)
+            .ToListAsync();
+        AssertRowsMatch(restored, truncateBody.Rows);
+
+        var getResult = await controller.GetLogs(CancellationToken.None);
+        var getOk = Assert.IsType<OkObjectResult>(getResult.Result);
+        var getBody = Assert.IsType<ExperimentalSpecLogsResponse>(getOk.Value);
+        Assert.Equal(untruncateBody.Count, getBody.Count);
+        Assert.Equal(untruncateBody.Log["pyromancer"], getBody.Log["pyromancer"]);
+    }
+
+    [Fact]
+    public async Task UntruncateLogs_WhenAlreadyPresent_IsIdempotent()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var baseTime = new DateTime(2026, 6, 2, 0, 0, 0, DateTimeKind.Utc);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var balanceId = Guid.Parse($"a2000000-0000-0000-0000-{i:D12}");
+            var uuid = Guid.Parse($"a3000000-0000-0000-0000-{i:D12}");
+            db.Names.Add(new PlayerName { Uuid = uuid, Name = $"ui{i}", PreviousNames = [] });
+            db.ExperimentalBalanceLogs.Add(new ExperimentalBalanceLog
+            {
+                BalanceId = balanceId,
+                Balance = "[]",
+                Meta = "{}",
+                CreatedAt = baseTime.AddHours(i)
+            });
+            db.ExperimentalSpecLogs.Add(new ExperimentalSpecLog { BalanceId = balanceId, Pyromancer = uuid });
+        }
+
+        await db.SaveChangesAsync();
+
+        var truncateResult = await controller.TruncateLogs(CancellationToken.None);
+        var truncateOk = Assert.IsType<OkObjectResult>(truncateResult.Result);
+        var truncateBody = Assert.IsType<ExperimentalSpecLogsResponse>(truncateOk.Value);
+
+        var first = await controller.UntruncateLogs(truncateBody, CancellationToken.None);
+        var firstOk = Assert.IsType<OkObjectResult>(first.Result);
+        var firstBody = Assert.IsType<ExperimentalSpecLogsViewResponse>(firstOk.Value);
+        Assert.Equal(5, firstBody.Count);
+        Assert.Equal(["ui0", "ui1", "ui2", "ui3", "ui4"], firstBody.Log["pyromancer"]);
+
+        var second = await controller.UntruncateLogs(truncateBody, CancellationToken.None);
+        var secondOk = Assert.IsType<OkObjectResult>(second.Result);
+        var secondBody = Assert.IsType<ExperimentalSpecLogsViewResponse>(secondOk.Value);
+        Assert.Equal(5, secondBody.Count);
+        Assert.Equal(firstBody.Log["pyromancer"], secondBody.Log["pyromancer"]);
+        Assert.Equal(5, await db.ExperimentalSpecLogs.CountAsync());
+    }
+
+    [Fact]
+    public async Task UntruncateLogs_WhenRowsMissing_ReturnsBadRequest()
+    {
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, _) = CreateControllerWithSpecLogsService(specWeights.Object);
+        var request = new ExperimentalSpecLogsResponse(
+            0,
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal));
+
+        var result = await controller.UntruncateLogs(request, CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, "rows is required.");
+    }
+
+    [Fact]
+    public async Task UntruncateLogs_WhenBalanceLogMissing_ReturnsBadRequestAndInsertsNothing()
+    {
+        var missingBalanceId = Guid.Parse("a4000000-0000-0000-0000-000000000001");
+        var rowId = Guid.Parse("a5000000-0000-0000-0000-000000000001");
+        var uuid = Guid.Parse("a6000000-0000-0000-0000-000000000001");
+        var specWeights = new Mock<ISpecWeightsService>();
+        var (controller, db) = CreateControllerWithSpecLogsService(specWeights.Object);
+        db.Names.Add(new PlayerName { Uuid = uuid, Name = "ghost", PreviousNames = [] });
+        await db.SaveChangesAsync();
+
+        var request = new ExperimentalSpecLogsResponse(
+            1,
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
+            [
+                new ExperimentalSpecLogRowSnapshot(
+                    rowId,
+                    missingBalanceId,
+                    uuid,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)
+            ]);
+
+        var result = await controller.UntruncateLogs(request, CancellationToken.None);
+
+        AssertProblem(
+            result.Result!,
+            StatusCodes.Status400BadRequest,
+            $"No experimental balance log found for balance {missingBalanceId}.");
+        Assert.Empty(db.ExperimentalSpecLogs);
     }
 
     [Fact]
@@ -2776,6 +2963,41 @@ public class ExperimentalControllerTests
         }
 
         return pd;
+    }
+
+    private static void AssertRowsMatch(
+        IReadOnlyList<ExperimentalSpecLog> expected,
+        IReadOnlyList<ExperimentalSpecLogRowSnapshot>? actual)
+    {
+        Assert.NotNull(actual);
+        Assert.Equal(expected.Count, actual.Count);
+        var expectedOrdered = expected.OrderBy(x => x.Id).ToList();
+        var actualOrdered = actual.OrderBy(x => x.Id).ToList();
+        for (var i = 0; i < expectedOrdered.Count; i++)
+        {
+            var e = expectedOrdered[i];
+            var a = actualOrdered[i];
+            Assert.Equal(e.Id, a.Id);
+            Assert.Equal(e.BalanceId, a.BalanceId);
+            Assert.Equal(e.Pyromancer, a.Pyromancer);
+            Assert.Equal(e.Cryomancer, a.Cryomancer);
+            Assert.Equal(e.Aquamancer, a.Aquamancer);
+            Assert.Equal(e.Berserker, a.Berserker);
+            Assert.Equal(e.Defender, a.Defender);
+            Assert.Equal(e.Revenant, a.Revenant);
+            Assert.Equal(e.Avenger, a.Avenger);
+            Assert.Equal(e.Crusader, a.Crusader);
+            Assert.Equal(e.Protector, a.Protector);
+            Assert.Equal(e.Thunderlord, a.Thunderlord);
+            Assert.Equal(e.Spiritguard, a.Spiritguard);
+            Assert.Equal(e.Earthwarden, a.Earthwarden);
+            Assert.Equal(e.Assassin, a.Assassin);
+            Assert.Equal(e.Vindicator, a.Vindicator);
+            Assert.Equal(e.Apothecary, a.Apothecary);
+            Assert.Equal(e.Conjurer, a.Conjurer);
+            Assert.Equal(e.Sentinel, a.Sentinel);
+            Assert.Equal(e.Luminary, a.Luminary);
+        }
     }
 
     private static BalancerDbContext CreateDbContext()

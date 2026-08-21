@@ -91,6 +91,92 @@ public sealed class ExperimentalSpecLogsService(IDbContextFactory<BalancerDbCont
         return buildResult;
     }
 
+    public async Task<ExperimentalSpecLogsResult> UntruncateAsync(
+        ExperimentalSpecLogsResponse? request,
+        CancellationToken cancellationToken)
+    {
+        if (request?.Rows is null)
+        {
+            return new ExperimentalSpecLogsResult(
+                false,
+                400,
+                "rows is required.",
+                null);
+        }
+
+        var unique = new List<ExperimentalSpecLogRowSnapshot>();
+        var seen = new HashSet<Guid>();
+        foreach (var row in request.Rows)
+        {
+            if (row.Id is not { } id || id == Guid.Empty
+                || row.BalanceId is not { } balanceId || balanceId == Guid.Empty)
+            {
+                return new ExperimentalSpecLogsResult(
+                    false,
+                    400,
+                    "Each row must include id and balanceId.",
+                    null);
+            }
+
+            if (seen.Add(id))
+            {
+                unique.Add(row);
+            }
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var ids = unique.Select(r => r.Id!.Value).ToList();
+        var existingIds = ids.Count == 0
+            ? []
+            : await db.ExperimentalSpecLogs
+                .AsNoTracking()
+                .Where(x => ids.Contains(x.Id))
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
+        var existingSet = existingIds.ToHashSet();
+        var toInsert = unique.Where(r => !existingSet.Contains(r.Id!.Value)).ToList();
+
+        if (toInsert.Count > 0)
+        {
+            var balanceIds = toInsert.Select(r => r.BalanceId!.Value).Distinct().ToList();
+            var existingBalanceIds = await db.ExperimentalBalanceLogs
+                .AsNoTracking()
+                .Where(x => balanceIds.Contains(x.BalanceId))
+                .Select(x => x.BalanceId)
+                .ToListAsync(cancellationToken);
+            var balanceSet = existingBalanceIds.ToHashSet();
+            var missingBalanceId = balanceIds.FirstOrDefault(id => !balanceSet.Contains(id));
+            if (missingBalanceId != Guid.Empty)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return new ExperimentalSpecLogsResult(
+                    false,
+                    400,
+                    $"No experimental balance log found for balance {missingBalanceId}.",
+                    null);
+            }
+        }
+
+        if (toInsert.Count > 0)
+        {
+            db.ExperimentalSpecLogs.AddRange(toInsert.Select(ToEntity));
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var allRows = await LoadOrderedRowsAsync(db, trackChanges: false, cancellationToken);
+        var buildResult = await BuildResponseAsync(allRows, db, cancellationToken, includeRows: false);
+        if (!buildResult.Success)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return buildResult;
+        }
+
+        await tx.CommitAsync(cancellationToken);
+        return buildResult;
+    }
+
     private static int ComputeRemoveCount(int total)
     {
         if (total <= 0)
@@ -129,7 +215,8 @@ public sealed class ExperimentalSpecLogsService(IDbContextFactory<BalancerDbCont
     private static async Task<ExperimentalSpecLogsResult> BuildResponseAsync(
         IReadOnlyList<ExperimentalSpecLog> rows,
         BalancerDbContext db,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeRows = true)
     {
         var log = ExperimentalSpecs.AllOrdered.ToDictionary(
             spec => spec.ToLowerInvariant(),
@@ -176,10 +263,59 @@ public sealed class ExperimentalSpecLogsService(IDbContextFactory<BalancerDbCont
             kv => (IReadOnlyList<string>)kv.Value,
             StringComparer.Ordinal);
 
+        IReadOnlyList<ExperimentalSpecLogRowSnapshot>? snapshots = includeRows
+            ? rows.Select(ToSnapshot).ToList()
+            : null;
         return new ExperimentalSpecLogsResult(
             true,
             200,
             null,
-            new ExperimentalSpecLogsResponse(rows.Count, readOnlyLog));
+            new ExperimentalSpecLogsResponse(rows.Count, readOnlyLog, snapshots));
     }
+
+    private static ExperimentalSpecLogRowSnapshot ToSnapshot(ExperimentalSpecLog row) => new(
+        row.Id,
+        row.BalanceId,
+        row.Pyromancer,
+        row.Cryomancer,
+        row.Aquamancer,
+        row.Berserker,
+        row.Defender,
+        row.Revenant,
+        row.Avenger,
+        row.Crusader,
+        row.Protector,
+        row.Thunderlord,
+        row.Spiritguard,
+        row.Earthwarden,
+        row.Assassin,
+        row.Vindicator,
+        row.Apothecary,
+        row.Conjurer,
+        row.Sentinel,
+        row.Luminary);
+
+    private static ExperimentalSpecLog ToEntity(ExperimentalSpecLogRowSnapshot row) => new()
+    {
+        Id = row.Id!.Value,
+        BalanceId = row.BalanceId,
+        Pyromancer = row.Pyromancer,
+        Cryomancer = row.Cryomancer,
+        Aquamancer = row.Aquamancer,
+        Berserker = row.Berserker,
+        Defender = row.Defender,
+        Revenant = row.Revenant,
+        Avenger = row.Avenger,
+        Crusader = row.Crusader,
+        Protector = row.Protector,
+        Thunderlord = row.Thunderlord,
+        Spiritguard = row.Spiritguard,
+        Earthwarden = row.Earthwarden,
+        Assassin = row.Assassin,
+        Vindicator = row.Vindicator,
+        Apothecary = row.Apothecary,
+        Conjurer = row.Conjurer,
+        Sentinel = row.Sentinel,
+        Luminary = row.Luminary
+    };
 }
