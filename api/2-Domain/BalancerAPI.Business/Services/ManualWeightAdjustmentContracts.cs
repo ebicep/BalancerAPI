@@ -16,11 +16,13 @@ public interface IManualWeightAdjustmentService
 }
 
 public sealed record ManualAdjustBaseRequest(
-    [property: JsonPropertyName("amount")] int Amount);
+    [property: JsonPropertyName("amount")] int Amount,
+    [property: JsonPropertyName("set")] bool Set = false);
 
 public sealed record ManualAdjustSpecRequest(
     [property: JsonPropertyName("amount")] int Amount,
-    [property: JsonPropertyName("spec")] string? Spec);
+    [property: JsonPropertyName("spec")] string? Spec,
+    [property: JsonPropertyName("set")] bool Set = false);
 
 public sealed record ManualBaseAdjustResponse(
     [property: JsonPropertyName("uuid")] Guid Uuid,

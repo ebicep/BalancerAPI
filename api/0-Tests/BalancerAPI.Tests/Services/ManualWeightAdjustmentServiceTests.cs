@@ -59,6 +59,33 @@ public class ManualWeightAdjustmentServiceTests
     }
 
     [Fact]
+    public async Task PatchBaseAsync_WhenSetTrue_SetsWeightToAmount()
+    {
+        await using var db = CreateDbContext();
+        db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 100, LastUpdated = FixedLastUpdated });
+        db.AdjustmentDaily.Add(new AdjustmentDaily { Uuid = U1, Trajectory = 7 });
+        await db.SaveChangesAsync();
+
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
+        var result = await sut.PatchBaseAsync(
+            U1.ToString(),
+            new ManualAdjustBaseRequest(80, Set: true),
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Response);
+        Assert.Equal(100, result.Response.PreviousWeight);
+        Assert.Equal(80, result.Response.NewWeight);
+        Assert.Equal(7, result.Response.PreviousTrajectory);
+        Assert.Equal(0, result.Response.NewTrajectory);
+        Assert.Equal(80, (await db.BaseWeights.SingleAsync(x => x.Uuid == U1)).Weight);
+        Assert.Equal(0, (await db.AdjustmentDaily.SingleAsync(x => x.Uuid == U1)).Trajectory);
+        var log = await db.AdjustmentManualDailyLogs.SingleAsync(x => x.Uuid == U1);
+        Assert.Equal(100, log.PreviousWeight);
+        Assert.Equal(80, log.NewWeight);
+    }
+
+    [Fact]
     public async Task PatchBaseAsync_ByNameCaseInsensitive_AdjustsWeight()
     {
         await using var db = CreateDbContext();
@@ -157,6 +184,38 @@ public class ManualWeightAdjustmentServiceTests
         Assert.Equal(result.Response.BaseWeight, log.BaseWeight);
         Assert.Equal(result.Response.PreviousSpecWeight, log.PreviousSpecWeight);
         Assert.Equal(result.Response.NewSpecWeight, log.NewSpecWeight);
+    }
+
+    [Fact]
+    public async Task PatchSpecAsync_WhenSetTrue_SetsEffectiveSpecWeightToAmount()
+    {
+        await using var db = CreateDbContext();
+        db.BaseWeights.Add(new BaseWeight { Uuid = U1, Weight = 100, LastUpdated = FixedLastUpdated });
+        db.ExperimentalSpecWeights.Add(new ExperimentalSpecWeight
+        {
+            Uuid = U1,
+            PyromancerOffset = 10,
+            LastUpdated = FixedLastUpdated
+        });
+        await db.SaveChangesAsync();
+
+        var sut = new ManualWeightAdjustmentService(db, new PlayerKeyResolver(db));
+        var result = await sut.PatchSpecAsync(
+            U1.ToString(),
+            new ManualAdjustSpecRequest(80, "Pyromancer", Set: true),
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Response);
+        Assert.Equal(10, result.Response.PreviousOffset);
+        Assert.Equal(20, result.Response.NewOffset);
+        Assert.Equal(100, result.Response.BaseWeight);
+        Assert.Equal(90, result.Response.PreviousSpecWeight);
+        Assert.Equal(80, result.Response.NewSpecWeight);
+        Assert.Equal(20, (await db.ExperimentalSpecWeights.SingleAsync(x => x.Uuid == U1)).PyromancerOffset);
+        var log = await db.AdjustmentManualWeeklyLogs.SingleAsync(x => x.Uuid == U1 && x.Spec == "Pyromancer");
+        Assert.Equal(20, log.NewOffset);
+        Assert.Equal(80, log.NewSpecWeight);
     }
 
     [Fact]
