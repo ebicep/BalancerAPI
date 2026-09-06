@@ -16,6 +16,7 @@ namespace BalancerAPI.Api.Controllers;
 public class ExperimentalController(
     ISpecWeightsService specWeightsService,
     ISpecWeightLeaderboardService specWeightLeaderboardService,
+    IAverageSpecWeightLeaderboardService averageSpecWeightLeaderboardService,
     IExperimentalBalanceService experimentalBalanceService,
     IExperimentalBalanceConfirmService experimentalBalanceConfirmService,
     IExperimentalBalanceInputService experimentalBalanceInputService,
@@ -134,6 +135,34 @@ public class ExperimentalController(
         }
 
         var result = await specWeightLeaderboardService.GetLeaderboardAsync(page, pageSize, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("spec-weights/average-leaderboard")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalRead)]
+    [ProducesResponseType(typeof(IReadOnlyList<AverageSpecWeightLeaderboardEntry>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<AverageSpecWeightLeaderboardEntry>>> GetAverageSpecWeightLeaderboard(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1)
+        {
+            return Problem(
+                detail: "page must be greater than or equal to 1.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (pageSize is < 1 or > 100)
+        {
+            return Problem(
+                detail: "pageSize must be between 1 and 100.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var result = await averageSpecWeightLeaderboardService.GetLeaderboardAsync(page, pageSize, cancellationToken);
         return Ok(result);
     }
 

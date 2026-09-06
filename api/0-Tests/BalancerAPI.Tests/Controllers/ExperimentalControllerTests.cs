@@ -23,6 +23,7 @@ public class ExperimentalControllerTests
     private static ExperimentalController CreateController(
         ISpecWeightsService specWeights,
         ISpecWeightLeaderboardService? leaderboard = null,
+        IAverageSpecWeightLeaderboardService? averageLeaderboard = null,
         IExperimentalBalanceService? balance = null,
         IExperimentalBalanceConfirmService? confirm = null,
         IExperimentalBalanceInputService? input = null,
@@ -33,6 +34,7 @@ public class ExperimentalControllerTests
         BalancerDbContext? dbContext = null)
     {
         var lb = leaderboard ?? Mock.Of<ISpecWeightLeaderboardService>();
+        var avgLb = averageLeaderboard ?? Mock.Of<IAverageSpecWeightLeaderboardService>();
         var b = balance ?? Mock.Of<IExperimentalBalanceService>();
         var c = confirm ?? Mock.Of<IExperimentalBalanceConfirmService>();
         var i = input ?? Mock.Of<IExperimentalBalanceInputService>();
@@ -41,7 +43,7 @@ public class ExperimentalControllerTests
         var sr = specRequests ?? Mock.Of<IExperimentalSpecRequestService>();
         var db = dbContext ?? CreateDbContext();
         var resolver = playerKeyResolver ?? new PlayerKeyResolver(db);
-        return new ExperimentalController(specWeights, lb, b, c, i, sl, sb, sr, resolver, db);
+        return new ExperimentalController(specWeights, lb, avgLb, b, c, i, sl, sb, sr, resolver, db);
     }
 
     [Fact]
@@ -90,6 +92,57 @@ public class ExperimentalControllerTests
 
         AssertProblem(result.Result!, StatusCodes.Status400BadRequest, expectedDetail);
         leaderboard.Verify(
+            x => x.GetLeaderboardAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetAverageSpecWeightLeaderboard_WhenValid_ReturnsOkAndForwardsQueryParams()
+    {
+        var expected = new List<AverageSpecWeightLeaderboardEntry>
+        {
+            new()
+            {
+                Uuid = TestUuid.ToString(),
+                Name = "alpha",
+                AverageWeight = 142
+            }
+        };
+
+        var averageLeaderboard = new Mock<IAverageSpecWeightLeaderboardService>();
+        averageLeaderboard.Setup(x => x.GetLeaderboardAsync(2, 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var controller = CreateController(
+            Mock.Of<ISpecWeightsService>(),
+            averageLeaderboard: averageLeaderboard.Object);
+
+        var result = await controller.GetAverageSpecWeightLeaderboard(2, 5, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<List<AverageSpecWeightLeaderboardEntry>>(ok.Value);
+        Assert.Same(expected, response);
+        averageLeaderboard.Verify(x => x.GetLeaderboardAsync(2, 5, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(0, 25, "page must be greater than or equal to 1.")]
+    [InlineData(1, 0, "pageSize must be between 1 and 100.")]
+    [InlineData(1, 101, "pageSize must be between 1 and 100.")]
+    public async Task GetAverageSpecWeightLeaderboard_WhenInvalidQuery_ReturnsBadRequest(
+        int page,
+        int pageSize,
+        string expectedDetail)
+    {
+        var averageLeaderboard = new Mock<IAverageSpecWeightLeaderboardService>();
+        var controller = CreateController(
+            Mock.Of<ISpecWeightsService>(),
+            averageLeaderboard: averageLeaderboard.Object);
+
+        var result = await controller.GetAverageSpecWeightLeaderboard(page, pageSize, CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status400BadRequest, expectedDetail);
+        averageLeaderboard.Verify(
             x => x.GetLeaderboardAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
