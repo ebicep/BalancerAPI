@@ -13,9 +13,11 @@ public sealed class BaseWeightLeaderboardService(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var skip = (page - 1) * pageSize;
+        var cutoff = DateTime.UtcNow.AddMonths(-1);
 
         return await db.BaseWeights
             .AsNoTracking()
+            .Where(bw => bw.LastPlayed != null && bw.LastPlayed >= cutoff)
             .Join(
                 db.Names.AsNoTracking(),
                 bw => bw.Uuid,

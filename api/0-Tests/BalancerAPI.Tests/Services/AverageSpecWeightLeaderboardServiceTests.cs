@@ -22,6 +22,7 @@ public class AverageSpecWeightLeaderboardServiceTests
                 Player(U1, "Alice", flatWeight: 200),
                 Player(U2, "Bob", flatWeight: 150),
                 Player(U3, "Charlie", flatWeight: 180));
+            SeedActiveBaseWeights(db, U1, U2, U3);
             await db.SaveChangesAsync();
         }
 
@@ -45,6 +46,7 @@ public class AverageSpecWeightLeaderboardServiceTests
         {
             // Sum of defaults: 1+2+...+18 = 171; mean = 9.5 → rounds to 2 decimals as 9.50
             db.ExperimentalBalancePlayerData.Add(PlayerWithSequentialWeights(U1, "Alice"));
+            SeedActiveBaseWeights(db, U1);
             await db.SaveChangesAsync();
         }
 
@@ -65,6 +67,7 @@ public class AverageSpecWeightLeaderboardServiceTests
                 Player(U1, "Alice", flatWeight: 200),
                 Player(U2, "Bob", flatWeight: 150),
                 Player(U3, "Charlie", flatWeight: 180));
+            SeedActiveBaseWeights(db, U1, U2, U3);
             await db.SaveChangesAsync();
         }
 
@@ -89,6 +92,7 @@ public class AverageSpecWeightLeaderboardServiceTests
             db.ExperimentalBalancePlayerData.AddRange(
                 Player(U1, "Zara", flatWeight: 100),
                 Player(U1, "Alice", flatWeight: 100));
+            SeedActiveBaseWeights(db, U1);
             await db.SaveChangesAsync();
         }
 
@@ -108,6 +112,7 @@ public class AverageSpecWeightLeaderboardServiceTests
             db.ExperimentalBalancePlayerData.AddRange(
                 Player(U2, "Bob", flatWeight: 100),
                 Player(U1, "Alice", flatWeight: 100));
+            SeedActiveBaseWeights(db, U1, U2);
             await db.SaveChangesAsync();
         }
 
@@ -125,6 +130,7 @@ public class AverageSpecWeightLeaderboardServiceTests
         await using (db)
         {
             db.ExperimentalBalancePlayerData.Add(Player(U1, "Alice", flatWeight: 200));
+            SeedActiveBaseWeights(db, U1);
             db.ExperimentalSpecBans.Add(new ExperimentalSpecBan
             {
                 Uuid = U1,
@@ -139,6 +145,50 @@ public class AverageSpecWeightLeaderboardServiceTests
         Assert.Single(result);
         Assert.Equal("Alice", result[0].Name);
         Assert.Equal(200, result[0].AverageWeight);
+    }
+
+    [Fact]
+    public async Task GetLeaderboardAsync_ExcludesStaleAndNullLastPlayed()
+    {
+        var (db, factory) = CreateDbContextAndFactory();
+        await using (db)
+        {
+            db.ExperimentalBalancePlayerData.AddRange(
+                Player(U1, "Alice", flatWeight: 100),
+                Player(U2, "Bob", flatWeight: 300),
+                Player(U3, "Charlie", flatWeight: 250));
+            db.BaseWeights.AddRange(
+                new BaseWeight { Uuid = U1, Weight = 1000, LastUpdated = DateTime.UtcNow, LastPlayed = DateTime.UtcNow },
+                new BaseWeight
+                {
+                    Uuid = U2,
+                    Weight = 1000,
+                    LastUpdated = DateTime.UtcNow,
+                    LastPlayed = DateTime.UtcNow.AddMonths(-1).AddDays(-1)
+                },
+                new BaseWeight { Uuid = U3, Weight = 1000, LastUpdated = DateTime.UtcNow, LastPlayed = null });
+            await db.SaveChangesAsync();
+        }
+
+        var service = new AverageSpecWeightLeaderboardService(factory);
+        var result = await service.GetLeaderboardAsync(1, 10, CancellationToken.None);
+
+        Assert.Single(result);
+        Assert.Equal("Alice", result[0].Name);
+    }
+
+    private static void SeedActiveBaseWeights(BalancerDbContext db, params Guid[] uuids)
+    {
+        foreach (var uuid in uuids)
+        {
+            db.BaseWeights.Add(new BaseWeight
+            {
+                Uuid = uuid,
+                Weight = 1000,
+                LastUpdated = DateTime.UtcNow,
+                LastPlayed = DateTime.UtcNow
+            });
+        }
     }
 
     private static ExperimentalBalancePlayerData Player(

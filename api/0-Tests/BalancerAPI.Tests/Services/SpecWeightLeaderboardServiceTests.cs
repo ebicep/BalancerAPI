@@ -23,6 +23,7 @@ public class SpecWeightLeaderboardServiceTests
                 Player(U1, "Alice", pyromancer: 200, cryomancer: 50),
                 Player(U2, "Bob", pyromancer: 150, cryomancer: 300),
                 Player(U3, "Charlie", pyromancer: 180, cryomancer: 100));
+            SeedActiveBaseWeights(db, U1, U2, U3);
             await db.SaveChangesAsync();
         }
 
@@ -53,6 +54,7 @@ public class SpecWeightLeaderboardServiceTests
                 Player(U1, "Alice", pyromancer: 200),
                 Player(U2, "Bob", pyromancer: 150),
                 Player(U3, "Charlie", pyromancer: 180));
+            SeedActiveBaseWeights(db, U1, U2, U3);
             await db.SaveChangesAsync();
         }
 
@@ -77,6 +79,7 @@ public class SpecWeightLeaderboardServiceTests
             db.ExperimentalBalancePlayerData.AddRange(
                 Player(U1, "Alice", pyromancer: 200),
                 Player(U4, "Dan", pyromancer: 250));
+            SeedActiveBaseWeights(db, U1, U4);
             db.ExperimentalSpecBans.Add(new ExperimentalSpecBan
             {
                 Uuid = U4,
@@ -102,6 +105,7 @@ public class SpecWeightLeaderboardServiceTests
             db.ExperimentalBalancePlayerData.AddRange(
                 Player(U1, "Zara", pyromancer: 100),
                 Player(U1, "Alice", pyromancer: 100));
+            SeedActiveBaseWeights(db, U1);
             await db.SaveChangesAsync();
         }
 
@@ -121,6 +125,7 @@ public class SpecWeightLeaderboardServiceTests
             db.ExperimentalBalancePlayerData.AddRange(
                 Player(U2, "Bob", pyromancer: 100),
                 Player(U1, "Alice", pyromancer: 100));
+            SeedActiveBaseWeights(db, U1, U2);
             await db.SaveChangesAsync();
         }
 
@@ -144,6 +149,50 @@ public class SpecWeightLeaderboardServiceTests
         {
             Assert.True(result.ContainsKey(spec.ToLowerInvariant()));
             Assert.Empty(result[spec.ToLowerInvariant()]);
+        }
+    }
+
+    [Fact]
+    public async Task GetLeaderboardAsync_ExcludesStaleAndNullLastPlayed()
+    {
+        var (db, factory) = CreateDbContextAndFactory();
+        await using (db)
+        {
+            db.ExperimentalBalancePlayerData.AddRange(
+                Player(U1, "Alice", pyromancer: 100),
+                Player(U2, "Bob", pyromancer: 300),
+                Player(U3, "Charlie", pyromancer: 250));
+            db.BaseWeights.AddRange(
+                new BaseWeight { Uuid = U1, Weight = 1000, LastUpdated = DateTime.UtcNow, LastPlayed = DateTime.UtcNow },
+                new BaseWeight
+                {
+                    Uuid = U2,
+                    Weight = 1000,
+                    LastUpdated = DateTime.UtcNow,
+                    LastPlayed = DateTime.UtcNow.AddMonths(-1).AddDays(-1)
+                },
+                new BaseWeight { Uuid = U3, Weight = 1000, LastUpdated = DateTime.UtcNow, LastPlayed = null });
+            await db.SaveChangesAsync();
+        }
+
+        var service = new SpecWeightLeaderboardService(factory);
+        var result = await service.GetLeaderboardAsync(1, 10, CancellationToken.None);
+
+        Assert.Single(result["pyromancer"]);
+        Assert.Equal("Alice", result["pyromancer"][0].Name);
+    }
+
+    private static void SeedActiveBaseWeights(BalancerDbContext db, params Guid[] uuids)
+    {
+        foreach (var uuid in uuids)
+        {
+            db.BaseWeights.Add(new BaseWeight
+            {
+                Uuid = uuid,
+                Weight = 1000,
+                LastUpdated = DateTime.UtcNow,
+                LastPlayed = DateTime.UtcNow
+            });
         }
     }
 

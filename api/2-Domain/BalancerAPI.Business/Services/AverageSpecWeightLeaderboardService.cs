@@ -13,6 +13,14 @@ public sealed class AverageSpecWeightLeaderboardService(
         CancellationToken cancellationToken)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var cutoff = DateTime.UtcNow.AddMonths(-1);
+        var activeUuids = await db.BaseWeights
+            .AsNoTracking()
+            .Where(bw => bw.LastPlayed != null && bw.LastPlayed >= cutoff)
+            .Select(bw => bw.Uuid)
+            .ToListAsync(cancellationToken);
+        var activeSet = activeUuids.ToHashSet();
+
         var rows = await db.ExperimentalBalancePlayerData
             .AsNoTracking()
             .ToListAsync(cancellationToken);
@@ -20,6 +28,7 @@ public sealed class AverageSpecWeightLeaderboardService(
         var skip = (page - 1) * pageSize;
 
         return DedupeByUuid(rows)
+            .Where(row => activeSet.Contains(row.Uuid))
             .Select(row =>
             {
                 var vec = BuildWeightVector(row);
