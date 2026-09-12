@@ -118,7 +118,7 @@ public static class ExperimentalSpecs
             [9] = (2, 2, 2, ["Avenger", "Defender", mainHealer]),
             [10] = (3, 2, 2, ["Avenger", "Defender", "Aquamancer"]),
             [11] = (3, 3, 2, ["Avenger", "Defender", "Aquamancer"]),
-            [12] = (3, 3, 2, ["Avenger", "Defender", "Earthwarden", "Aquamancer"]),
+            [12] = (4, 3, 1, ["Avenger", "Defender", "Earthwarden", "Aquamancer"]),
             [13] = (4, 3, 3, ["Avenger", "Defender", "Aquamancer"]),
             [14] = (4, 4, 2, ["Avenger", "Defender", "Aquamancer", "Luminary"])
         };
