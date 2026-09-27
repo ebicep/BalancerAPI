@@ -28,7 +28,8 @@ public class AdjustControllerTests
             .ReturnsAsync(expected);
 
         var manual = new Mock<IManualWeightAdjustmentService>();
-        var controller = new AdjustController(service.Object, manual.Object);
+        var history = new Mock<IAdjustmentHistoryService>();
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
         var actionResult = await controller.AutoDaily(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
@@ -58,7 +59,8 @@ public class AdjustControllerTests
             .ReturnsAsync(AdjustmentAutoDailyUndoResult.Ok(expected));
 
         var manual = new Mock<IManualWeightAdjustmentService>();
-        var controller = new AdjustController(service.Object, manual.Object);
+        var history = new Mock<IAdjustmentHistoryService>();
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
         var actionResult = await controller.UndoAutoDaily(expected, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
@@ -70,7 +72,8 @@ public class AdjustControllerTests
     {
         var service = new Mock<IAdjustmentAutoDailyService>();
         var manual = new Mock<IManualWeightAdjustmentService>();
-        var controller = new AdjustController(service.Object, manual.Object);
+        var history = new Mock<IAdjustmentHistoryService>();
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
 
         var actionResult = await controller.UndoAutoDaily(null, CancellationToken.None);
 
@@ -88,7 +91,8 @@ public class AdjustControllerTests
             .ReturnsAsync(AdjustmentAutoDailyUndoResult.Fail(409, "date must match the latest auto-daily adjustment batch."));
 
         var manual = new Mock<IManualWeightAdjustmentService>();
-        var controller = new AdjustController(service.Object, manual.Object);
+        var history = new Mock<IAdjustmentHistoryService>();
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
         var body = new AdjustmentAutoDailyResponse(1, [], DateTime.UtcNow);
         var actionResult = await controller.UndoAutoDaily(body, CancellationToken.None);
 
@@ -115,7 +119,8 @@ public class AdjustControllerTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(ManualWeightAdjustServiceResult<ManualBaseAdjustResponse>.Ok(expected));
 
-        var controller = new AdjustController(service.Object, manual.Object);
+        var history = new Mock<IAdjustmentHistoryService>();
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
         var actionResult = await controller.PatchBase("TestPlayer", new ManualAdjustBaseRequest(5), CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
@@ -143,10 +148,85 @@ public class AdjustControllerTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(ManualWeightAdjustServiceResult<ManualSpecAdjustResponse>.Ok(expected));
 
-        var controller = new AdjustController(service.Object, manual.Object);
+        var history = new Mock<IAdjustmentHistoryService>();
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
         var actionResult = await controller.PatchSpec("TestPlayer", new ManualAdjustSpecRequest(3, "Pyromancer"), CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
         Assert.Equal(expected, ok.Value);
+    }
+
+    [Fact]
+    public async Task GetBaseHistory_ReturnsOkWithServicePayload()
+    {
+        var uuid = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+        var expected = new AdjustmentBaseHistoryResponse("TestPlayer", uuid, []);
+
+        var service = new Mock<IAdjustmentAutoDailyService>();
+        var manual = new Mock<IManualWeightAdjustmentService>();
+        var history = new Mock<IAdjustmentHistoryService>();
+        history.Setup(x => x.GetBaseHistoryAsync(uuid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
+        var actionResult = await controller.GetBaseHistory(uuid, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
+        Assert.Equal(expected, ok.Value);
+    }
+
+    [Fact]
+    public async Task GetBaseHistory_WhenMissing_Returns404()
+    {
+        var uuid = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+        var service = new Mock<IAdjustmentAutoDailyService>();
+        var manual = new Mock<IManualWeightAdjustmentService>();
+        var history = new Mock<IAdjustmentHistoryService>();
+        history.Setup(x => x.GetBaseHistoryAsync(uuid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AdjustmentBaseHistoryResponse?)null);
+
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
+        var actionResult = await controller.GetBaseHistory(uuid, CancellationToken.None);
+
+        var problem = Assert.IsType<ObjectResult>(actionResult.Result);
+        Assert.Equal(404, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetSpecHistory_ReturnsOkWithServicePayload()
+    {
+        var uuid = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+        var expected = new AdjustmentSpecHistoryResponse("TestPlayer", uuid, []);
+
+        var service = new Mock<IAdjustmentAutoDailyService>();
+        var manual = new Mock<IManualWeightAdjustmentService>();
+        var history = new Mock<IAdjustmentHistoryService>();
+        history.Setup(x => x.GetSpecHistoryAsync(uuid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
+        var actionResult = await controller.GetSpecHistory(uuid, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
+        Assert.Equal(expected, ok.Value);
+    }
+
+    [Fact]
+    public async Task GetSpecHistory_WhenMissing_Returns404()
+    {
+        var uuid = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+
+        var service = new Mock<IAdjustmentAutoDailyService>();
+        var manual = new Mock<IManualWeightAdjustmentService>();
+        var history = new Mock<IAdjustmentHistoryService>();
+        history.Setup(x => x.GetSpecHistoryAsync(uuid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AdjustmentSpecHistoryResponse?)null);
+
+        var controller = new AdjustController(service.Object, manual.Object, history.Object);
+        var actionResult = await controller.GetSpecHistory(uuid, CancellationToken.None);
+
+        var problem = Assert.IsType<ObjectResult>(actionResult.Result);
+        Assert.Equal(404, problem.StatusCode);
     }
 }

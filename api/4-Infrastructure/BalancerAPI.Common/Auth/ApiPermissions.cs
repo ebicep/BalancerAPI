@@ -24,6 +24,7 @@ public static class ApiPermissions
 
     public const string AdjustAuto = "adjust.auto";
     public const string AdjustManual = "adjust.manual";
+    public const string AdjustRead = "adjust.read";
     public const string PlayersAdd = "players.add";
     public const string PlayersRead = "players.read";
     public const string PlayersDelete = "players.delete";
@@ -47,6 +48,7 @@ public static class ApiPermissions
         RegularBalance,
         AdjustAuto,
         AdjustManual,
+        AdjustRead,
         PlayersAdd,
         PlayersRead,
         PlayersDelete,

@@ -11,7 +11,8 @@ namespace BalancerAPI.Api.Controllers;
 [Route("api/v{version:apiVersion}/[controller]")]
 public class AdjustController(
     IAdjustmentAutoDailyService adjustmentAutoDailyService,
-    IManualWeightAdjustmentService manualWeightAdjustmentService) : ControllerBase
+    IManualWeightAdjustmentService manualWeightAdjustmentService,
+    IAdjustmentHistoryService adjustmentHistoryService) : ControllerBase
 {
     [HttpPost("auto-daily")]
     [MapToApiVersion("1.0")]
@@ -103,5 +104,45 @@ public class AdjustController(
         }
 
         return Problem(detail: result.Message, statusCode: result.StatusCode);
+    }
+
+    [HttpGet("history/base/{uuid:guid}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.AdjustRead)]
+    [ProducesResponseType(typeof(AdjustmentBaseHistoryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AdjustmentBaseHistoryResponse>> GetBaseHistory(
+        Guid uuid,
+        CancellationToken cancellationToken)
+    {
+        var result = await adjustmentHistoryService.GetBaseHistoryAsync(uuid, cancellationToken);
+        if (result is null)
+        {
+            return Problem(
+                detail: "The requested resource was not found.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        return Ok(result);
+    }
+
+    [HttpGet("history/spec/{uuid:guid}")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.AdjustRead)]
+    [ProducesResponseType(typeof(AdjustmentSpecHistoryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AdjustmentSpecHistoryResponse>> GetSpecHistory(
+        Guid uuid,
+        CancellationToken cancellationToken)
+    {
+        var result = await adjustmentHistoryService.GetSpecHistoryAsync(uuid, cancellationToken);
+        if (result is null)
+        {
+            return Problem(
+                detail: "The requested resource was not found.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        return Ok(result);
     }
 }
