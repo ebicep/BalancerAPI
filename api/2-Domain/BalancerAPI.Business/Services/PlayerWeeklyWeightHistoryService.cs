@@ -93,14 +93,14 @@ public sealed class PlayerWeeklyWeightHistoryService(BalancerDbContext dbContext
                 continue;
             }
 
-            SpecWeightsResponse specWeights;
+            SpecOffsetsResponse specOffsets;
             if (isCurrentWeek && liveSpec is not null)
             {
-                specWeights = ToEffectiveSpecWeights(baseWeight, liveSpec);
+                specOffsets = ToSpecOffsetsResponse(liveSpec);
             }
             else
             {
-                specWeights = ToEffectiveSpecWeights(baseWeight, runningOffsets);
+                specOffsets = ToSpecOffsetsResponse(runningOffsets);
             }
 
             points.Add(new WeeklyWeightPoint(
@@ -108,7 +108,7 @@ public sealed class PlayerWeeklyWeightHistoryService(BalancerDbContext dbContext
                 week.Timestamp,
                 isCurrentWeek,
                 baseWeight,
-                specWeights));
+                specOffsets));
         }
 
         if (points.Count == 0)
@@ -141,45 +141,45 @@ public sealed class PlayerWeeklyWeightHistoryService(BalancerDbContext dbContext
         to.LuminaryOffset = from.LuminaryOffset;
     }
 
-    internal static SpecWeightsResponse ToEffectiveSpecWeights(int baseWeight, ExperimentalSpecWeightWeekly offsets) =>
+    internal static SpecOffsetsResponse ToSpecOffsetsResponse(ExperimentalSpecWeightWeekly offsets) =>
         new(
-            baseWeight - offsets.PyromancerOffset,
-            baseWeight - offsets.CryomancerOffset,
-            baseWeight - offsets.AquamancerOffset,
-            baseWeight - offsets.BerserkerOffset,
-            baseWeight - offsets.DefenderOffset,
-            baseWeight - offsets.RevenantOffset,
-            baseWeight - offsets.AvengerOffset,
-            baseWeight - offsets.CrusaderOffset,
-            baseWeight - offsets.ProtectorOffset,
-            baseWeight - offsets.ThunderlordOffset,
-            baseWeight - offsets.SpiritguardOffset,
-            baseWeight - offsets.EarthwardenOffset,
-            baseWeight - offsets.AssassinOffset,
-            baseWeight - offsets.VindicatorOffset,
-            baseWeight - offsets.ApothecaryOffset,
-            baseWeight - offsets.ConjurerOffset,
-            baseWeight - offsets.SentinelOffset,
-            baseWeight - offsets.LuminaryOffset);
+            offsets.PyromancerOffset,
+            offsets.CryomancerOffset,
+            offsets.AquamancerOffset,
+            offsets.BerserkerOffset,
+            offsets.DefenderOffset,
+            offsets.RevenantOffset,
+            offsets.AvengerOffset,
+            offsets.CrusaderOffset,
+            offsets.ProtectorOffset,
+            offsets.ThunderlordOffset,
+            offsets.SpiritguardOffset,
+            offsets.EarthwardenOffset,
+            offsets.AssassinOffset,
+            offsets.VindicatorOffset,
+            offsets.ApothecaryOffset,
+            offsets.ConjurerOffset,
+            offsets.SentinelOffset,
+            offsets.LuminaryOffset);
 
-    internal static SpecWeightsResponse ToEffectiveSpecWeights(int baseWeight, ExperimentalSpecWeight offsets) =>
+    internal static SpecOffsetsResponse ToSpecOffsetsResponse(ExperimentalSpecWeight offsets) =>
         new(
-            baseWeight - offsets.PyromancerOffset,
-            baseWeight - offsets.CryomancerOffset,
-            baseWeight - offsets.AquamancerOffset,
-            baseWeight - offsets.BerserkerOffset,
-            baseWeight - offsets.DefenderOffset,
-            baseWeight - offsets.RevenantOffset,
-            baseWeight - offsets.AvengerOffset,
-            baseWeight - offsets.CrusaderOffset,
-            baseWeight - offsets.ProtectorOffset,
-            baseWeight - offsets.ThunderlordOffset,
-            baseWeight - offsets.SpiritguardOffset,
-            baseWeight - offsets.EarthwardenOffset,
-            baseWeight - offsets.AssassinOffset,
-            baseWeight - offsets.VindicatorOffset,
-            baseWeight - offsets.ApothecaryOffset,
-            baseWeight - offsets.ConjurerOffset,
-            baseWeight - offsets.SentinelOffset,
-            baseWeight - offsets.LuminaryOffset);
+            offsets.PyromancerOffset,
+            offsets.CryomancerOffset,
+            offsets.AquamancerOffset,
+            offsets.BerserkerOffset,
+            offsets.DefenderOffset,
+            offsets.RevenantOffset,
+            offsets.AvengerOffset,
+            offsets.CrusaderOffset,
+            offsets.ProtectorOffset,
+            offsets.ThunderlordOffset,
+            offsets.SpiritguardOffset,
+            offsets.EarthwardenOffset,
+            offsets.AssassinOffset,
+            offsets.VindicatorOffset,
+            offsets.ApothecaryOffset,
+            offsets.ConjurerOffset,
+            offsets.SentinelOffset,
+            offsets.LuminaryOffset);
 }

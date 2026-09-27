@@ -64,13 +64,13 @@ public class PlayerWeeklyWeightHistoryServiceTests
         Assert.Equal(0, week0.WeekId);
         Assert.False(week0.IsCurrentWeek);
         Assert.Equal(900, week0.BaseWeight);
-        Assert.Equal(890, week0.SpecWeights.Pyromancer);
+        Assert.Equal(10, week0.SpecOffsets.Pyromancer);
 
         var week1 = result.Weeks[1];
         Assert.Equal(1, week1.WeekId);
         Assert.True(week1.IsCurrentWeek);
         Assert.Equal(950, week1.BaseWeight);
-        Assert.Equal(945, week1.SpecWeights.Pyromancer);
+        Assert.Equal(5, week1.SpecOffsets.Pyromancer);
     }
 
     private static BalancerDbContext CreateDbContext()
