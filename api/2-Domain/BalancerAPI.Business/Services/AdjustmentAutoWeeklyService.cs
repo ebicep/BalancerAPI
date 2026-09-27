@@ -51,8 +51,8 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
                     continue;
                 }
 
-                var previousOffset = GetOffset(specWeight, spec);
-                ApplyOffsetAdjustment(specWeight, spec, adjustment);
+                var previousOffset = ExperimentalSpecOffsetHelpers.GetOffset(specWeight, spec);
+                ExperimentalSpecOffsetHelpers.ApplyOffsetAdjustment(specWeight, spec, adjustment);
                 var currentOffset = previousOffset - adjustment;
 
                 specChanges.Add(new AdjustmentAutoWeeklySpecChange(
@@ -141,89 +141,4 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
             _ => (0, 0)
         };
 
-    private static int GetOffset(ExperimentalSpecWeight sw, string spec) =>
-        spec switch
-        {
-            "Pyromancer" => sw.PyromancerOffset,
-            "Cryomancer" => sw.CryomancerOffset,
-            "Aquamancer" => sw.AquamancerOffset,
-            "Berserker" => sw.BerserkerOffset,
-            "Defender" => sw.DefenderOffset,
-            "Revenant" => sw.RevenantOffset,
-            "Avenger" => sw.AvengerOffset,
-            "Crusader" => sw.CrusaderOffset,
-            "Protector" => sw.ProtectorOffset,
-            "Thunderlord" => sw.ThunderlordOffset,
-            "Spiritguard" => sw.SpiritguardOffset,
-            "Earthwarden" => sw.EarthwardenOffset,
-            "Assassin" => sw.AssassinOffset,
-            "Vindicator" => sw.VindicatorOffset,
-            "Apothecary" => sw.ApothecaryOffset,
-            "Conjurer" => sw.ConjurerOffset,
-            "Sentinel" => sw.SentinelOffset,
-            "Luminary" => sw.LuminaryOffset,
-            _ => 0
-        };
-
-    /// <summary>Apply <c>offset -= adjustment</c> (winning week lowers offset; losing week raises it).</summary>
-    private static void ApplyOffsetAdjustment(ExperimentalSpecWeight sw, string spec, int adjustment)
-    {
-        switch (spec)
-        {
-            case "Pyromancer":
-                sw.PyromancerOffset -= adjustment;
-                break;
-            case "Cryomancer":
-                sw.CryomancerOffset -= adjustment;
-                break;
-            case "Aquamancer":
-                sw.AquamancerOffset -= adjustment;
-                break;
-            case "Berserker":
-                sw.BerserkerOffset -= adjustment;
-                break;
-            case "Defender":
-                sw.DefenderOffset -= adjustment;
-                break;
-            case "Revenant":
-                sw.RevenantOffset -= adjustment;
-                break;
-            case "Avenger":
-                sw.AvengerOffset -= adjustment;
-                break;
-            case "Crusader":
-                sw.CrusaderOffset -= adjustment;
-                break;
-            case "Protector":
-                sw.ProtectorOffset -= adjustment;
-                break;
-            case "Thunderlord":
-                sw.ThunderlordOffset -= adjustment;
-                break;
-            case "Spiritguard":
-                sw.SpiritguardOffset -= adjustment;
-                break;
-            case "Earthwarden":
-                sw.EarthwardenOffset -= adjustment;
-                break;
-            case "Assassin":
-                sw.AssassinOffset -= adjustment;
-                break;
-            case "Vindicator":
-                sw.VindicatorOffset -= adjustment;
-                break;
-            case "Apothecary":
-                sw.ApothecaryOffset -= adjustment;
-                break;
-            case "Conjurer":
-                sw.ConjurerOffset -= adjustment;
-                break;
-            case "Sentinel":
-                sw.SentinelOffset -= adjustment;
-                break;
-            case "Luminary":
-                sw.LuminaryOffset -= adjustment;
-                break;
-        }
-    }
 }

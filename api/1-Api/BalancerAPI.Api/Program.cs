@@ -95,6 +95,7 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IAdjustmentAutoDailyService, AdjustmentAutoDailyService>();
 builder.Services.AddScoped<IAdjustmentAutoWeeklyService, AdjustmentAutoWeeklyService>();
 builder.Services.AddScoped<IManualWeightAdjustmentService, ManualWeightAdjustmentService>();
+builder.Services.AddScoped<IWeeklyAdjustPatchService, WeeklyAdjustPatchService>();
 builder.Services.AddScoped<IAdjustmentHistoryService, AdjustmentHistoryService>();
 builder.Services.AddScoped<ITrajectoryService, TrajectoryService>();
 builder.Services.AddScoped<IPlayerAddService, PlayerAddService>();
