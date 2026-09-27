@@ -10,12 +10,12 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
     {
         var joinedRows = await (
             from wl in dbContext.ExperimentalSpecsWlCurrentWeek.AsNoTracking()
-            join specWeight in dbContext.ExperimentalSpecWeights on wl.Uuid equals specWeight.Uuid
+            join specWeight in dbContext.ExperimentalSpecWeights.AsNoTracking() on wl.Uuid equals specWeight.Uuid
             join baseWeight in dbContext.BaseWeights.AsNoTracking() on wl.Uuid equals baseWeight.Uuid
             join n in dbContext.Names.AsNoTracking() on wl.Uuid equals n.Uuid into nameJoin
             from n in nameJoin.DefaultIfEmpty()
             orderby wl.Uuid
-            select new { wl, specWeight, baseWeight, Name = n != null ? n.Name : null }
+            select new { wl, baseWeight, Name = n != null ? n.Name : null }
         ).ToListAsync(cancellationToken);
 
         if (joinedRows.Count == 0)
@@ -35,9 +35,10 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
         foreach (var row in joinedRows.DistinctBy(x => x.wl.Uuid))
         {
             var wl = row.wl;
-            var specWeight = row.specWeight;
             var baseWeight = row.baseWeight;
             var displayName = row.Name ?? string.Empty;
+            var specWeight = await dbContext.ExperimentalSpecWeights
+                .SingleAsync(x => x.Uuid == wl.Uuid, cancellationToken);
 
             var specChanges = new List<AdjustmentAutoWeeklySpecChange>();
 
@@ -80,6 +81,8 @@ public sealed class AdjustmentAutoWeeklyService(BalancerDbContext dbContext) : I
             {
                 continue;
             }
+
+            specWeight.LastUpdated = recordedAt;
 
             adjusted.Add(new AdjustmentAutoWeeklyPlayerBlock(
                 wl.Uuid,

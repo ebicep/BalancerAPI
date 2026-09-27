@@ -110,9 +110,8 @@ public sealed class TimeService(
         var boundary = previousBoundary ?? DateTime.MinValue;
 
         var loadBaseTask = LoadChangedBaseWeightsWeeklyAsync(newId, boundary, cancellationToken);
-        var loadSpecWeightsTask = LoadChangedExperimentalSpecWeightsWeeklyAsync(newId, boundary, cancellationToken);
         var loadWlTask = LoadChangedExperimentalSpecsWlWeeklyAsync(newId, boundary, cancellationToken);
-        await Task.WhenAll(loadBaseTask, loadSpecWeightsTask, loadWlTask);
+        await Task.WhenAll(loadBaseTask, loadWlTask);
 
         var changedBaseWeights = await loadBaseTask;
         if (changedBaseWeights.Count > 0)
@@ -120,16 +119,20 @@ public sealed class TimeService(
             dbContext.BaseWeightsWeekly.AddRange(changedBaseWeights);
         }
 
-        var changedSpecWeights = await loadSpecWeightsTask;
-        if (changedSpecWeights.Count > 0)
-        {
-            dbContext.ExperimentalSpecWeightsWeekly.AddRange(changedSpecWeights);
-        }
-
         var changedWl = await loadWlTask;
         if (changedWl.Count > 0)
         {
             dbContext.ExperimentalSpecsWlWeekly.AddRange(changedWl);
+        }
+
+        var changedSpecWeights = await LoadChangedExperimentalSpecWeightsWeeklyAsync(
+            dbContext,
+            newId,
+            boundary,
+            cancellationToken);
+        if (changedSpecWeights.Count > 0)
+        {
+            dbContext.ExperimentalSpecWeightsWeekly.AddRange(changedSpecWeights);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -281,11 +284,11 @@ public sealed class TimeService(
     }
 
     private async Task<List<ExperimentalSpecWeightWeekly>> LoadChangedExperimentalSpecWeightsWeeklyAsync(
+        BalancerDbContext db,
         int newId,
         DateTime boundary,
         CancellationToken cancellationToken)
     {
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var alreadySpecWeightSnapshottedUuids = await db.ExperimentalSpecWeightsWeekly.AsNoTracking()
             .Where(x => x.WeekStartDate == newId)
             .Select(x => x.Uuid)
