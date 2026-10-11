@@ -103,6 +103,11 @@ public sealed class PlayerWeeklyWeightHistoryService(BalancerDbContext dbContext
                 specOffsets = ToSpecOffsetsResponse(runningOffsets);
             }
 
+            if (week.Timestamp < StatsWeightHistoryStart.Utc)
+            {
+                continue;
+            }
+
             points.Add(new WeeklyWeightPoint(
                 week.Id,
                 week.Timestamp,
