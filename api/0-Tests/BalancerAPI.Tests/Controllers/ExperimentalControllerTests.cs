@@ -664,7 +664,7 @@ public class ExperimentalControllerTests
                 true,
                 200,
                 null,
-                new ExperimentalSpecRequestUnrunResponse(restored)));
+                new ExperimentalSpecRequestUnrunResponse(restored, [])));
 
         var controller = CreateController(Mock.Of<ISpecWeightsService>(), specRequests: specRequests.Object);
 

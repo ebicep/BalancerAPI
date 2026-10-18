@@ -25,7 +25,8 @@ public sealed record ExperimentalSpecRequestUnrunPlayerResponse(
     [property: JsonPropertyName("created_time")] DateTime CreatedTime);
 
 public sealed record ExperimentalSpecRequestUnrunResponse(
-    [property: JsonPropertyName("restored")] IReadOnlyList<ExperimentalSpecRequestUnrunPlayerResponse> Restored);
+    [property: JsonPropertyName("restored")] IReadOnlyList<ExperimentalSpecRequestUnrunPlayerResponse> Restored,
+    [property: JsonPropertyName("cooldown_increased")] IReadOnlyList<ExperimentalSpecRequestUnrunPlayerResponse> CooldownIncreased);
 
 public sealed record ExperimentalSpecRequestUnrunServiceResult(
     bool Success,

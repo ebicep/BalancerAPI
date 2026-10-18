@@ -45,4 +45,50 @@ internal static class ExperimentalSpecRequestOutcomeApplier
             }
         }
     }
+
+    public static async Task<List<ExperimentalSpecRequestUnrunPlayerResponse>> IncrementUnfulfilledFromBalanceTeamsAsync(
+        BalancerDbContext db,
+        IReadOnlySet<Guid> fulfilledUuids,
+        IReadOnlyDictionary<Guid, (string Name, string AssignedSpec)> rosterByUuid,
+        CancellationToken cancellationToken)
+    {
+        if (rosterByUuid.Count == 0)
+        {
+            return [];
+        }
+
+        var uuids = rosterByUuid.Keys.ToList();
+        var rows = await db.ExperimentalSpecRequests
+            .Where(x => uuids.Contains(x.Uuid))
+            .ToListAsync(cancellationToken);
+
+        var increased = new List<ExperimentalSpecRequestUnrunPlayerResponse>();
+        foreach (var row in rows)
+        {
+            if (fulfilledUuids.Contains(row.Uuid))
+            {
+                continue;
+            }
+
+            if (!rosterByUuid.TryGetValue(row.Uuid, out var roster))
+            {
+                continue;
+            }
+
+            if (string.Equals(roster.AssignedSpec, row.Spec, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            row.GameCooldown++;
+            increased.Add(new ExperimentalSpecRequestUnrunPlayerResponse(
+                row.Uuid,
+                roster.Name,
+                row.Spec,
+                row.GameCooldown,
+                row.CreatedTime));
+        }
+
+        return increased;
+    }
 }

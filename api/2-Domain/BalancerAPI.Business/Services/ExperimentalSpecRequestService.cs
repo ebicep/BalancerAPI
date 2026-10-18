@@ -119,28 +119,40 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
         CancellationToken cancellationToken)
     {
         var unrunCreatedTime = UnrunCreatedTimeFromGame(gameCreatedAt);
-        var requestedByUuid = new Dictionary<Guid, (string Spec, string Name)>();
+
+        var rosterByUuid = new Dictionary<Guid, (string Name, string AssignedSpec)>();
         foreach (var team in teams)
         {
             foreach (var player in team.Specs)
             {
-                if (player.Requested)
+                var assigned = ManualWeightAdjustmentService.TryNormalizeSpec(player.Spec);
+                if (assigned is null)
                 {
-                    requestedByUuid[player.Uuid] = (player.Spec, player.Name);
+                    return UnrunFail(400, "Unknown or missing spec.");
                 }
+
+                rosterByUuid[player.Uuid] = (player.Name, assigned);
             }
         }
 
         var canonicalByUuid = new Dictionary<Guid, (string Spec, string Name)>();
-        foreach (var (uuid, requested) in requestedByUuid)
+        foreach (var team in teams)
         {
-            var canonical = ManualWeightAdjustmentService.TryNormalizeSpec(requested.Spec);
-            if (canonical is null)
+            foreach (var player in team.Specs)
             {
-                return UnrunFail(400, "Unknown or missing spec.");
-            }
+                if (!player.Requested)
+                {
+                    continue;
+                }
 
-            canonicalByUuid[uuid] = (canonical, requested.Name);
+                var canonical = ManualWeightAdjustmentService.TryNormalizeSpec(player.Spec);
+                if (canonical is null)
+                {
+                    return UnrunFail(400, "Unknown or missing spec.");
+                }
+
+                canonicalByUuid[player.Uuid] = (canonical, player.Name);
+            }
         }
 
         foreach (var (uuid, entry) in canonicalByUuid)
@@ -153,6 +165,13 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
                 return UnrunFail(400, $"Player is banned from {entry.Spec}.");
             }
         }
+
+        var fulfilledUuids = canonicalByUuid.Keys.ToHashSet();
+        var cooldownIncreased = await ExperimentalSpecRequestOutcomeApplier.IncrementUnfulfilledFromBalanceTeamsAsync(
+            db,
+            fulfilledUuids,
+            rosterByUuid,
+            cancellationToken);
 
         var restored = new List<ExperimentalSpecRequestUnrunPlayerResponse>();
         foreach (var (uuid, entry) in canonicalByUuid)
@@ -189,7 +208,7 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
 
         await db.SaveChangesAsync(cancellationToken);
 
-        return UnrunOk(new ExperimentalSpecRequestUnrunResponse(restored));
+        return UnrunOk(new ExperimentalSpecRequestUnrunResponse(restored, cooldownIncreased));
     }
 
     private static async Task<int> LoadRequestSpecGameCooldownAsync(

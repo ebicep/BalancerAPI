@@ -99,11 +99,75 @@ public class ExperimentalSpecRequestServiceTests
 
             Assert.True(result.Success);
             Assert.Single(result.Data!.Restored);
+            Assert.Empty(result.Data.CooldownIncreased);
             Assert.Equal(TestUuid, result.Data.Restored[0].Uuid);
             Assert.Equal("player", result.Data.Restored[0].Name);
             Assert.Equal("Pyromancer", result.Data.Restored[0].Spec);
             db.ChangeTracker.Clear();
             Assert.Single(await db.ExperimentalSpecRequests.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task UnrunFromBalanceAsync_MixedFulfilledAndUnfulfilled_RestoresAndIncrementsCooldown()
+    {
+        var balance = BuildBalance(
+            (TestUuid, "Pyromancer", true),
+            (OtherUuid, "Cryomancer", false));
+
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.ExperimentalSpecRequests.Add(new ExperimentalSpecRequest
+            {
+                Uuid = OtherUuid,
+                Spec = "Pyromancer",
+                GameCooldown = 1,
+                CreatedTime = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
+            await db.SaveChangesAsync();
+
+            var balanceId = await SeedBalanceLogAsync(db, balance);
+            var result = await service.UnrunFromBalanceIdAsync(balanceId, CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Single(result.Data!.Restored);
+            Assert.Single(result.Data.CooldownIncreased);
+            Assert.Equal(OtherUuid, result.Data.CooldownIncreased[0].Uuid);
+            Assert.Equal("Pyromancer", result.Data.CooldownIncreased[0].Spec);
+            Assert.Equal(2, result.Data.CooldownIncreased[0].GameCooldown);
+            db.ChangeTracker.Clear();
+            var otherRow = await db.ExperimentalSpecRequests.SingleAsync(x => x.Uuid == OtherUuid);
+            Assert.Equal(2, otherRow.GameCooldown);
+            var restoredRow = await db.ExperimentalSpecRequests.SingleAsync(x => x.Uuid == TestUuid);
+            Assert.Equal(-10, restoredRow.GameCooldown);
+        }
+    }
+
+    [Fact]
+    public async Task UnrunFromBalanceAsync_WhenNoFulfilled_IncrementsOnly()
+    {
+        var balance = BuildBalance((OtherUuid, "Cryomancer", false));
+
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.ExperimentalSpecRequests.Add(new ExperimentalSpecRequest
+            {
+                Uuid = OtherUuid,
+                Spec = "Pyromancer",
+                GameCooldown = 1,
+                CreatedTime = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
+            await db.SaveChangesAsync();
+
+            var balanceId = await SeedBalanceLogAsync(db, balance);
+            var result = await service.UnrunFromBalanceIdAsync(balanceId, CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Empty(result.Data!.Restored);
+            Assert.Single(result.Data.CooldownIncreased);
+            Assert.Equal(2, result.Data.CooldownIncreased[0].GameCooldown);
         }
     }
 
