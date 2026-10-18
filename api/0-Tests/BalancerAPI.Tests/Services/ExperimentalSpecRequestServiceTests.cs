@@ -29,6 +29,29 @@ public class ExperimentalSpecRequestServiceTests
     }
 
     [Fact]
+    public async Task UpsertAsync_WhenNoRow_UsesRequestSpecGameCooldownSetting()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.Settings.Add(new Setting
+            {
+                Key = ExperimentalSpecRequestService.RequestSpecGameCooldownSettingKey,
+                Value = 4
+            });
+            await db.SaveChangesAsync();
+
+            var result = await service.UpsertAsync(TestUuid, "Pyromancer", CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal(4, result.Data!.GameCooldown);
+            db.ChangeTracker.Clear();
+            var row = await db.ExperimentalSpecRequests.SingleAsync(x => x.Uuid == TestUuid);
+            Assert.Equal(4, row.GameCooldown);
+        }
+    }
+
+    [Fact]
     public async Task UpsertAsync_WhenRowExists_UpdatesSpecOnly()
     {
         var (service, db) = CreateService();

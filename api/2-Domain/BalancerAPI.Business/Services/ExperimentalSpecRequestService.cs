@@ -20,7 +20,8 @@ public interface IExperimentalSpecRequestService
 public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbContext> dbContextFactory)
     : IExperimentalSpecRequestService
 {
-    private const int InitialGameCooldown = 5;
+    public const string RequestSpecGameCooldownSettingKey = "request_spec_game_cooldown";
+    private const int DefaultRequestSpecGameCooldown = 5;
     private const int UnrunGameCooldown = -10;
     private const int UnrunCreatedTimeYearsBeforeGame = 20;
 
@@ -49,11 +50,12 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
 
         if (row is null)
         {
+            var initialCooldown = await LoadRequestSpecGameCooldownAsync(db, cancellationToken);
             row = new ExperimentalSpecRequest
             {
                 Uuid = uuid,
                 Spec = canonicalSpec,
-                GameCooldown = InitialGameCooldown,
+                GameCooldown = initialCooldown,
                 CreatedTime = DateTime.UtcNow
             };
             db.ExperimentalSpecRequests.Add(row);
@@ -188,6 +190,19 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
         await db.SaveChangesAsync(cancellationToken);
 
         return UnrunOk(new ExperimentalSpecRequestUnrunResponse(restored));
+    }
+
+    private static async Task<int> LoadRequestSpecGameCooldownAsync(
+        BalancerDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var row = await db.Settings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Key == RequestSpecGameCooldownSettingKey, cancellationToken);
+
+        return row is null
+            ? DefaultRequestSpecGameCooldown
+            : (int)Math.Round(row.Value, MidpointRounding.AwayFromZero);
     }
 
     private static ExperimentalSpecRequestServiceResult Ok(ExperimentalSpecRequestResponse data) =>
