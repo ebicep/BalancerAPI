@@ -16,3 +16,19 @@ public sealed record ExperimentalSpecRequestServiceResult(
     int StatusCode,
     string? Message,
     ExperimentalSpecRequestResponse? Data);
+
+public sealed record ExperimentalSpecRequestUnrunPlayerResponse(
+    [property: JsonPropertyName("uuid")] Guid Uuid,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("spec")] string Spec,
+    [property: JsonPropertyName("game_cooldown")] int GameCooldown,
+    [property: JsonPropertyName("created_time")] DateTime CreatedTime);
+
+public sealed record ExperimentalSpecRequestUnrunResponse(
+    [property: JsonPropertyName("restored")] IReadOnlyList<ExperimentalSpecRequestUnrunPlayerResponse> Restored);
+
+public sealed record ExperimentalSpecRequestUnrunServiceResult(
+    bool Success,
+    int StatusCode,
+    string? Message,
+    ExperimentalSpecRequestUnrunResponse? Data);

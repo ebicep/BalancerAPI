@@ -631,6 +631,52 @@ public class ExperimentalControllerTests
     }
 
     [Fact]
+    public async Task UnrunBalance_WhenServiceFails_ReturnsProblem()
+    {
+        var specRequests = new Mock<IExperimentalSpecRequestService>();
+        specRequests
+            .Setup(x => x.UnrunFromBalanceIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalSpecRequestUnrunServiceResult(false, 404, "Balance log not found.", null));
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specRequests: specRequests.Object);
+
+        var result = await controller.UnrunBalance(TestBalanceId, CancellationToken.None);
+
+        AssertProblem(result.Result!, StatusCodes.Status404NotFound, "Balance log not found.");
+    }
+
+    [Fact]
+    public async Task UnrunBalance_WhenServiceSucceeds_ReturnsOk()
+    {
+        var restored = new[]
+        {
+            new ExperimentalSpecRequestUnrunPlayerResponse(
+                TestUuid,
+                "alpha",
+                "Pyromancer",
+                -10,
+                new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc))
+        };
+        var specRequests = new Mock<IExperimentalSpecRequestService>();
+        specRequests
+            .Setup(x => x.UnrunFromBalanceIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExperimentalSpecRequestUnrunServiceResult(
+                true,
+                200,
+                null,
+                new ExperimentalSpecRequestUnrunResponse(restored)));
+
+        var controller = CreateController(Mock.Of<ISpecWeightsService>(), specRequests: specRequests.Object);
+
+        var result = await controller.UnrunBalance(TestBalanceId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ExperimentalSpecRequestUnrunResponse>(ok.Value);
+        Assert.Single(response.Restored);
+        Assert.Equal("Pyromancer", response.Restored[0].Spec);
+    }
+
+    [Fact]
     public async Task GetSpecBans_WhenNameResolves_ReturnsOk()
     {
         await using var db = CreateDbContext();

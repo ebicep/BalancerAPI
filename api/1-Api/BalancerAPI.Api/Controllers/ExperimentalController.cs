@@ -811,6 +811,25 @@ public class ExperimentalController(
         return Problem(detail: err.Message, statusCode: err.StatusCode);
     }
 
+    [HttpPost("balance/{balanceId:guid}/unrun")]
+    [MapToApiVersion("1.0")]
+    [Authorize(Policy = ApiPermissions.ExperimentalBalance)]
+    [ProducesResponseType(typeof(ExperimentalSpecRequestUnrunResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ExperimentalSpecRequestUnrunResponse>> UnrunBalance(
+        Guid balanceId,
+        CancellationToken cancellationToken)
+    {
+        var result = await experimentalSpecRequestService.UnrunFromBalanceIdAsync(balanceId, cancellationToken);
+        if (!result.Success)
+        {
+            return Problem(detail: result.Message, statusCode: result.StatusCode);
+        }
+
+        return Ok(result.Data);
+    }
+
     [HttpPost("balance/{balanceId:guid}/confirm")]
     [MapToApiVersion("1.0")]
     [Authorize(Policy = ApiPermissions.ExperimentalConfirm)]
