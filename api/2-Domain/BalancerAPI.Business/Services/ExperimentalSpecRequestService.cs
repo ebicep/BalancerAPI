@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Json;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
@@ -79,16 +80,29 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
         CancellationToken cancellationToken)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
         var log = await db.ExperimentalBalanceLogs
-            .AsNoTracking()
             .Where(x => x.BalanceId == balanceId)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (log is null)
         {
+            await tx.RollbackAsync(cancellationToken);
             return UnrunFail(404, "Balance log not found.");
+        }
+
+        if (log.Posted)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return UnrunFail(409, "Balance already confirmed.");
+        }
+
+        if (log.Counted || log.Uncount == true)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return UnrunFail(409, "Balance must be uninput before unrun.");
         }
 
         List<ExperimentalBalanceTeam>? teams;
@@ -98,15 +112,25 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
         }
         catch (JsonException)
         {
+            await tx.RollbackAsync(cancellationToken);
             return UnrunFail(400, "Stored balance JSON is invalid.");
         }
 
         if (teams is null || teams.Count == 0)
         {
+            await tx.RollbackAsync(cancellationToken);
             return UnrunFail(400, "Stored balance must contain at least one team.");
         }
 
-        return await UnrunFromTeamsAsync(db, teams, log.CreatedAt, cancellationToken);
+        var result = await UnrunFromTeamsAsync(db, balanceId, log, teams, log.CreatedAt, cancellationToken);
+        if (!result.Success)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return result;
+        }
+
+        await tx.CommitAsync(cancellationToken);
+        return result;
     }
 
     private static DateTime UnrunCreatedTimeFromGame(DateTime gameCreatedAt) =>
@@ -114,6 +138,8 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
 
     private async Task<ExperimentalSpecRequestUnrunServiceResult> UnrunFromTeamsAsync(
         BalancerDbContext db,
+        Guid balanceId,
+        ExperimentalBalanceLog balanceLog,
         IReadOnlyList<ExperimentalBalanceTeam> teams,
         DateTime gameCreatedAt,
         CancellationToken cancellationToken)
@@ -205,6 +231,12 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
                 row.GameCooldown,
                 row.CreatedTime));
         }
+
+        var specLogRows = await db.ExperimentalSpecLogs
+            .Where(x => x.BalanceId == balanceId)
+            .ToListAsync(cancellationToken);
+        db.ExperimentalSpecLogs.RemoveRange(specLogRows);
+        db.ExperimentalBalanceLogs.Remove(balanceLog);
 
         await db.SaveChangesAsync(cancellationToken);
 

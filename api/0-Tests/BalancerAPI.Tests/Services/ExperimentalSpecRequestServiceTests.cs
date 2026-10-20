@@ -3,6 +3,7 @@ using BalancerAPI.Business.Services;
 using BalancerAPI.Data.Data;
 using BalancerAPI.Domain.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace BalancerAPI.Tests.Services;
 
@@ -105,6 +106,7 @@ public class ExperimentalSpecRequestServiceTests
             Assert.Equal("Pyromancer", result.Data.Restored[0].Spec);
             db.ChangeTracker.Clear();
             Assert.Single(await db.ExperimentalSpecRequests.ToListAsync());
+            await AssertBalanceLogRemovedAsync(db, balanceId);
         }
     }
 
@@ -141,6 +143,7 @@ public class ExperimentalSpecRequestServiceTests
             Assert.Equal(2, otherRow.GameCooldown);
             var restoredRow = await db.ExperimentalSpecRequests.SingleAsync(x => x.Uuid == TestUuid);
             Assert.Equal(-10, restoredRow.GameCooldown);
+            await AssertBalanceLogRemovedAsync(db, balanceId);
         }
     }
 
@@ -168,6 +171,7 @@ public class ExperimentalSpecRequestServiceTests
             Assert.Empty(result.Data!.Restored);
             Assert.Single(result.Data.CooldownIncreased);
             Assert.Equal(2, result.Data.CooldownIncreased[0].GameCooldown);
+            await AssertBalanceLogRemovedAsync(db, balanceId);
         }
     }
 
@@ -190,6 +194,7 @@ public class ExperimentalSpecRequestServiceTests
             Assert.Equal(-10, row.GameCooldown);
             Assert.Equal(expectedCreated, row.CreatedTime);
             Assert.Equal("Pyromancer", row.Spec);
+            await AssertBalanceLogRemovedAsync(db, balanceId);
         }
     }
 
@@ -219,6 +224,7 @@ public class ExperimentalSpecRequestServiceTests
             Assert.Equal("Cryomancer", row.Spec);
             Assert.Equal(-10, row.GameCooldown);
             Assert.Equal(expectedCreated, row.CreatedTime);
+            await AssertBalanceLogRemovedAsync(db, balanceId);
         }
     }
 
@@ -253,6 +259,7 @@ public class ExperimentalSpecRequestServiceTests
             var result = await service.UnrunFromBalanceIdAsync(balanceId, CancellationToken.None);
             Assert.False(result.Success);
             Assert.Equal(400, result.StatusCode);
+            await AssertBalanceLogPresentAsync(db, balanceId);
         }
     }
 
@@ -269,6 +276,73 @@ public class ExperimentalSpecRequestServiceTests
             Assert.False(result.Success);
             Assert.Equal(400, result.StatusCode);
             Assert.Empty(await db.ExperimentalSpecRequests.ToListAsync());
+            await AssertBalanceLogPresentAsync(db, balanceId);
+        }
+    }
+
+    [Fact]
+    public async Task UnrunFromBalanceAsync_WhenBannedOnRequestedSpec_Returns400()
+    {
+        var balance = BuildBalance((TestUuid, "Pyromancer", true));
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            db.ExperimentalSpecBans.Add(new ExperimentalSpecBan
+            {
+                Uuid = TestUuid,
+                Pyromancer = true
+            });
+            await db.SaveChangesAsync();
+
+            var balanceId = await SeedBalanceLogAsync(db, balance);
+            var result = await service.UnrunFromBalanceIdAsync(balanceId, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(400, result.StatusCode);
+            Assert.Contains("banned", result.Message, StringComparison.OrdinalIgnoreCase);
+            await AssertBalanceLogPresentAsync(db, balanceId);
+        }
+    }
+
+    [Fact]
+    public async Task UnrunFromBalanceIdAsync_WhenPosted_Returns409()
+    {
+        var balance = BuildBalance((TestUuid, "Pyromancer", true));
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            var balanceId = await SeedBalanceLogAsync(db, balance);
+            var log = await db.ExperimentalBalanceLogs.SingleAsync(x => x.BalanceId == balanceId);
+            log.Posted = true;
+            await db.SaveChangesAsync();
+
+            var result = await service.UnrunFromBalanceIdAsync(balanceId, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(409, result.StatusCode);
+            Assert.Equal("Balance already confirmed.", result.Message);
+            await AssertBalanceLogPresentAsync(db, balanceId);
+        }
+    }
+
+    [Fact]
+    public async Task UnrunFromBalanceIdAsync_WhenCounted_Returns409()
+    {
+        var balance = BuildBalance((TestUuid, "Pyromancer", true));
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            var balanceId = await SeedBalanceLogAsync(db, balance);
+            var log = await db.ExperimentalBalanceLogs.SingleAsync(x => x.BalanceId == balanceId);
+            log.Counted = true;
+            await db.SaveChangesAsync();
+
+            var result = await service.UnrunFromBalanceIdAsync(balanceId, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(409, result.StatusCode);
+            Assert.Equal("Balance must be uninput before unrun.", result.Message);
+            await AssertBalanceLogPresentAsync(db, balanceId);
         }
     }
 
@@ -321,6 +395,18 @@ public class ExperimentalSpecRequestServiceTests
             new ExperimentalBalanceMeta(0, 0, [], 0, createdAt));
     }
 
+    private static async Task AssertBalanceLogRemovedAsync(BalancerDbContext db, Guid balanceId)
+    {
+        db.ChangeTracker.Clear();
+        Assert.False(await db.ExperimentalBalanceLogs.AnyAsync(x => x.BalanceId == balanceId));
+    }
+
+    private static async Task AssertBalanceLogPresentAsync(BalancerDbContext db, Guid balanceId)
+    {
+        db.ChangeTracker.Clear();
+        Assert.True(await db.ExperimentalBalanceLogs.AnyAsync(x => x.BalanceId == balanceId));
+    }
+
     private static async Task<Guid> SeedBalanceLogAsync(
         BalancerDbContext db,
         ExperimentalBalanceResponse balance)
@@ -340,6 +426,7 @@ public class ExperimentalSpecRequestServiceTests
     {
         var options = new DbContextOptionsBuilder<BalancerDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
         var factory = new TestDbContextFactory(options);
         return (new ExperimentalSpecRequestService(factory), factory.CreateDbContext());
