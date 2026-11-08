@@ -107,6 +107,7 @@ public sealed class ExperimentalBalanceService(
         }
         while (LineupKbTotal(shuffledSpecs) > teamSize);
         var shuffledIndexMap = BuildShuffledIndexMap(shuffledSpecs);
+        var activeSpecRequesters = BuildActiveSpecRequesterSet(players, specRequestsByPlayer);
 
         for (var iter = 0; iter < maxIter; iter++)
         {
@@ -124,6 +125,10 @@ public sealed class ExperimentalBalanceService(
 
             var blue = players.Take(teamSize).ToArray();
             var red = players.Skip(teamSize).Take(teamSize).ToArray();
+            if (ViolatesActiveSpecRequestTeamClustering(blue, red, activeSpecRequesters))
+            {
+                continue;
+            }
 
             var preassignQueue = BuildSpecRequestPreassignQueue(players, specRequestsByPlayer);
 
@@ -449,6 +454,59 @@ public sealed class ExperimentalBalanceService(
             .ToListAsync(cancellationToken);
 
         return rows.ToDictionary(x => x.Uuid);
+    }
+
+    private static HashSet<Guid> BuildActiveSpecRequesterSet(
+        IReadOnlyList<Guid> roster,
+        IReadOnlyDictionary<Guid, ExperimentalSpecRequest> requestsByPlayer)
+    {
+        var rosterSet = roster.ToHashSet();
+        var set = new HashSet<Guid>();
+        foreach (var request in requestsByPlayer.Values)
+        {
+            if (request.GameCooldown <= 0 && rosterSet.Contains(request.Uuid))
+            {
+                set.Add(request.Uuid);
+            }
+        }
+
+        return set;
+    }
+
+    /// <summary>
+    /// When two or more players have active spec requests in the lobby, reject splits that place all of them on one team.
+    /// </summary>
+    internal static bool ViolatesActiveSpecRequestTeamClustering(
+        IReadOnlyList<Guid> blue,
+        IReadOnlyList<Guid> red,
+        IReadOnlySet<Guid> activeSpecRequesters)
+    {
+        if (activeSpecRequesters.Count < 2)
+        {
+            return false;
+        }
+
+        var onBlue = false;
+        var onRed = false;
+        foreach (var id in blue)
+        {
+            if (activeSpecRequesters.Contains(id))
+            {
+                onBlue = true;
+                break;
+            }
+        }
+
+        foreach (var id in red)
+        {
+            if (activeSpecRequesters.Contains(id))
+            {
+                onRed = true;
+                break;
+            }
+        }
+
+        return !onBlue || !onRed;
     }
 
     private static IReadOnlyList<SpecRequestPreassign> BuildSpecRequestPreassignQueue(
