@@ -74,6 +74,9 @@ public sealed class ExperimentalBalanceService(
         var maxWlDiff = GetIntSetting(settings, "max_wl_diff", 50);
         var maxKdDiff = GetIntSetting(settings, "max_kd_diff", 10);
         var maxSpecTypeDiff = GetIntSetting(settings, "max_spec_type_diff", 2);
+        var specGroupWeightEnabled = GetIntSetting(settings, "spec_group_weight_balance_enabled", 1) != 0;
+        var maxSpecGroupWeightDiff = GetIntSetting(settings, "max_spec_group_weight_diff", 20);
+        var maxSpecGroupWeightFailures = GetIntSetting(settings, "max_spec_group_weight_failures", 2);
         var requestSpecsLimit = GetIntSetting(settings, "request_specs_limit", 4);
 
         var playerData = await playerDataTask;
@@ -134,6 +137,7 @@ public sealed class ExperimentalBalanceService(
 
             var blue = players.Take(teamSize).ToArray();
             var red = players.Skip(teamSize).Take(teamSize).ToArray();
+
             var preassignQueue = BuildSpecRequestPreassignQueue(players, specRequestsByPlayer);
 
             var blueAssign = AssignSpecs(
@@ -188,7 +192,10 @@ public sealed class ExperimentalBalanceService(
                 || flatDiff > maxFlatTeamDiff
                 || wlDiff > maxWlDiff
                 || !(kdDiff <= maxKdDiff)
-                || specTypeDiff > maxSpecTypeDiff) continue;
+                || specTypeDiff > maxSpecTypeDiff
+                || (specGroupWeightEnabled
+                    && ViolatesSpecGroupWeightBalance(
+                        blueAssign, redAssign, maxSpecGroupWeightDiff, maxSpecGroupWeightFailures))) continue;
             
             sw.Stop();
             steps.Add(new ExperimentalBalanceMetaStep(
@@ -993,6 +1000,43 @@ public sealed class ExperimentalBalanceService(
                 total += kbValue;
         }
         return total;
+    }
+
+    internal static bool ViolatesSpecGroupWeightBalance(
+        PlayerAssignment[] blue,
+        PlayerAssignment[] red,
+        int maxDiff,
+        int maxFailures)
+    {
+        var exceededCount = 0;
+        foreach (var group in ExperimentalSpecs.SpecWeightBalanceGroupSets)
+        {
+            var blueSum = SumEvalWeightInGroup(blue, group);
+            var redSum = SumEvalWeightInGroup(red, group);
+            if (Math.Abs(blueSum - redSum) > maxDiff)
+            {
+                if (++exceededCount >= maxFailures)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static int SumEvalWeightInGroup(PlayerAssignment[] team, HashSet<string> group)
+    {
+        var sum = 0;
+        foreach (var a in team)
+        {
+            if (group.Contains(a.Spec))
+            {
+                sum += a.EvalWeight;
+            }
+        }
+
+        return sum;
     }
 
     private static int MaxSpecTypeDiff(PlayerAssignment[] blue, PlayerAssignment[] red)

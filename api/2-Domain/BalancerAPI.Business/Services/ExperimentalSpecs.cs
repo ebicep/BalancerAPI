@@ -35,6 +35,21 @@ public static class ExperimentalSpecs
     public static readonly HashSet<string> TankSet = new(Tank, StringComparer.Ordinal);
     public static readonly HashSet<string> HealSet = new(Heal, StringComparer.Ordinal);
 
+    /// <summary>Legacy Discord bot balancedSpecTypes buckets (summed EvalWeight per team).</summary>
+    public static readonly string[][] SpecWeightBalanceGroups =
+    [
+        ["Avenger", "Thunderlord"],
+        ["Berserker", "Pyromancer", "Assassin", "Conjurer"],
+        ["Cryomancer", "Defender", "Vindicator", "Crusader", "Sentinel"],
+        ["Aquamancer", "Luminary"],
+        ["Revenant", "Protector", "Earthwarden", "Apothecary"],
+    ];
+
+    public static readonly HashSet<string>[] SpecWeightBalanceGroupSets =
+        SpecWeightBalanceGroups
+            .Select(g => new HashSet<string>(g, StringComparer.Ordinal))
+            .ToArray();
+
     public static readonly IReadOnlyDictionary<string, int> KbValues =
         new Dictionary<string, int>(StringComparer.Ordinal)
         {
