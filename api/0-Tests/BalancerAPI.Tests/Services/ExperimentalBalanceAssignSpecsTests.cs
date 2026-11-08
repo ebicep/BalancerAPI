@@ -292,22 +292,4 @@ public class ExperimentalBalanceAssignSpecsTests
         Assert.Equal(differentSpec, differentSpecAssignment.Spec);
         Assert.False(differentSpecAssignment.Off);
     }
-
-    [Fact]
-    public void ShuffleInPlaceRespectingPins_keeps_pinned_players_at_same_index()
-    {
-        var p1 = P(1);
-        var p2 = P(2);
-        var p3 = P(3);
-        var p4 = P(4);
-        var players = new List<Guid> { p1, p2, p3, p4 };
-        var pinned = new HashSet<Guid> { p2 };
-
-        for (var i = 0; i < 200; i++)
-        {
-            var copy = new List<Guid>(players);
-            ExperimentalBalanceService.ShuffleInPlaceRespectingPins(copy, pinned, new Random(i));
-            Assert.Equal(p2, copy[1]);
-        }
-    }
 }

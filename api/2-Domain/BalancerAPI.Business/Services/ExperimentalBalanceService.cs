@@ -100,12 +100,6 @@ public sealed class ExperimentalBalanceService(
         var random = Random.Shared;
         var computeStartOffset = requestStopwatch.Elapsed.TotalMilliseconds;
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var swapUnlockIter = (int)(maxIter * 0.75);
-        var pinnedForShuffle = specRequestsByPlayer.Values
-            .Where(r => r.GameCooldown <= 0)
-            .Select(r => r.Uuid)
-            .ToHashSet();
-
         string[] shuffledSpecs;
         do
         {
@@ -126,14 +120,7 @@ public sealed class ExperimentalBalanceService(
                 shuffledIndexMap = BuildShuffledIndexMap(shuffledSpecs);
             }
 
-            if (iter > swapUnlockIter)
-            {
-                ShuffleInPlace(players, random);
-            }
-            else
-            {
-                ShuffleInPlaceRespectingPins(players, pinnedForShuffle, random);
-            }
+            ShuffleInPlace(players, random);
 
             var blue = players.Take(teamSize).ToArray();
             var red = players.Skip(teamSize).Take(teamSize).ToArray();
@@ -646,29 +633,6 @@ public sealed class ExperimentalBalanceService(
         {
             var j = random.Next(i + 1);
             (list[i], list[j]) = (list[j], list[i]);
-        }
-    }
-
-    internal static void ShuffleInPlaceRespectingPins(
-        IList<Guid> list,
-        IReadOnlySet<Guid> pinnedPlayerIds,
-        Random random)
-    {
-        var unpinnedIndices = new List<int>(list.Count);
-        for (var i = 0; i < list.Count; i++)
-        {
-            if (!pinnedPlayerIds.Contains(list[i]))
-            {
-                unpinnedIndices.Add(i);
-            }
-        }
-
-        for (var i = unpinnedIndices.Count - 1; i > 0; i--)
-        {
-            var j = random.Next(i + 1);
-            var idxI = unpinnedIndices[i];
-            var idxJ = unpinnedIndices[j];
-            (list[idxI], list[idxJ]) = (list[idxJ], list[idxI]);
         }
     }
 
