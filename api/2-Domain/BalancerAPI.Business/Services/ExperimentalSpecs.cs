@@ -35,6 +35,15 @@ public static class ExperimentalSpecs
     public static readonly HashSet<string> TankSet = new(Tank, StringComparer.Ordinal);
     public static readonly HashSet<string> HealSet = new(Heal, StringComparer.Ordinal);
 
+    /// <summary>Specs that cannot be saved via the spec-request endpoint (still assignable in balance).</summary>
+    public static readonly HashSet<string> SpecRequestBlocked = new(StringComparer.Ordinal)
+    {
+        "Spiritguard",
+    };
+
+    public static bool IsSpecRequestAllowed(string canonicalSpec) =>
+        !SpecRequestBlocked.Contains(canonicalSpec);
+
     /// <summary>Legacy Discord bot balancedSpecTypes buckets (summed EvalWeight per team).</summary>
     public static readonly string[][] SpecWeightBalanceGroups =
     [

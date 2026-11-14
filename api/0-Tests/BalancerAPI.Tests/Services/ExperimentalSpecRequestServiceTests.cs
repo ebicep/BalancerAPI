@@ -368,6 +368,21 @@ public class ExperimentalSpecRequestServiceTests
         }
     }
 
+    [Fact]
+    public async Task UpsertAsync_WhenSpiritguard_Returns400()
+    {
+        var (service, db) = CreateService();
+        await using (db)
+        {
+            var result = await service.UpsertAsync(TestUuid, "Spiritguard", CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(400, result.StatusCode);
+            Assert.Contains("cannot be spec-requested", result.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Empty(await db.ExperimentalSpecRequests.ToListAsync());
+        }
+    }
+
     private static ExperimentalBalanceResponse BuildBalance(
         params (Guid uuid, string spec, bool requested)[] players) =>
         BuildBalance(null, players);

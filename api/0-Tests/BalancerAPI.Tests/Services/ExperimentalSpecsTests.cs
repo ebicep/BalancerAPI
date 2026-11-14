@@ -31,6 +31,14 @@ public class ExperimentalSpecsTests
         Assert.Equal(["Cryomancer", "Vindicator", "Crusader"], ExperimentalSpecs.TankPicks);
     }
 
+    [Fact]
+    public void Spiritguard_IsBlockedFromSpecRequest()
+    {
+        Assert.Contains("Spiritguard", ExperimentalSpecs.SpecRequestBlocked);
+        Assert.False(ExperimentalSpecs.IsSpecRequestAllowed("Spiritguard"));
+        Assert.True(ExperimentalSpecs.IsSpecRequestAllowed("Thunderlord"));
+    }
+
     [Theory]
     [InlineData("heal", "Healer")]
     [InlineData("Heal", "Healer")]

@@ -515,7 +515,8 @@ public sealed class ExperimentalBalanceService(
     {
         var rosterSet = roster.ToHashSet();
         return requestsByPlayer.Values
-            .Where(r => r.GameCooldown <= 0 && rosterSet.Contains(r.Uuid))
+            .Where(r => r.GameCooldown <= 0 && rosterSet.Contains(r.Uuid)
+                && ExperimentalSpecs.IsSpecRequestAllowed(r.Spec))
             .OrderBy(r => r.CreatedTime)
             .Select(r => new SpecRequestPreassign(r.Uuid, r.Spec))
             .ToList();

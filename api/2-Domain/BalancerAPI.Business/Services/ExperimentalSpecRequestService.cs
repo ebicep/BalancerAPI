@@ -38,6 +38,11 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
+        if (!ExperimentalSpecs.IsSpecRequestAllowed(canonicalSpec))
+        {
+            return Fail(400, $"{canonicalSpec} cannot be spec-requested.");
+        }
+
         var banRow = await db.ExperimentalSpecBans
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Uuid == uuid, cancellationToken);
@@ -183,6 +188,11 @@ public sealed class ExperimentalSpecRequestService(IDbContextFactory<BalancerDbC
 
         foreach (var (uuid, entry) in canonicalByUuid)
         {
+            if (!ExperimentalSpecs.IsSpecRequestAllowed(entry.Spec))
+            {
+                return UnrunFail(400, $"{entry.Spec} cannot be spec-requested.");
+            }
+
             var banRow = await db.ExperimentalSpecBans
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Uuid == uuid, cancellationToken);
